@@ -1,0 +1,44 @@
+# --- Python bytecode & caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# --- Virtual environments
+.venv/
+venv/
+env/
+
+# --- Env files / secrets
+.env
+*.env
+
+# --- OS cruft
+.DS_Store
+Thumbs.db
+
+# --- Project-specific
+# SQLite DBs (keep folder tracked)
+db/*.sqlite
+!db/.gitkeep
+
+# Raw intake + working data (keep folders tracked)
+inbox/*
+!inbox/.gitkeep
+
+data/*
+!data/.gitkeep
+
+logs/*
+!logs/.gitkeep
+
+staged/*
+!staged/.gitkeep
+listed/*
+!listed/.gitkeep
+sold/*
+!sold/.gitkeep
+exports/*
+!exports/.gitkeep
+logs/*
+!logs/.gitkeep
+

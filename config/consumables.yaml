@@ -1,0 +1,15 @@
+# Per-unit consumable costs in GBP (use decimals, e.g., 0.03 for 3p).
+# Tip: per_unit = total_pack_price / quantity (round to 3–4 dp).
+
+penny_sleeve: 
+top_loader: 
+team_bag: 
+rigid_mailer: 
+label: 
+envelope: 
+
+# (Optional extras you can add later)
+# semi_rigid:
+# bubble_mailer:
+# tape:
+# bubble_wrap:
