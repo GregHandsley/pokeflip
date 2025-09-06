@@ -59,3 +59,21 @@ reset-hard:
 	@find sold -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
 	@: > logs/ingest.log
 	@echo "🧨 Hard reset complete."
+
+sprint:
+	@if git diff --quiet && git diff --cached --quiet; then \
+	  echo "Nothing to commit."; \
+	else \
+	  git add -A && git commit -m "$(MSG)"; \
+	fi
+	git push
+
+tag:
+	@if git rev-parse -q --verify "refs/tags/$(TAG)" >/dev/null; then \
+	  echo "Tag '$(TAG)' already exists. Aborting."; exit 1; \
+	fi
+	git tag -a "$(TAG)" -m "$(MSG)"
+	git push origin "$(TAG)"
+
+review:
+	$(PY) -m app.ingest_step2 $(ARGS)
