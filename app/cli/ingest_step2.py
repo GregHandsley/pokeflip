@@ -4,10 +4,11 @@ import argparse, sqlite3
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
 
-from .paths import project_root, inbox_pending_dir
-from .db import connect_db, relpath
-from .sku import build_sku
-from .sku_suggest import suggest as sku_suggest  # <— NEW
+# app/cli/ingest_step2.py
+from app.common.paths import project_root, inbox_pending_dir
+from app.storage.db import connect_db, relpath
+from app.sku.sku import build_sku
+from app.sku.sku_suggest import suggest as sku_suggest
 
 def _find_front_back(folder: Path) -> Tuple[Path, Path]:
     imgs = sorted([p for p in folder.iterdir() if p.is_file()])

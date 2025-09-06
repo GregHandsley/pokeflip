@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from .paths import db_path, project_root
+from app.common.paths import db_path, project_root
 
 def connect_db() -> sqlite3.Connection:
     conn = sqlite3.connect(db_path())

@@ -4,9 +4,9 @@ from pathlib import Path
 from uuid import uuid4
 from typing import List, Tuple
 
-from .paths import inbox_pending_dir, project_root
-from .pairing import detect_side
-from .db import relpath, update_image_path
+from app.common.paths import inbox_pending_dir, project_root
+from app.vision.pairing import detect_side
+from app.storage.db import relpath, update_image_path
 
 def _unique_path(base: Path) -> Path:
     """If base exists, add -1, -2, ... until free."""

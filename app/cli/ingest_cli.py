@@ -2,16 +2,18 @@ import argparse
 from typing import List
 from pathlib import Path
 
-from .paths import inbox_unsorted_dir, project_root
-from .imaging import is_image_file, compute_phash
-from .db import (
+# app/cli/ingest_cli.py
+from app.common.paths import inbox_unsorted_dir, project_root
+from app.vision.imaging import is_image_file, compute_phash
+from app.storage.db import (
     connect_db, ensure_images_table, relpath, upsert_image_record,
     get_phash_by_path, find_duplicates_by_phash
 )
-from .staging import move_pairs_to_pending
-from .pairing import group_by_stem, pair_by_name, pair_by_time
-from .reporting import print_file_summary, print_pairs_report
-from .logger import log_duplicate_skipped
+from app.pipelines.staging import move_pairs_to_pending
+from app.vision.pairing import group_by_stem, pair_by_name, pair_by_time
+from app.common.reporting import print_file_summary, print_pairs_report
+from app.common.logger import log_duplicate_skipped
+
 
 
 def scan_unsorted(include_hidden: bool = False) -> List[Path]:

@@ -15,7 +15,7 @@ db:
 
 # 3) Ingest photos -> staged cards (add flags via ARGS="...")
 ingest:
-	$(PY) -m app.ingest_cli $(ARGS)
+	$(PY) -m app.cli.ingest_cli $(ARGS)
 
 # 4) Build eBay bulk CSV (add flags via ARGS="...")
 build-csv:
@@ -76,4 +76,4 @@ tag:
 	git push origin "$(TAG)"
 
 review:
-	$(PY) -m app.ingest_step2 $(ARGS)
+	$(PY) -m app.cli.ingest_step2 $(ARGS)
