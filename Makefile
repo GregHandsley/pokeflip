@@ -3,7 +3,8 @@ VENV := .venv
 PY   := $(VENV)/bin/python
 PIP  := $(VENV)/bin/pip
 
-.PHONY: init db ingest build-csv report watch add-sale freeze
+.PHONY: init db ingest build-csv report watch add-sale freeze \
+        reset-soft reset-hard sprint tag review preview-texts
 
 # 1) First-time setup (after you've created .venv already)
 init:
@@ -81,3 +82,6 @@ tag:
 
 review:
 	$(PY) -m app.cli.ingest_step2 $(ARGS)
+
+preview-texts:
+	$(PY) -m app.cli.preview_texts $(ARGS)
