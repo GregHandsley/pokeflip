@@ -68,12 +68,16 @@ sprint:
 	fi
 	git push
 
+# make sprint MSG="sprint 4: package refactor + SKU-suggest stub"
+
 tag:
 	@if git rev-parse -q --verify "refs/tags/$(TAG)" >/dev/null; then \
 	  echo "Tag '$(TAG)' already exists. Aborting."; exit 1; \
 	fi
 	git tag -a "$(TAG)" -m "$(MSG)"
 	git push origin "$(TAG)"
+
+#make tag TAG="sprint-4" MSG="Sprint 4 complete"
 
 review:
 	$(PY) -m app.cli.ingest_step2 $(ARGS)
