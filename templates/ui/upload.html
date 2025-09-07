@@ -1,0 +1,9 @@
+{% extends "ui/base.html" %}
+{% block body %}
+<h2>Upload photos</h2>
+<form method="post" action="/upload" enctype="multipart/form-data">
+  <input type="file" name="files" multiple required>
+  <p class="muted">Tip: include “front/back” in filenames for best pairing.</p>
+  <button class="btn" type="submit">Upload</button>
+</form>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "ui/base.html" %}
+{% block body %}
+<h2>Pending</h2>
+
+{% if moved or dupes %}
+  <p>
+    {% if moved %}<b>{{moved}}</b> pair(s) moved to Pending. {% endif %}
+    {% if dupes %}<b>{{dupes}}</b> duplicate file(s) skipped.{% endif %}
+  </p>
+{% endif %}
+
+{% if not items %}
+  <p class="muted">No items in pending. Upload and click “Ingest → Pending”.</p>
+{% else %}
+  <div class="grid">
+    {% for it in items %}
+    <div class="card">
+      <div class="muted"><b>{{it.uuid}}</b></div>
+      <div style="display:flex; gap:8px; margin-top:8px">
+        {% if it.front %}<img class="thumb" src="{{ it.front }}" loading="lazy" alt="front">{% endif %}
+        {% if it.back %}<img class="thumb" src="{{ it.back }}" loading="lazy" alt="back">{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

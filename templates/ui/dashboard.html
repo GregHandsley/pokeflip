@@ -1,10 +1,13 @@
 {% extends "ui/base.html" %}
 {% block body %}
-<div class="grid">
-  <div class="card"><b>Unsorted</b><div class="muted">{{counts.unsorted}} files</div><a class="btn" href="/upload">Upload (soon)</a></div>
-  <div class="card"><b>Pending</b><div class="muted">{{counts.pending}} pairs</div><a class="btn" href="/pending">Open (soon)</a></div>
-  <div class="card"><b>Staged</b><div class="muted">{{counts.staged}} folders</div></div>
-  <div class="card"><b>Cards</b><div class="muted">{{counts.cards}} rows</div><a class="btn" href="/cards">View (soon)</a></div>
-  <div class="card"><b>Images</b><div class="muted">{{counts.images}} rows</div></div>
+<div class="card">
+  <b>Unsorted</b>
+  <div class="muted">{{counts.unsorted}} files</div>
+  <div style="margin-top:8px">
+    <a class="btn" href="/upload">Upload</a>
+    <form method="post" action="/ingest" style="display:inline;margin-left:8px">
+      <button class="btn" type="submit">Ingest → Pending</button>
+    </form>
+  </div>
 </div>
 {% endblock %}
