@@ -4,7 +4,8 @@ PY   := $(VENV)/bin/python
 PIP  := $(VENV)/bin/pip
 
 .PHONY: init db ingest build-csv report watch add-sale freeze \
-        reset-soft reset-hard sprint tag review preview-texts
+        reset-soft reset-hard sprint tag review preview-texts \
+		ui
 
 # 1) First-time setup (after you've created .venv already)
 init:
@@ -85,3 +86,6 @@ review:
 
 preview-texts:
 	$(PY) -m app.cli.preview_texts $(ARGS)
+
+ui:
+	$(PY) -m uvicorn app.ui.server:app --host 127.0.0.1 --port 8000 --reload

@@ -5,3 +5,6 @@ pyyaml
 Pillow
 imagehash
 sqlite-utils
+fastapi
+uvicorn
+python-multipart
