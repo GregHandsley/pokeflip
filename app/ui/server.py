@@ -107,28 +107,31 @@ def review_post(uuid: str,
     return RedirectResponse(url=f"/pending?staged=1&sku={sku}", status_code=303)
 
 @app.get("/cards", response_class=HTMLResponse)
-def cards_view(request: Request, sku: str | None = None):
+def cards_view(request: Request, sku: str | None = None, tab: str = "cards"):
     with connect_db() as conn:
         cur = conn.cursor()
+        # cards (top 100)
         cur.execute("""SELECT sku,name,set_name,set_code,number,language,rarity,holo,condition,notes
                        FROM cards ORDER BY rowid DESC LIMIT 100;""")
         rows = cur.fetchall()
-    keys = ["sku","name","set_name","set_code","number","language","rarity","holo","condition","notes"]
-    cards = [dict(zip(keys, r)) for r in rows]
+        keys = ["sku","name","set_name","set_code","number","language","rarity","holo","condition","notes"]
+        cards = [dict(zip(keys, r)) for r in rows]
 
-    # Pick selected card: query param, else latest
-    selected = None
-    if cards:
-        selected = next((c for c in cards if c["sku"] == sku), cards[0])
+        # images (top 100)
+        cur.execute("""SELECT id, sku, path FROM images ORDER BY id DESC LIMIT 100;""")
+        images = [{"id": r[0], "sku": r[1], "path": r[2], "url": f"/files/{r[2]}"} for r in cur.fetchall()]
 
+    # pick selected card (for preview) unless on images tab
     preview = None
-    if selected:
+    if tab != "images" and cards:
+        selected = next((c for c in cards if c["sku"] == sku), cards[0])
         preview = {
             "sku": selected["sku"],
             "title": build_title(selected),
             "description": render_description(selected),
         }
 
-    return templates.TemplateResponse("ui/cards.html",
-        {"request": request, "cards": cards, "preview": preview, "selected_sku": sku, "counts": _counts()}
+    return templates.TemplateResponse(
+        "ui/cards.html",
+        {"request": request, "cards": cards, "images": images, "preview": preview, "tab": tab, "counts": _counts()}
     )
