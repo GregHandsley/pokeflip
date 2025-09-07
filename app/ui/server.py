@@ -15,6 +15,7 @@ from app.vision.pairing import group_by_stem, pair_by_name, pair_by_time
 from app.pipelines.staging import move_pairs_to_pending
 from app.pipelines.review import stage_pending
 from app.common.paths import inbox_pending_dir
+from app.listing.texts import build_title, render_description
 
 app = FastAPI(title="Pokeflip UI")
 templates = Jinja2Templates(directory=str(project_root() / "templates"))
@@ -104,3 +105,30 @@ def review_post(uuid: str,
     )
     sku = stage_pending(uuid, meta)
     return RedirectResponse(url=f"/pending?staged=1&sku={sku}", status_code=303)
+
+@app.get("/cards", response_class=HTMLResponse)
+def cards_view(request: Request, sku: str | None = None):
+    with connect_db() as conn:
+        cur = conn.cursor()
+        cur.execute("""SELECT sku,name,set_name,set_code,number,language,rarity,holo,condition,notes
+                       FROM cards ORDER BY rowid DESC LIMIT 100;""")
+        rows = cur.fetchall()
+    keys = ["sku","name","set_name","set_code","number","language","rarity","holo","condition","notes"]
+    cards = [dict(zip(keys, r)) for r in rows]
+
+    # Pick selected card: query param, else latest
+    selected = None
+    if cards:
+        selected = next((c for c in cards if c["sku"] == sku), cards[0])
+
+    preview = None
+    if selected:
+        preview = {
+            "sku": selected["sku"],
+            "title": build_title(selected),
+            "description": render_description(selected),
+        }
+
+    return templates.TemplateResponse("ui/cards.html",
+        {"request": request, "cards": cards, "preview": preview, "selected_sku": sku, "counts": _counts()}
+    )

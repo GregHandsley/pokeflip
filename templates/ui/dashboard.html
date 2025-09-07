@@ -1,13 +1,21 @@
 {% extends "ui/base.html" %}
 {% block body %}
-<div class="card">
-  <b>Unsorted</b>
-  <div class="muted">{{counts.unsorted}} files</div>
-  <div style="margin-top:8px">
-    <a class="btn" href="/upload">Upload</a>
-    <form method="post" action="/ingest" style="display:inline;margin-left:8px">
-      <button class="btn" type="submit">Ingest → Pending</button>
-    </form>
+<div class="grid">
+  <div class="card">
+    <b>Unsorted</b>
+    <div class="muted">{{ counts.unsorted }} files</div>
+    <div style="margin-top:8px; display:flex; gap:8px;">
+      <a class="btn" href="/upload">Upload</a>
+      <form method="post" action="/ingest">
+        <button class="btn" type="submit">Ingest → Pending</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>Cards</b>
+    <div class="muted">{{ counts.cards }} rows</div>
+    <a class="btn" href="/cards">View</a>
   </div>
 </div>
 {% endblock %}

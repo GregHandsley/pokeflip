@@ -1,0 +1,38 @@
+{% extends "ui/base.html" %}
+{% block body %}
+<h2>Cards</h2>
+
+{% if not cards %}
+<p class="muted">No cards yet. Stage one from Pending.</p>
+{% else %}
+<table>
+  <thead>
+    <tr><th>SKU</th><th>Name</th><th>Set</th><th>No.</th><th>Lang</th><th>Cond</th></tr>
+  </thead>
+  <tbody>
+    {% for c in cards %}
+    <tr {% if preview and c.sku == preview.sku %}style="background:#f8fafc"{% endif %}>
+      <td><a href="/cards?sku={{ c.sku | urlencode }}">{{ c.sku }}</a></td>
+      <td>{{ c.name }}</td>
+      <td>{{ c.set_name }} ({{ c.set_code }})</td>
+      <td>{{ c.number }}</td>
+      <td>{{ c.language }}</td>
+      <td>{{ c.condition }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if preview %}
+<div class="card" style="margin-top:16px">
+  <div><b>Preview: {{ preview.sku }}</b></div>
+  <div style="margin-top:8px"><b>Title</b><br>
+    <input style="width:100%" value="{{ preview.title }}" readonly>
+  </div>
+  <div style="margin-top:8px"><b>Description (Markdown)</b><br>
+    <textarea style="width:100%;height:220px" readonly>{{ preview.description }}</textarea>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
