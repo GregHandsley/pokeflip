@@ -17,10 +17,13 @@
     <div class="card">
       <div class="muted"><b>{{it.uuid}}</b></div>
       <div style="display:flex; gap:8px; margin-top:8px">
-        {% if it.front %}<img class="thumb" src="{{ it.front }}" loading="lazy" alt="front">{% endif %}
-        {% if it.back %}<img class="thumb" src="{{ it.back }}" loading="lazy" alt="back">{% endif %}
+        {% if it.front %}<img class="thumb" src="{{it.front}}" loading="lazy" alt="front">{% endif %}
+        {% if it.back %}<img class="thumb" src="{{it.back}}"  loading="lazy" alt="back">{% endif %}
       </div>
-    </div>
+      <div style="margin-top:8px">
+        <a class="btn" href="/review/{{it.uuid}}">Review</a>
+      </div>
+    </div>    
     {% endfor %}
   </div>
 {% endif %}

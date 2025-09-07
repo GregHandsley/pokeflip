@@ -1,9 +1,9 @@
 from __future__ import annotations
 from pathlib import Path
-from fastapi import FastAPI, Request, UploadFile, File
+from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 import shutil
-from typing import List
+from typing import List, Optional
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -13,6 +13,7 @@ from app.storage.db import connect_db, relpath
 from app.cli.ingest_cli import scan_unsorted, index_images, filter_duplicates
 from app.vision.pairing import group_by_stem, pair_by_name, pair_by_time
 from app.pipelines.staging import move_pairs_to_pending
+from app.pipelines.review import stage_pending
 from app.common.paths import inbox_pending_dir
 
 app = FastAPI(title="Pokeflip UI")
@@ -80,3 +81,26 @@ def pending(request: Request, moved: int = 0, dupes: int = 0):
     return templates.TemplateResponse("ui/pending.html", {
         "request": request, "items": items, "moved": moved, "dupes": dupes, "counts": _counts()
     })
+
+@app.get("/review/{uuid}", response_class=HTMLResponse)
+def review_get(uuid: str, request: Request):
+    pend = inbox_pending_dir() / uuid
+    imgs = sorted([p for p in pend.iterdir() if p.is_file()]) if pend.exists() else []
+    front = f"/files/{relpath(imgs[0])}" if len(imgs) >= 1 else None
+    back  = f"/files/{relpath(imgs[1])}" if len(imgs) >= 2 else None
+    return templates.TemplateResponse("ui/review.html", {"request": request, "uuid": uuid, "front": front, "back": back})
+
+@app.post("/review/{uuid}")
+def review_post(uuid: str,
+                name: str = Form(...), set_name: str = Form(...), set_code: str = Form(...),
+                number: str = Form(...), language: str = Form("EN"),
+                rarity: str = Form(""), holo: Optional[str] = Form(None),
+                condition: str = Form("NM")):
+    meta = dict(
+        name=name.strip(), set_name=set_name.strip(), set_code=set_code.strip(),
+        number=str(number).strip(), language=language.strip().upper() or "EN",
+        rarity=rarity.strip(), holo=(str(holo or "").lower() in ("y","yes","true","1","on")),
+        condition=condition.strip().upper() or "NM",
+    )
+    sku = stage_pending(uuid, meta)
+    return RedirectResponse(url=f"/pending?staged=1&sku={sku}", status_code=303)
