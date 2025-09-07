@@ -4,17 +4,20 @@
   <div class="card">
     <b>Unsorted</b>
     <div class="muted">{{ counts.unsorted }} files</div>
-    <div style="margin-top:8px; display:flex; gap:8px;">
+    <div class="row" style="margin-top:8px">
       <a class="btn" href="/upload">Upload</a>
-      <form method="post" action="/ingest">
-        <button class="btn" type="submit">Ingest → Pending</button>
+      <form class="inline-form" method="post" action="/ingest">
+        <button class="btn primary" type="submit">Ingest → Pending</button>
       </form>
     </div>
   </div>
+  
 
   <div class="card">
     <b>Cards</b>
-    <div class="muted">{{ counts.cards }} rows</div>
+    <div class="muted">
+      {{ counts.unsorted }} {{ 'file' if counts.unsorted == 1 else 'files' }}
+    </div>
     <a class="btn" href="/cards">View</a>
   </div>
 </div>

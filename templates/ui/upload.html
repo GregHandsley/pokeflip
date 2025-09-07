@@ -2,8 +2,8 @@
 {% block body %}
 <h2>Upload photos</h2>
 <form method="post" action="/upload" enctype="multipart/form-data">
-  <input type="file" name="files" multiple required>
-  <p class="muted">Tip: include “front/back” in filenames for best pairing.</p>
+  <input type="file" name="files" multiple required accept="image/*">
+  <p class="muted">Only images ({{ ALLOWED_EXTS|default('.jpg, .jpeg, .png, .webp') }}), max {{ MAX_UPLOAD_MB|default(15) }}MB each.</p>  
   <button class="btn" type="submit">Upload</button>
 </form>
 {% endblock %}

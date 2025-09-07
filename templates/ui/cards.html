@@ -2,61 +2,76 @@
 {% block body %}
 <h2>Cards</h2>
 
-<div style="margin:8px 0;">
-  <a class="btn" href="/cards?tab=cards">Cards</a>
-  <a class="btn" href="/cards?tab=images" style="margin-left:8px;">Images</a>
-</div>
-
-{% if tab == "images" %}
-  {% if not images %}
-    <p class="muted">No images found.</p>
-  {% else %}
-    <table>
-      <thead><tr><th>ID</th><th>SKU</th><th>Path</th></tr></thead>
-      <tbody>
-        {% for img in images %}
-        <tr>
-          <td>{{ img.id }}</td>
-          <td>{{ img.sku or "—" }}</td>
-          <td><a href="{{ img.url }}" target="_blank">{{ img.path }}</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% endif %}
+{% if not cards %}
+  <p class="muted">No cards yet. Stage one from Pending.</p>
 {% else %}
-  {% if not cards %}
-    <p class="muted">No cards yet. Stage one from Pending.</p>
-  {% else %}
-    <table>
-      <thead>
-        <tr><th>SKU</th><th>Name</th><th>Set</th><th>No.</th><th>Lang</th><th>Cond</th></tr>
-      </thead>
-      <tbody>
-        {% for c in cards %}
-        <tr {% if preview and c.sku == preview.sku %}style="background:#f8fafc"{% endif %}>
-          <td><a href="/cards?tab=cards&sku={{ c.sku | urlencode }}">{{ c.sku }}</a></td>
-          <td>{{ c.name }}</td>
-          <td>{{ c.set_name }} ({{ c.set_code }})</td>
-          <td>{{ c.number }}</td>
-          <td>{{ c.language }}</td>
-          <td>{{ c.condition }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<table class="data">
+  <thead>
+    <tr>
+      <th>SKU</th><th>Name</th><th>Set</th><th class="num">No.</th><th>Lang</th><th>Cond</th><th>Images</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in cards %}
+    <tr class="clickable{% if preview and c.sku == preview.sku %} selected{% endif %}" data-sku="{{ c.sku }}">
+      <td class="sku"><a href="/cards?sku={{ c.sku | urlencode }}">{{ c.sku }}</a></td>
+      <td>{{ c.name }}</td>
+      <td class="nowrap">{{ c.set_name }} ({{ c.set_code }})</td>
+      <td class="num">{{ c.number }}</td>
+      <td class="nowrap">{{ c.language }}</td>
+      <td class="nowrap">{{ c.condition }}</td>
+      <td class="images">
+        {% if c.front_url %}<a href="#" class="imglink" data-img="{{ c.front_url }}" data-alt="{{ c.sku }} front">front</a>{% else %}<span class="muted">front</span>{% endif %}
+        {% if c.back_url  %}<a href="#" class="imglink" data-img="{{ c.back_url  }}" data-alt="{{ c.sku }} back">back</a>{% else %}<span class="muted">back</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 
-    {% if preview %}
-    <div class="card" style="margin-top:16px">
-      <div><b>Preview: {{ preview.sku }}</b></div>
-      <div style="margin-top:8px"><b>Title</b><br>
-        <input style="width:100%" value="{{ preview.title }}" readonly>
-      </div>
-      <div style="margin-top:8px"><b>Description (Markdown)</b><br>
-        <textarea style="width:100%;height:220px" readonly>{{ preview.description }}</textarea>
-      </div>
+
+  {% if preview %}
+  <div class="card" style="margin-top:16px">
+    <div><b>Preview: {{ preview.sku }}</b></div>
+    <div style="margin-top:8px"><b>Title</b><br>
+      <input style="width:100%" value="{{ preview.title }}" readonly>
     </div>
-    {% endif %}
+    <div style="margin-top:8px"><b>Description (Markdown)</b><br>
+      <textarea style="width:100%;height:220px" readonly>{{ preview.description }}</textarea>
+    </div>
+  </div>
   {% endif %}
 {% endif %}
+
+{# Modal (one per page) #}
+<div id="img-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="img-modal-title">
+  <button class="close" aria-label="Close">×</button>
+  <img id="img-modal-img" alt="" />
+</div>
+
+<script>
+  (function () {
+    const table = document.querySelector('table.data');
+    if (!table) return;
+
+    // Make rows focusable for keyboard navigation
+    table.querySelectorAll('tbody tr[data-sku]').forEach(tr => tr.setAttribute('tabindex','0'));
+
+    table.addEventListener('click', (e) => {
+      if (e.target.closest('a')) return; // let links (SKU/front/back) behave normally
+      const row = e.target.closest('tr[data-sku]');
+      if (row) window.location = '/cards?sku=' + encodeURIComponent(row.dataset.sku);
+    });
+
+    table.addEventListener('keydown', (e) => {
+      const row = e.target.closest('tr[data-sku]');
+      if (!row) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        window.location = '/cards?sku=' + encodeURIComponent(row.dataset.sku);
+      }
+    });
+  })();
+</script>
+
 {% endblock %}

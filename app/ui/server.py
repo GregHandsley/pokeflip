@@ -2,29 +2,44 @@ from __future__ import annotations
 from pathlib import Path
 from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-import shutil
+import shutil, os
 from typing import List, Optional
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from urllib.parse import quote
 
 from app.common.paths import project_root, inbox_unsorted_dir, inbox_pending_dir
 from app.storage.db import connect_db, relpath
 
 from app.cli.ingest_cli import scan_unsorted, index_images, filter_duplicates
 from app.vision.pairing import group_by_stem, pair_by_name, pair_by_time
+from app.vision.imaging import is_image_file
 from app.pipelines.staging import move_pairs_to_pending
 from app.pipelines.review import stage_pending
-from app.common.paths import inbox_pending_dir
 from app.listing.texts import build_title, render_description
+
+ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp"}  # keep HEIC out for now
+MAX_UPLOAD_MB = 15
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 app = FastAPI(title="Pokeflip UI")
 templates = Jinja2Templates(directory=str(project_root() / "templates"))
 
 # serve repo files (handy later for thumbs)
-app.mount("/files", StaticFiles(directory=str(project_root())), name="files")
+app.mount("/static", StaticFiles(directory=str(project_root() / "static")), name="static")
+# serve repo files (staged/pending/etc.)
+app.mount("/files", StaticFiles(directory=str(project_root().resolve())), name="files")
+
+
+def file_url(p: Path) -> str:
+    rel = relpath(p).replace("\\", "/")   # repo-relative, normalize slashes
+    return "/files/" + quote(rel, safe="/")
 
 def _counts():
-    unsorted_n = sum(1 for p in inbox_unsorted_dir().glob("*") if p.is_file())
+    unsorted_n = sum(
+        1 for p in inbox_unsorted_dir().iterdir()
+        if p.is_file() and not p.name.startswith(".") and is_image_file(p)
+    )
     pending_n  = sum(1 for d in inbox_pending_dir().glob("*") if d.is_dir())
     staged_root = project_root() / "staged"
     staged_n = sum(1 for d in staged_root.rglob("*") if d.is_dir()) if staged_root.exists() else 0
@@ -38,18 +53,38 @@ def _counts():
 def dashboard(request: Request):
     return templates.TemplateResponse("ui/dashboard.html", {"request": request, "counts": _counts()})
 
-@app.get("/upload", response_class=HTMLResponse)
-def upload_get(request: Request):
-    return templates.TemplateResponse("ui/upload.html", {"request": request})
-
 @app.post("/upload")
 async def upload_post(files: List[UploadFile] = File(...)):
     target = inbox_unsorted_dir(); target.mkdir(parents=True, exist_ok=True)
+    saved = skipped_ext = skipped_size = skipped_hidden = 0
     for f in files:
-        dest = target / Path(f.filename).name
+        name = Path(f.filename).name
+        if name.startswith("."): skipped_hidden += 1; continue
+        ext = Path(name).suffix.lower()
+        if ext not in ALLOWED_EXTS: skipped_ext += 1; continue
+
+        dest = target / name
+        total = 0
         with dest.open("wb") as out:
-            shutil.copyfileobj(f.file, out)
-    return RedirectResponse(url="/pending", status_code=303)
+            while True:
+                chunk = await f.read(8192)
+                if not chunk: break
+                total += len(chunk)
+                if total > MAX_UPLOAD_BYTES:
+                    out.close()
+                    try: dest.unlink()
+                    except FileNotFoundError: pass
+                    skipped_size += 1
+                    while await f.read(8192): pass
+                    break
+                out.write(chunk)
+        if total and total <= MAX_UPLOAD_BYTES:
+            saved += 1
+
+    return RedirectResponse(
+        url=f"/pending?uploaded={saved}&badext={skipped_ext}&toobig={skipped_size}&hidden={skipped_hidden}",
+        status_code=303
+    )
 
 @app.post("/ingest")
 def run_ingest():
@@ -76,9 +111,10 @@ def pending(request: Request, moved: int = 0, dupes: int = 0):
     items = []
     for d in sorted([p for p in root.iterdir() if p.is_dir()]):
         imgs = sorted([p for p in d.iterdir() if p.is_file()])
-        front = f"/files/{relpath(imgs[0])}" if imgs else None
-        back  = f"/files/{relpath(imgs[1])}" if len(imgs) > 1 else None
+        front = file_url(imgs[0]) if len(imgs) >= 1 and imgs[0].exists() else None
+        back  = file_url(imgs[1]) if len(imgs) >= 2 and imgs[1].exists() else None
         items.append({"uuid": d.name, "front": front, "back": back})
+
     return templates.TemplateResponse("ui/pending.html", {
         "request": request, "items": items, "moved": moved, "dupes": dupes, "counts": _counts()
     })
@@ -86,17 +122,42 @@ def pending(request: Request, moved: int = 0, dupes: int = 0):
 @app.get("/review/{uuid}", response_class=HTMLResponse)
 def review_get(uuid: str, request: Request):
     pend = inbox_pending_dir() / uuid
-    imgs = sorted([p for p in pend.iterdir() if p.is_file()]) if pend.exists() else []
-    front = f"/files/{relpath(imgs[0])}" if len(imgs) >= 1 else None
-    back  = f"/files/{relpath(imgs[1])}" if len(imgs) >= 2 else None
-    return templates.TemplateResponse("ui/review.html", {"request": request, "uuid": uuid, "front": front, "back": back})
+    if not pend.exists():
+        return RedirectResponse(url="/pending?error=Pending+item+not+found", status_code=303)
+    imgs = sorted([p for p in pend.iterdir() if p.is_file()])
+    front = file_url(imgs[0]) if len(imgs) >= 1 else None
+    back  = file_url(imgs[1]) if len(imgs) >= 2 else None
+
+    return templates.TemplateResponse("ui/review.html",
+        {"request": request, "uuid": uuid, "front": front, "back": back, "error": None})
+
 
 @app.post("/review/{uuid}")
 def review_post(uuid: str,
-                name: str = Form(...), set_name: str = Form(...), set_code: str = Form(...),
-                number: str = Form(...), language: str = Form("EN"),
-                rarity: str = Form(""), holo: Optional[str] = Form(None),
-                condition: str = Form("NM")):
+                name: str = Form(""), set_name: str = Form(""),
+                set_code: str = Form(""), number: str = Form(""),
+                language: str = Form("EN"), rarity: str = Form(""),
+                holo: Optional[str] = Form(None), condition: str = Form("NM"),
+                request: Request = None):
+    pend = inbox_pending_dir() / uuid
+    if not pend.exists():
+        return RedirectResponse(url="/pending?error=Pending+item+not+found", status_code=303)
+
+    # server-side required fields
+    req_missing = []
+    for field, val in [("name",name),("set_name",set_name),("set_code",set_code),("number",number)]:
+        if not str(val).strip(): req_missing.append(field)
+    if req_missing:
+        imgs = sorted([p for p in pend.iterdir() if p.is_file()])
+        front = f"/files/{relpath(imgs[0])}" if len(imgs) >= 1 else None
+        back  = f"/files/{relpath(imgs[1])}" if len(imgs) >= 2 else None
+        return templates.TemplateResponse("ui/review.html", {
+            "request": request, "uuid": uuid, "front": front, "back": back,
+            "error": f"Please complete: {', '.join(req_missing)}",
+            "name": name, "set_name": set_name, "set_code": set_code, "number": number,
+            "language": language, "rarity": rarity, "holo": holo, "condition": condition
+        })
+
     meta = dict(
         name=name.strip(), set_name=set_name.strip(), set_code=set_code.strip(),
         number=str(number).strip(), language=language.strip().upper() or "EN",
@@ -106,24 +167,36 @@ def review_post(uuid: str,
     sku = stage_pending(uuid, meta)
     return RedirectResponse(url=f"/pending?staged=1&sku={sku}", status_code=303)
 
+
 @app.get("/cards", response_class=HTMLResponse)
 def cards_view(request: Request, sku: str | None = None, tab: str = "cards"):
     with connect_db() as conn:
         cur = conn.cursor()
-        # cards (top 100)
-        cur.execute("""SELECT sku,name,set_name,set_code,number,language,rarity,holo,condition,notes
-                       FROM cards ORDER BY rowid DESC LIMIT 100;""")
+        cur.execute("""
+          SELECT
+            c.sku, c.name, c.set_name, c.set_code, c.number, c.language, c.rarity, c.holo, c.condition, c.notes,
+            c.image_front_id, c.image_back_id,
+            f.path AS front_path, b.path AS back_path
+          FROM cards c
+          LEFT JOIN images f ON f.id = c.image_front_id
+          LEFT JOIN images b ON b.id = c.image_back_id
+          ORDER BY c.rowid DESC
+          LIMIT 100;
+        """)
         rows = cur.fetchall()
-        keys = ["sku","name","set_name","set_code","number","language","rarity","holo","condition","notes"]
-        cards = [dict(zip(keys, r)) for r in rows]
 
-        # images (top 100)
-        cur.execute("""SELECT id, sku, path FROM images ORDER BY id DESC LIMIT 100;""")
-        images = [{"id": r[0], "sku": r[1], "path": r[2], "url": f"/files/{r[2]}"} for r in cur.fetchall()]
+    keys = ["sku","name","set_name","set_code","number","language","rarity","holo","condition",
+            "notes","image_front_id","image_back_id","front_path","back_path"]
+    cards = []
+    for r in rows:
+        d = dict(zip(keys, r))
+        d["front_url"] = file_url(Path(d["front_path"])) if d.get("front_path") else None
+        d["back_url"]  = file_url(Path(d["back_path"]))  if d.get("back_path")  else None
+        cards.append(d)
 
-    # pick selected card (for preview) unless on images tab
+    # preview for selected/latest card
     preview = None
-    if tab != "images" and cards:
+    if cards:
         selected = next((c for c in cards if c["sku"] == sku), cards[0])
         preview = {
             "sku": selected["sku"],
@@ -131,7 +204,16 @@ def cards_view(request: Request, sku: str | None = None, tab: str = "cards"):
             "description": render_description(selected),
         }
 
-    return templates.TemplateResponse(
-        "ui/cards.html",
-        {"request": request, "cards": cards, "images": images, "preview": preview, "tab": tab, "counts": _counts()}
+    # keep images list for your DB viewer (now unused in UI below, but intact)
+    with connect_db() as conn:
+        cur = conn.cursor()
+        cur.execute("""SELECT id, sku, path FROM images ORDER BY id DESC LIMIT 100;""")
+        images = [{"id": r[0], "sku": r[1], "path": r[2], "url": file_url(Path(r[2]))} for r in cur.fetchall()]
+
+    return templates.TemplateResponse("ui/cards.html",
+        {"request": request, "cards": cards, "images": images, "preview": preview, "counts": _counts()}
     )
+
+@app.get("/upload", response_class=HTMLResponse)
+def upload_get(request: Request):
+    return templates.TemplateResponse("ui/upload.html", {"request": request})

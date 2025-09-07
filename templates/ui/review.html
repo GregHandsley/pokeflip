@@ -1,25 +1,80 @@
 {% extends "ui/base.html" %}
 {% block body %}
 <h2>Review {{ uuid }}</h2>
-<div style="display:flex; gap:12px">
-  {% if front %}<img class="thumb" src="{{ front }}" alt="front">{% endif %}
-  {% if back %}<img class="thumb" src="{{ back }}"  alt="back">{% endif %}
-</div>
-<form method="post" action="/review/{{ uuid }}" style="margin-top:12px">
-  <div class="grid" style="grid-template-columns:repeat(2,minmax(220px,1fr))">
-    <label>Name<input name="name" value="Charizard"></label>
-    <label>Set Name<input name="set_name" value="Base Set"></label>
-    <label>Set Code<input name="set_code" value="BS"></label>
-    <label>Number<input name="number" value="4"></label>
-    <label>Language
-      <select name="language"><option>EN</option><option>JA</option><option>DE</option><option>FR</option><option>ES</option></select>
-    </label>
-    <label>Rarity<input name="rarity" value="Holo Rare"></label>
-    <label>Holo (y=on)<input name="holo" value="y"></label>
-    <label>Condition
-      <select name="condition"><option>NM</option><option>LP</option><option>MP</option><option>HP</option><option>DMG</option></select>
-    </label>
+
+<div class="card review-wrap">
+  <!-- Left: images -->
+  <div class="review-pair">
+    {% if front %}<img class="review-img" src="{{ front }}" alt="front">{% endif %}
+    {% if back  %}<img class="review-img" src="{{ back  }}" alt="back">{% endif %}
   </div>
-  <button class="btn" type="submit" style="margin-top:12px">Create SKU & Stage</button>
-</form>
+
+  <!-- Right: form -->
+  <div>
+    {% if error %}<p class="alert err">{{ error }}</p>{% endif %}
+
+    <form method="post" class="form-grid">
+      <div class="field">
+        <label>Name</label>
+        <input name="name" value="{{ name or '' }}" required>
+      </div>
+
+      <div class="field">
+        <label>Set Name</label>
+        <input name="set_name" value="{{ set_name or '' }}" required>
+      </div>
+
+      <div class="field">
+        <label>Set Code</label>
+        <input name="set_code" value="{{ set_code or '' }}" required>
+      </div>
+
+      <div class="field">
+        <label>Number</label>
+        <input name="number" value="{{ number or '' }}" required>
+      </div>
+
+      <div class="field">
+        <label>Language</label>
+        <select name="language">
+          {% for lang in ["EN","JA","FR","DE","ES","IT","PT","ZH","KO"] %}
+            <option value="{{lang}}" {% if (language or 'EN')==lang %}selected{% endif %}>{{lang}}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Rarity</label>
+        <select name="rarity">
+          {% set rarities = ["Common","Uncommon","Rare","Reverse Holo","Holo Rare","Ultra Rare","Full Art","Trainer Gallery","Secret Rare","Promo"] %}
+          {% for r in rarities %}
+            <option value="{{ r }}" {% if (rarity or '')==r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Holo (y=on)</label>
+        <select name="holo">
+          <option value=""  {% if not holo %}selected{% endif %}>n</option>
+          <option value="y" {% if holo %}selected{% endif %}>y</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Condition</label>
+        <select name="condition">
+          {% for c in ["NM","LP","MP","HP","DMG"] %}
+            <option value="{{ c }}" {% if (condition or 'NM')==c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn primary" type="submit">Create SKU & Move to Staged</button>
+        <a class="btn" href="/pending">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}

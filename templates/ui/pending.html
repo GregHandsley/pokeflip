@@ -2,28 +2,45 @@
 {% block body %}
 <h2>Pending</h2>
 
-{% if moved or dupes %}
-  <p>
-    {% if moved %}<b>{{moved}}</b> pair(s) moved to Pending. {% endif %}
-    {% if dupes %}<b>{{dupes}}</b> duplicate file(s) skipped.{% endif %}
-  </p>
+{# --- Friendly banners ---------------------------------------------------- #}
+{% if request.query_params.get('error') %}
+  <div class="alert err">{{ request.query_params.get('error') }}</div>
 {% endif %}
 
+{% set uploaded = request.query_params.get('uploaded') %}
+{% set badext   = request.query_params.get('badext') %}
+{% set toobig   = request.query_params.get('toobig') %}
+{% set hidden   = request.query_params.get('hidden') %}
+{% set staged_sku = request.query_params.get('sku') %}
+
+{% if moved or dupes or uploaded or badext or toobig or hidden or staged_sku %}
+  <div class="alert ok">
+    {% if moved %}<b>{{ moved }}</b> pair(s) moved to Pending. {% endif %}
+    {% if dupes %}<b>{{ dupes }}</b> duplicate file(s) skipped. {% endif %}
+    {% if uploaded %}Uploaded {{ uploaded }} file(s). {% endif %}
+    {% if badext %}Skipped {{ badext }} non-image file(s). {% endif %}
+    {% if toobig %}{{ toobig }} file(s) exceeded size limit. {% endif %}
+    {% if hidden %}Ignored {{ hidden }} hidden file(s). {% endif %}
+    {% if staged_sku %}Staged: {{ staged_sku }}.{% endif %}
+  </div>
+{% endif %}
+
+{# --- Empty state --------------------------------------------------------- #}
 {% if not items %}
   <p class="muted">No items in pending. Upload and click “Ingest → Pending”.</p>
 {% else %}
   <div class="grid">
     {% for it in items %}
     <div class="card">
-      <div class="muted"><b>{{it.uuid}}</b></div>
-      <div style="display:flex; gap:8px; margin-top:8px">
-        {% if it.front %}<img class="thumb" src="{{it.front}}" loading="lazy" alt="front">{% endif %}
-        {% if it.back %}<img class="thumb" src="{{it.back}}"  loading="lazy" alt="back">{% endif %}
-      </div>
+      <div class="muted"><b>{{ it.uuid }}</b></div>
+      <div class="pair">
+        {% if it.front %}<img class="thumb" src="{{ it.front }}?v={{ it.uuid }}" loading="lazy" alt="front">{% endif %}
+        {% if it.back  %}<img class="thumb" src="{{ it.back  }}?v={{ it.uuid }}" loading="lazy" alt="back">{% endif %}
+      </div>          
       <div style="margin-top:8px">
-        <a class="btn" href="/review/{{it.uuid}}">Review</a>
+        <a class="btn" href="/review/{{ it.uuid }}">Review</a>
       </div>
-    </div>    
+    </div>
     {% endfor %}
   </div>
 {% endif %}
