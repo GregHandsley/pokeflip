@@ -27,9 +27,13 @@ build-csv:
 report:
 	$(PY) app/report.py
 
+# confirm listings active
+publish:
+	$(PY) -m app.cli.publish_confirm $(ARGS)
+
 # 6) Move folders when listing status changes
 watch:
-	$(PY) app/state_watcher.py
+	$(PY) -m app.ops.state_watcher $(ARGS)
 
 # 7) Record a sale quickly (use `make add-sale SKU=POK/...`)
 add-sale:
@@ -89,3 +93,8 @@ preview-texts:
 
 ui:
 	$(PY) -m uvicorn app.ui.server:app --host 127.0.0.1 --port 8000 --reload
+
+TEMPLATE := vendor/ebay_templates/uk_pokemon_template.csv
+
+build-csv-template:
+	$(PY) -m app.cli.build_csv --limit 3 --template $(TEMPLATE) --out exports/ebay_upload.csv --start-price 0.99
