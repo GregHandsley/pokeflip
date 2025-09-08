@@ -21,7 +21,7 @@ ingest:
 
 # 4) Build eBay bulk CSV (add flags via ARGS="...")
 build-csv:
-	$(PY) app/build_csv.py $(ARGS)
+	$(PY) -m app.cli.build_csv $(ARGS)
 
 # 5) Quick dashboard/report
 report:
