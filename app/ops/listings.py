@@ -1,11 +1,10 @@
-# app/cli/publish_confirm.py
 from __future__ import annotations
-import argparse, datetime as dt
-from typing import Iterable
+import datetime as dt
+from typing import Optional
 from app.storage.db import connect_db
-from app.ops.listings import upsert_listing
 
-def upsert_listing(sku: str, platform: str, status: str, price: float | None):
+def upsert_listing(sku: str, platform: str, status: str, price: Optional[float] = None):
+    """Create or update latest listing row for a SKU."""
     now = dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
     with connect_db() as conn:
         cur = conn.cursor()
@@ -35,18 +34,3 @@ def upsert_listing(sku: str, platform: str, status: str, price: float | None):
             action = "inserted"
         conn.commit()
     return action, now
-
-def main():
-    ap = argparse.ArgumentParser(description="Mark one or more SKUs as listed/active.")
-    ap.add_argument("--sku", nargs="+", required=True, help="One or more SKUs.")
-    ap.add_argument("--platform", default="ebay", help="Platform name (default: ebay).")
-    ap.add_argument("--status", default="active", choices=["active","draft","sold","ended"])
-    ap.add_argument("--price", type=float, help="Optional list price to record.")
-    args = ap.parse_args()
-
-    for s in args.sku:
-        action, ts = upsert_listing(s, args.platform, args.status, args.price)
-        print(f"✅ {s}: {action} → {args.status} @ {ts} ({args.platform})")
-
-if __name__ == "__main__":
-    main()

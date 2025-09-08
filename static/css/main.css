@@ -90,3 +90,18 @@ td.images a { margin-right:10px; }
   .review-wrap { grid-template-columns: 1fr; }
   .review-pair { justify-content: center; }
 }
+
+/* badges for listing status */
+.badge {
+  display:inline-block; padding:2px 8px; border-radius:999px;
+  font-size:12px; line-height:18px; border:1px solid #e5e7eb; background:#f8fafc;
+  margin-right:6px;
+}
+.badge.active { background:#ecfdf5; border-color:#10b98133; color:#065f46; }
+.badge.draft  { background:#fff7ed; border-color:#f59e0b33; color:#92400e; }
+.badge.ended, .badge.sold { background:#f3f4f6; border-color:#d1d5db; color:#374151; }
+
+/* inline action form */
+.inline-form { display:flex; align-items:center; gap:8px; }
+.price-input { width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px; }
+.btn.small { padding:4px 8px; font-size:12px; border-radius:6px; }

@@ -10,6 +10,8 @@ from urllib.parse import quote
 
 from app.common.paths import project_root, inbox_unsorted_dir, inbox_pending_dir
 from app.storage.db import connect_db, relpath
+from app.ops.listings import upsert_listing
+from app.ops.state_watcher import move_if_ready
 
 from app.cli.ingest_cli import scan_unsorted, index_images, filter_duplicates
 from app.vision.pairing import group_by_stem, pair_by_name, pair_by_time
@@ -169,51 +171,74 @@ def review_post(uuid: str,
 
 
 @app.get("/cards", response_class=HTMLResponse)
-def cards_view(request: Request, sku: str | None = None, tab: str = "cards"):
+def cards_view(request: Request, sku: str | None = None, tab: str = "cards", flash: str | None = None):
     with connect_db() as conn:
         cur = conn.cursor()
         cur.execute("""
           SELECT
             c.sku, c.name, c.set_name, c.set_code, c.number, c.language, c.rarity, c.holo, c.condition, c.notes,
-            c.image_front_id, c.image_back_id,
-            f.path AS front_path, b.path AS back_path
+            (SELECT status       FROM listings WHERE sku=c.sku ORDER BY id DESC LIMIT 1) AS list_status,
+            (SELECT platform     FROM listings WHERE sku=c.sku ORDER BY id DESC LIMIT 1) AS list_platform,
+            (SELECT price_listed FROM listings WHERE sku=c.sku ORDER BY id DESC LIMIT 1) AS list_price,
+            (SELECT path FROM images WHERE id=c.image_front_id) AS front_path,
+            (SELECT path FROM images WHERE id=c.image_back_id)  AS back_path
           FROM cards c
-          LEFT JOIN images f ON f.id = c.image_front_id
-          LEFT JOIN images b ON b.id = c.image_back_id
           ORDER BY c.rowid DESC
           LIMIT 100;
         """)
-        rows = cur.fetchall()
+        keys = [
+          "sku","name","set_name","set_code","number","language","rarity","holo","condition","notes",
+          "list_status","list_platform","list_price","front_path","back_path"
+        ]
+        cards = []
+        for r in cur.fetchall():
+            d = dict(zip(keys, r))
+            d["front_url"] = file_url(Path(d["front_path"])) if d["front_path"] else None
+            d["back_url"]  = file_url(Path(d["back_path"]))  if d["back_path"]  else None
+            cards.append(d)
 
-    keys = ["sku","name","set_name","set_code","number","language","rarity","holo","condition",
-            "notes","image_front_id","image_back_id","front_path","back_path"]
-    cards = []
-    for r in rows:
-        d = dict(zip(keys, r))
-        d["front_url"] = file_url(Path(d["front_path"])) if d.get("front_path") else None
-        d["back_url"]  = file_url(Path(d["back_path"]))  if d.get("back_path")  else None
-        cards.append(d)
-
-    # preview for selected/latest card
+    # Build preview (unchanged)
     preview = None
     if cards:
         selected = next((c for c in cards if c["sku"] == sku), cards[0])
-        preview = {
-            "sku": selected["sku"],
-            "title": build_title(selected),
-            "description": render_description(selected),
-        }
+        preview = {"sku": selected["sku"], "title": build_title(selected), "description": render_description(selected)}
 
-    # keep images list for your DB viewer (now unused in UI below, but intact)
+    # Images tab data (if you still use it)
     with connect_db() as conn:
         cur = conn.cursor()
         cur.execute("""SELECT id, sku, path FROM images ORDER BY id DESC LIMIT 100;""")
         images = [{"id": r[0], "sku": r[1], "path": r[2], "url": file_url(Path(r[2]))} for r in cur.fetchall()]
 
-    return templates.TemplateResponse("ui/cards.html",
-        {"request": request, "cards": cards, "images": images, "preview": preview, "counts": _counts()}
+    return templates.TemplateResponse(
+        "ui/cards.html",
+        {"request": request, "cards": cards, "images": images, "preview": preview,
+         "counts": _counts(), "flash": flash}
     )
+
 
 @app.get("/upload", response_class=HTMLResponse)
 def upload_get(request: Request):
     return templates.TemplateResponse("ui/upload.html", {"request": request})
+
+@app.post("/listings/mark-active")
+def listings_mark_active(
+    sku: str = Form(...),
+    price: Optional[str] = Form(None),
+    platform: str = Form("ebay"),
+):
+    price_val = None
+    if price is not None and str(price).strip():
+        try:
+            price_val = float(price)
+        except ValueError:
+            return RedirectResponse(url=f"/cards?sku={sku}&flash=Invalid+price", status_code=303)
+
+    upsert_listing(sku, platform, "active", price_val)
+
+    # move staged → listed immediately (also updates image paths in DB if you added that in watcher)
+    msg = move_if_ready(sku, dry_run=False) or "No move needed"
+    flash = "Marked active"
+    if "moved" in msg: flash += " & moved"
+    elif "destination already exists" in msg: flash += " (already listed folder present)"
+
+    return RedirectResponse(url=f"/cards?sku={sku}&flash={flash}", status_code=303)

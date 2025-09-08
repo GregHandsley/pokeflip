@@ -2,16 +2,20 @@
 {% block body %}
 <h2>Cards</h2>
 
+{% if flash %}<p class="alert ok">{{ flash }}</p>{% endif %}
+
 {% if not cards %}
   <p class="muted">No cards yet. Stage one from Pending.</p>
 {% else %}
 <table class="data">
   <thead>
     <tr>
-      <th>SKU</th><th>Name</th><th>Set</th><th class="num">No.</th><th>Lang</th><th>Cond</th><th>Images</th>
+      <th>SKU</th><th>Name</th><th>Set</th><th class="num">No.</th>
+      <th>Lang</th><th>Cond</th><th>Images</th><th>Listing</th><th>Actions</th>
     </tr>
   </thead>
   <tbody>
+
     {% for c in cards %}
     <tr class="clickable{% if preview and c.sku == preview.sku %} selected{% endif %}" data-sku="{{ c.sku }}">
       <td class="sku"><a href="/cards?sku={{ c.sku | urlencode }}">{{ c.sku }}</a></td>
@@ -24,6 +28,22 @@
         {% if c.front_url %}<a href="#" class="imglink" data-img="{{ c.front_url }}" data-alt="{{ c.sku }} front">front</a>{% else %}<span class="muted">front</span>{% endif %}
         {% if c.back_url  %}<a href="#" class="imglink" data-img="{{ c.back_url  }}" data-alt="{{ c.sku }} back">back</a>{% else %}<span class="muted">back</span>{% endif %}
       </td>
+      <td>
+        {% if c.list_status %}
+          <span class="badge {{ c.list_status|lower }}">{{ c.list_status }}</span>
+          {% if c.list_price is not none %}<span class="muted">£{{ '%.2f'|format(c.list_price) }}</span>{% endif %}
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
+      <td>
+        <form method="post" action="/listings/mark-active" class="inline-form">
+          <input type="hidden" name="sku" value="{{ c.sku }}">
+          <input class="price-input" type="number" step="0.01" min="0" name="price" placeholder="£">
+          <button class="btn small" type="submit">Mark active</button>
+        </form>
+      </td>
+      
     </tr>
     {% endfor %}
   </tbody>
@@ -51,27 +71,28 @@
 
 <script>
   (function () {
-    const table = document.querySelector('table.data');
-    if (!table) return;
+  const table = document.querySelector('table.data');
+  if (!table) return;
 
-    // Make rows focusable for keyboard navigation
-    table.querySelectorAll('tbody tr[data-sku]').forEach(tr => tr.setAttribute('tabindex','0'));
+  table.querySelectorAll('tbody tr[data-sku]').forEach(tr => tr.setAttribute('tabindex','0'));
 
-    table.addEventListener('click', (e) => {
-      if (e.target.closest('a')) return; // let links (SKU/front/back) behave normally
-      const row = e.target.closest('tr[data-sku]');
-      if (row) window.location = '/cards?sku=' + encodeURIComponent(row.dataset.sku);
-    });
+  table.addEventListener('click', (e) => {
+    if (e.target.closest('a, .inline-form, button, input, select, textarea')) return;
+    const row = e.target.closest('tr[data-sku]');
+    if (row) window.location = '/cards?sku=' + encodeURIComponent(row.dataset.sku);
+  });
 
-    table.addEventListener('keydown', (e) => {
-      const row = e.target.closest('tr[data-sku]');
-      if (!row) return;
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        window.location = '/cards?sku=' + encodeURIComponent(row.dataset.sku);
-      }
-    });
-  })();
+  table.addEventListener('keydown', (e) => {
+    if (e.target.closest('.inline-form, input, select, textarea')) return;
+    const row = e.target.closest('tr[data-sku]');
+    if (!row) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      window.location = '/cards?sku=' + encodeURIComponent(row.dataset.sku);
+    }
+  });
+})();
+
 </script>
 
 {% endblock %}
