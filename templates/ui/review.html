@@ -69,7 +69,10 @@
           {% endfor %}
         </select>
       </div>
-
+      <div class="field">
+        <label>Price (£)</label>
+        <input type="number" name="price" step="0.01" min="0" value="{{ price or '' }}">
+      </div>      
       <div class="form-actions">
         <button class="btn primary" type="submit">Create SKU & Move to Staged</button>
         <a class="btn" href="/pending">Cancel</a>

@@ -15,7 +15,6 @@
     </tr>
   </thead>
   <tbody>
-
     {% for c in cards %}
     <tr class="clickable{% if preview and c.sku == preview.sku %} selected{% endif %}" data-sku="{{ c.sku }}">
       <td class="sku"><a href="/cards?sku={{ c.sku | urlencode }}">{{ c.sku }}</a></td>
@@ -37,18 +36,25 @@
         {% endif %}
       </td>
       <td>
+        <!-- Save price (draft; no status change) -->
+        <form method="post" action="/listings/set-price" class="inline-form" style="margin-bottom:6px">
+          <input type="hidden" name="sku" value="{{ c.sku }}">
+          <input class="price-input" type="number" step="0.01" min="0" name="price"
+                 value="{% if c.list_price is not none %}{{ '%.2f'|format(c.list_price) }}{% endif %}"
+                 placeholder="£">
+          <button class="btn small" type="submit">Save price</button>
+        </form>
+
+        <!-- Mark active (uses saved price; does NOT take a price field) -->
         <form method="post" action="/listings/mark-active" class="inline-form">
           <input type="hidden" name="sku" value="{{ c.sku }}">
-          <input class="price-input" type="number" step="0.01" min="0" name="price" placeholder="£">
           <button class="btn small" type="submit">Mark active</button>
         </form>
       </td>
-      
     </tr>
     {% endfor %}
   </tbody>
 </table>
-
 
   {% if preview %}
   <div class="card" style="margin-top:16px">
@@ -63,20 +69,21 @@
   {% endif %}
 {% endif %}
 
-{# Modal (one per page) #}
+<!-- Image modal -->
 <div id="img-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="img-modal-title">
   <button class="close" aria-label="Close">×</button>
   <img id="img-modal-img" alt="" />
 </div>
 
 <script>
-  (function () {
+(function () {
   const table = document.querySelector('table.data');
   if (!table) return;
 
   table.querySelectorAll('tbody tr[data-sku]').forEach(tr => tr.setAttribute('tabindex','0'));
 
   table.addEventListener('click', (e) => {
+    // let links and form controls behave normally
     if (e.target.closest('a, .inline-form, button, input, select, textarea')) return;
     const row = e.target.closest('tr[data-sku]');
     if (row) window.location = '/cards?sku=' + encodeURIComponent(row.dataset.sku);
@@ -91,8 +98,21 @@
       window.location = '/cards?sku=' + encodeURIComponent(row.dataset.sku);
     }
   });
+
+  // modal preview for front/back links
+  const modal = document.getElementById('img-modal');
+  const modalImg = document.getElementById('img-modal-img');
+  const closeBtn = modal.querySelector('.close');
+  table.addEventListener('click', (e) => {
+    const a = e.target.closest('a.imglink');
+    if (!a) return;
+    e.preventDefault();
+    modalImg.src = a.dataset.img;
+    modalImg.alt = a.dataset.alt || '';
+    modal.classList.remove('hidden');
+  });
+  closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
 })();
-
 </script>
-
 {% endblock %}
