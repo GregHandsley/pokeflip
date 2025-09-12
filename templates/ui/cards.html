@@ -10,8 +10,16 @@
 <table class="data">
   <thead>
     <tr>
-      <th>SKU</th><th>Name</th><th>Set</th><th class="num">No.</th>
-      <th>Lang</th><th>Cond</th><th>Images</th><th>Listing</th><th>Actions</th>
+      <th>SKU</th>
+      <th>Name</th>
+      <th>Set</th>
+      <th class="num">No.</th>
+      <th>Lang</th>
+      <th>Cond</th>
+      <th>Images</th>
+      <th>Listing</th>
+      <th>Actions</th>
+      <th class="num">Packaging £</th>  {# ← header kept last #}
     </tr>
   </thead>
   <tbody>
@@ -30,9 +38,14 @@
       <td>
         {% if c.list_status %}
           <span class="badge {{ c.list_status|lower }}">{{ c.list_status }}</span>
-          {% if c.list_price is not none %}<span class="muted">£{{ '%.2f'|format(c.list_price) }}</span>{% endif %}
+          {% if c.list_price is not none %}
+            <span class="muted">£{{ '%.2f'|format(c.list_price) }}</span>
+          {% endif %}
         {% else %}
           <span class="muted">—</span>
+        {% endif %}
+        {% if c.list_price is none %}
+          <span class="badge warn" title="No saved price; comps unavailable">no comps</span>
         {% endif %}
       </td>
       <td>
@@ -44,19 +57,24 @@
                  placeholder="£">
           <button class="btn small" type="submit">Save price</button>
         </form>
-
         <!-- Mark active (uses saved price; does NOT take a price field) -->
         <form method="post" action="/listings/mark-active" class="inline-form">
           <input type="hidden" name="sku" value="{{ c.sku }}">
-          <button class="btn small" type="submit">Mark active</button>
+          <button class="btn small" type="submit"
+                  {% if c.list_price is none %}disabled title="Set price first"{% endif %}>
+            Mark active
+          </button>
         </form>
       </td>
+
+      {# NEW: Pack £ cell to match header #}
+      <td class="num">£{{ '%.2f'|format(consumables_cost) }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 
-  {% if preview %}
+{% if preview %}
   <div class="card" style="margin-top:16px">
     <div><b>Preview: {{ preview.sku }}</b></div>
     <div style="margin-top:8px"><b>Title</b><br>
@@ -65,8 +83,13 @@
     <div style="margin-top:8px"><b>Description (Markdown)</b><br>
       <textarea style="width:100%;height:220px" readonly>{{ preview.description }}</textarea>
     </div>
+    <div style="margin-top:8px">
+      <b>Costs</b><br>
+      <span class="muted">Packaging (standard):</span>
+      £{{ '%.2f'|format(consumables_cost) }}
+    </div>
   </div>
-  {% endif %}
+{% endif %}
 {% endif %}
 
 <!-- Image modal -->
@@ -83,7 +106,6 @@
   table.querySelectorAll('tbody tr[data-sku]').forEach(tr => tr.setAttribute('tabindex','0'));
 
   table.addEventListener('click', (e) => {
-    // let links and form controls behave normally
     if (e.target.closest('a, .inline-form, button, input, select, textarea')) return;
     const row = e.target.closest('tr[data-sku]');
     if (row) window.location = '/cards?sku=' + encodeURIComponent(row.dataset.sku);
@@ -99,7 +121,7 @@
     }
   });
 
-  // modal preview for front/back links
+  // modal preview
   const modal = document.getElementById('img-modal');
   const modalImg = document.getElementById('img-modal-img');
   const closeBtn = modal.querySelector('.close');

@@ -2,11 +2,11 @@
 # Percentages as decimals: e.g., 0.129 for 12.9%. Fixed fees in GBP (e.g., 0.30).
 
 # Applied to (sale_price + shipping_charged)
-ebay_final_value_pct: 
+ebay_final_value_pct: 12.9
 
 # Fixed per-transaction fee (GBP). If your plan has one (e.g., £0.30), set it here.
-ebay_fixed_fee: 
+ebay_fixed_fee: 0.30
 
 # If you separate the payment processor fee from eBay’s fee, put the % here.
 # If you use eBay Managed Payments and want it all in ebay_final_value_pct, set this to 0.
-payment_pct: 
+payment_pct: 2.9

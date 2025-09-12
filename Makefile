@@ -98,3 +98,6 @@ TEMPLATE := vendor/ebay_templates/uk_pokemon_template.csv
 
 build-csv-template:
 	$(PY) -m app.cli.build_csv --limit 3 --template $(TEMPLATE) --out exports/ebay_upload.csv --start-price 0.99
+
+consumables:
+	$(PY) -m app.accounting

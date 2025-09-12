@@ -8,3 +8,4 @@ sqlite-utils
 fastapi
 uvicorn
 python-multipart
+pyyaml

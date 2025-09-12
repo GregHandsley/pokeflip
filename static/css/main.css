@@ -105,3 +105,12 @@ td.images a { margin-right:10px; }
 .inline-form { display:flex; align-items:center; gap:8px; }
 .price-input { width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px; }
 .btn.small { padding:4px 8px; font-size:12px; border-radius:6px; }
+
+.badge{display:inline-block;padding:2px 6px;border-radius:6px;border:1px solid #e5e7eb;font-size:12px}
+.badge.warn{background:#fff7ed;border-color:#f59e0b;color:#92400e}
+.badge.active{background:#ecfdf5;border-color:#10b981;color:#065f46}
+.badge.draft{background:#eff6ff;border-color:#3b82f6;color:#1e3a8a}
+.price-input{width:7rem}
+.btn.small{padding:4px 8px;font-size:12px}
+
+table.data td.num, table.data th.num { text-align: right; }
