@@ -2,9 +2,11 @@ import sqlite3
 from pathlib import Path
 from app.common.paths import db_path, project_root
 
-def connect_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path())
-    conn.execute("PRAGMA foreign_keys = ON;")
+def connect_db():
+    conn = sqlite3.connect(db_path(), timeout=10.0, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=5000;")
     return conn
 
 def ensure_images_table(conn: sqlite3.Connection) -> None:

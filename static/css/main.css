@@ -38,22 +38,20 @@ nav{margin-left:auto;display:flex;gap:8px}
 .nav{display:inline-block;padding:6px 10px;border:1px solid #e5e7eb;border-radius:8px;text-decoration:none;color:#111;background:#fff}
 .nav.active{background:#111;color:#fff;border-color:#111}
 
-/* modal */
-.modal{
-    position:fixed; inset:0; background:rgba(0,0,0,.6);
-    display:flex; align-items:center; justify-content:center;
-    padding:24px; z-index:1000;
-  }
-  .modal.hidden{ display:none; }
-  .modal img{
-    max-width:90vw; max-height:90vh; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.35);
-    background:#fff;
-  }
-  .modal .close{
-    position:fixed; top:16px; right:16px;
-    padding:6px 10px; border-radius:999px; border:1px solid #fff; background:#000; color:#fff;
-    font-size:20px; line-height:1; cursor:pointer;
-  }
+/* Modal base */
+.modal{position:fixed;inset:0;background:rgba(17,24,39,.45);display:flex;
+  align-items:center;justify-content:center;z-index:50}
+.modal.hidden{display:none}
+.modal .dialog{width:440px;max-width:90vw;background:#fff;border:1px solid #e5e7eb;
+  border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.2);position:relative}
+.modal .close{position:absolute;right:10px;top:6px;border:0;background:transparent;
+  font-size:22px;line-height:1;cursor:pointer}
+
+.modal form label{display:block;margin:8px 0 4px;font-weight:600}
+.modal form input{width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px}
+.modal .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal .hint{color:#6b7280;font-size:12px;margin-top:6px}
+
   
 
 /* tables */
@@ -114,3 +112,9 @@ td.images a { margin-right:10px; }
 .btn.small{padding:4px 8px;font-size:12px}
 
 table.data td.num, table.data th.num { text-align: right; }
+
+.modal { position:fixed; inset:0; background:rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; }
+.modal.hidden { display:none; }
+.modal .dialog { background:#fff; padding:16px; border-radius:12px; width:360px; max-width:90vw; position:relative; }
+.modal .close { position:absolute; top:8px; right:8px; border:0; background:transparent; font-size:20px; }
+.btn.outline { background:#fff; border-color:#e5e7eb; }

@@ -9,6 +9,7 @@ from .routes_upload import router as upload_router
 from .routes_ingest import router as ingest_router
 from .routes_review import router as review_router
 from .routes_cards import router as cards_router
+from app.ui.routes_sales import router as sales_router
 
 app = FastAPI(title="Pokeflip UI")
 
@@ -26,3 +27,4 @@ app.include_router(upload_router)
 app.include_router(ingest_router)
 app.include_router(review_router)
 app.include_router(cards_router)
+app.include_router(sales_router)

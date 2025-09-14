@@ -65,6 +65,10 @@
             Mark active
           </button>
         </form>
+        <button class="btn small outline btn-mark-sold" type="button" data-sku="{{ c.sku }}"
+          {% if c.list_status != 'active' %}disabled title="Needs to be Active first"{% endif %}>
+          Mark sold…
+        </button>
       </td>
 
       {# NEW: Pack £ cell to match header #}
@@ -96,6 +100,45 @@
 <div id="img-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="img-modal-title">
   <button class="close" aria-label="Close">×</button>
   <img id="img-modal-img" alt="" />
+</div>
+
+<div id="sale-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="sale-title">
+  <div class="dialog">
+    <button class="close" aria-label="Close">×</button>
+    <h3 id="sale-title" style="margin:0 0 8px">Record sale</h3>
+    <form method="post" action="/sales/record">
+      <input type="hidden" name="sku" id="sale-sku">
+
+      <div class="row">
+        <div>
+          <label>Sale price (£)</label>
+          <input type="number" name="sale_price" step="0.01" min="0" required>
+        </div>
+        <div>
+          <label>Shipping charged (£)</label>
+          <input type="number" name="shipping_charged" step="0.01" min="0" value="0.00">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Shipping actual (£)</label>
+          <input type="number" name="shipping_actual" step="0.01" min="0" value="0.00">
+        </div>
+        <div>
+          <label>Order ID (optional)</label>
+          <input type="text" name="order_id" placeholder="eBay order #">
+        </div>
+      </div>
+
+      <div class="hint">Packaging (standard): £{{ '%.2f'|format(consumables_cost) }}</div>
+
+      <div style="display:flex; gap:8px; margin-top:12px">
+        <button class="btn primary" type="submit">Save</button>
+        <button class="btn" type="button" id="sale-cancel">Cancel</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <script>
@@ -135,6 +178,27 @@
   });
   closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
   modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
+})();
+
+(() => {
+  const saleModal = document.getElementById('sale-modal');
+  const saleSku = document.getElementById('sale-sku');
+  const cancelBtn = document.getElementById('sale-cancel');
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-mark-sold');
+    if (!btn) return;
+    e.preventDefault();
+    saleSku.value = btn.dataset.sku;
+    saleModal.classList.remove('hidden');
+    setTimeout(() => {
+      saleModal.querySelector('input[name="sale_price"]').focus();
+    }, 0);
+  });
+
+  saleModal.querySelector('.close').addEventListener('click', () => saleModal.classList.add('hidden'));
+  cancelBtn.addEventListener('click', () => saleModal.classList.add('hidden'));
+  saleModal.addEventListener('click', (e) => { if (e.target === saleModal) saleModal.classList.add('hidden'); });
 })();
 </script>
 {% endblock %}

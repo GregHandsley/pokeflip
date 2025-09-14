@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.storage.db import connect_db
 from app.listing.texts import build_title, render_description
 from app.ops.listings import upsert_listing
-from app.ops.state_watcher import move_if_ready
+from app.ops.state_watcher import move_if_active
 from app.pricing.comps import get_comps
 from app.accounting import estimate_consumables_cost
 from .deps import templates, counts, file_url
@@ -105,6 +105,6 @@ def mark_active(sku: str = Form(...)):
         return RedirectResponse(url=f"/cards?sku={sku}&flash=Set+price+first", status_code=303)
     upsert_listing(sku, platform="ebay", status="active", price=price)
     # Move staged → listed if possible
-    moved_msg = move_if_ready(sku, dry_run=False) or ""
+    moved_msg = move_if_active(sku, dry_run=False) or ""
     flash = "Marked active" + (" & moved" if "moved" in moved_msg else "")
     return RedirectResponse(url=f"/cards?sku={sku}&flash={flash}", status_code=303)

@@ -33,7 +33,7 @@ publish:
 
 # 6) Move folders when listing status changes
 watch:
-	$(PY) -m app.ops.state_watcher $(ARGS)
+	$(PY) -m app.ops.state_watcher --interval 2.0
 
 # 7) Record a sale quickly (use `make add-sale SKU=POK/...`)
 add-sale:
@@ -101,3 +101,6 @@ build-csv-template:
 
 consumables:
 	$(PY) -m app.accounting
+
+add-sale:
+	$(PY) -m app.cli.add_sale $(SKU)

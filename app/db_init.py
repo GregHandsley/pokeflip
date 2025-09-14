@@ -86,6 +86,7 @@ DDL_STATEMENTS = [
         consumables_cost        REAL DEFAULT 0.0,
         net_profit              REAL,            -- computed by app and stored
         roi_pct                 REAL,            -- computed by app and stored
+        order_id TEXT,
         created_at              TEXT DEFAULT (datetime('now')),
         FOREIGN KEY (sku) REFERENCES cards(sku)
     );

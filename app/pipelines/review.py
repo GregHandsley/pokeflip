@@ -46,6 +46,8 @@ def stage_pending(temp_id: str, meta: Dict[str, Any]) -> str:
         staged_dir = project_root() / "staged" / sku
         staged_dir.mkdir(parents=True, exist_ok=True)
         sku_safe = sku.replace("/", "-")
+        ext_front = front_src.suffix.lower()
+        ext_back  = back_src.suffix.lower()
         front_dst = staged_dir / f"{sku_safe}_front{front_src.suffix.lower()}"
         back_dst  = staged_dir / f"{sku_safe}_back{back_src.suffix.lower()}"
 
