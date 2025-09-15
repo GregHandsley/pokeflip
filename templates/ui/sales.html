@@ -1,0 +1,39 @@
+{% extends "ui/base.html" %}
+{% block body %}
+<h2>Sold</h2>
+
+{% if flash %}<p class="alert ok">{{ flash }}</p>{% endif %}
+
+{% if not sold %}
+  <p class="muted">No sold items yet.</p>
+{% else %}
+<table class="data">
+  <thead>
+    <tr>
+      <th>SKU</th><th>Name</th><th class="num">No.</th>
+      <th>Price</th><th>Ship (chg/act)</th><th>Fees</th><th>Pack £</th>
+      <th>Net</th><th>ROI%</th><th>Photos</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for it in sold %}
+    <tr>
+      <td class="sku">{{ it.sku }}</td>
+      <td>{{ it.name }} — {{ it.set }}</td>
+      <td class="num">{{ it.number }}</td>
+      <td class="num">£{{ '%.2f'|format(it.sale_price or it.price_listed or 0) }}</td>
+      <td class="num">£{{ '%.2f'|format(it.shipping_charged or 0) }} / £{{ '%.2f'|format(it.shipping_actual or 0) }}</td>
+      <td class="num">£{{ '%.2f'|format((it.ebay_fee or 0) + (it.payment_fee or 0)) }}</td>
+      <td class="num">£{{ '%.2f'|format(it.pack_cost or 0) }}</td>
+      <td class="num"><b>£{{ '%.2f'|format(it.net_profit or 0) }}</b></td>
+      <td class="num">{{ '%.1f'|format(it.roi_pct or 0) }}</td>
+      <td class="images">
+        {% if it.front_url %}<a href="{{ it.front_url }}" target="_blank">front</a>{% else %}<span class="muted">front</span>{% endif %}
+        {% if it.back_url  %}<a href="{{ it.back_url  }}" target="_blank">back</a>{% else %}<span class="muted">back</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
