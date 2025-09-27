@@ -1,0 +1,4 @@
+fastapi==0.112.1
+uvicorn[standard]==0.30.3
+psycopg2-binary==2.9.9
+python-dotenv==1.0.1

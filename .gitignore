@@ -1,0 +1,11 @@
+# root .gitignore
+node_modules
+.env
+.env.*
+data/
+dist
+__pycache__/
+*.pyc
+.venv
+.idea
+.DS_Store
