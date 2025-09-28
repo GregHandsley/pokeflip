@@ -1,0 +1,19 @@
+:root {
+    /* Brand & text */
+    --brand:        106 24 232;  /* primary (example violet) */
+    --brand-ink:    255 255 255;
+    --ink:          18 23 31;
+    --muted-ink:    105 115 134;
+  
+    /* Surfaces & borders */
+    --surface:      255 255 255;
+    --surface-alt:  248 249 251;
+    --panel:        245 247 250;
+    --border:       226 232 240;
+  
+    /* States & focus */
+    --ok:           16 185 129;
+    --warn:         245 158 11;
+    --danger:       239 68 68;
+    --focus:        59 130 246;
+  }

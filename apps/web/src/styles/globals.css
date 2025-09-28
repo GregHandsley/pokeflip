@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+/* App baseline using tokens */
+html, body, #root {
+  height: 100%;
+  background: rgb(var(--surface));
+  color: rgb(var(--ink));
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--focus));
+}
