@@ -1,0 +1,2 @@
+Alembic migrations for Pokeflip.
+Run with: docker compose exec api alembic upgrade head
