@@ -1,11 +1,20 @@
-from fastapi import APIRouter
+# add if missing:
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+import os, uuid
+
 from apps.api.core.database import SessionLocal
+from apps.api.core.settings import settings
 from apps.api.models import Image as ImageRow
-from apps.api.storage.s3_client import presign_get
+from apps.api.storage.s3_client import s3_client, presign_get
+from apps.api.storage.move import move_object
 
 router = APIRouter(prefix="/pending", tags=["pending"])
+
+class DiscardReq(BaseModel):
+    mode: str = "trash" 
 
 @router.get("")
 def list_pending(limit: int = 100):
@@ -27,5 +36,33 @@ def list_pending(limit: int = 100):
                 "dupes": dupes,
             })
         return {"items": out}
+    finally:
+        db.close()
+
+@router.post("/{id}/discard")
+def discard_pending(id: int, body: DiscardReq):
+    db: Session = SessionLocal()
+    try:
+        row: ImageRow | None = db.execute(
+            select(ImageRow).where(ImageRow.id == id, ImageRow.sku.is_(None))
+        ).scalar_one_or_none()
+        if not row:
+            raise HTTPException(status_code=404, detail="Pending item not found or already processed")
+
+        s3 = s3_client()
+        keys = [k for k in (row.key_front, row.key_back) if k]
+
+        if body.mode == "delete":
+            for k in keys:
+                s3.delete_object(Bucket=settings.S3_BUCKET, Key=k)
+        else:
+            # move files to trash/ with a short uuid prefix to avoid collisions
+            for k in keys:
+                dst = f"trash/{uuid.uuid4().hex[:8]}_{os.path.basename(k)}"
+                move_object(k, dst)
+
+        db.delete(row)
+        db.commit()
+        return {"status": "ok", "mode": body.mode, "deleted": len(keys)}
     finally:
         db.close()

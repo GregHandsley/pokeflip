@@ -15,4 +15,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY apps/worker/ ./apps/worker/
 COPY apps/api/ ./apps/api/   
 
-CMD ["python","apps/worker/main.py"]
+CMD ["python","-m","apps.worker.worker"]

@@ -10,6 +10,7 @@ import { ExportsPage } from "@/app/pages/ExportsPage";
 import { InventoryPage } from "@/app/pages/InventoryPage";
 import { ReportsPage } from "@/app/pages/ReportsPage";
 import { SettingsPage } from "@/app/pages/SettingsPage";
+import ReviewPage from "@/app/pages/ReviewPage";
 
 export function AppRouter() {
   return (
@@ -26,6 +27,7 @@ export function AppRouter() {
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/review/:id" element={<ReviewPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

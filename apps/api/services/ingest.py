@@ -15,6 +15,10 @@ FRONT_RE = re.compile(r"(^|[-_])(f|front)([-_.]|$)", re.I)
 BACK_RE  = re.compile(r"(^|[-_])(b|back)([-_.]|$)", re.I)
 IMG_EXTS = {".jpg",".jpeg",".png",".webp",".bmp"}
 
+# --- Improved pairing heuristics constants ---
+BURST_SECONDS = 8           # images shot within this window are one "burst"
+BATCH_DUPE_DISTANCE = 3     # phash Hamming distance to treat two shots as near-duplicates
+
 def _ext(name:str)->str:
     i = name.rfind(".")
     return name[i:].lower() if i>=0 else ""
@@ -37,35 +41,116 @@ class Pair:
     back_key: str
     flags: List[str]
 
-def pair_keys(keys: List[str]) -> List[Pair]:
-    # Heuristic 1: by normalized stem with explicit side markers
-    buckets: Dict[str, Dict[str,str]] = {}
-    leftovers: List[str] = []
-    for k in keys:
-        if _ext(k) not in IMG_EXTS: continue
-        s = _side(k)
-        if s:
-            buckets.setdefault(_stem(k), {})
-            buckets[_stem(k)][s] = k
+def pair_keys(keys: List[str], *, meta: Dict[str, float] = {}, s3=None) -> List[Pair]:
+    """
+    Improved pairing:
+    1) Group shots into time 'bursts' using LastModified timestamps (meta).
+    2) Inside each burst, drop near-duplicates (phash Hamming <= BATCH_DUPE_DISTANCE).
+    3) Prefer filename side hints; otherwise pair by nearest-in-time, leaving a SINGLETON if odd.
+    Note: requires `meta` = { key: unix_ts } and `s3` client to compute phash for duplicate filtering.
+    """
+    def _phash_for_key(k: str) -> str:
+        obj = s3.get_object(Bucket=settings.S3_BUCKET, Key=k)
+        data = obj["Body"].read()
+        with Image.open(io.BytesIO(data)) as im:
+            im = im.convert("RGB")
+            return str(imagehash.phash(im))
+
+    # prepare (key, ts) list and sort by time
+    items = [(k, meta.get(k, 0.0)) for k in keys if _ext(k) in IMG_EXTS]
+    items.sort(key=lambda x: x[1])
+
+    # split into time bursts
+    bursts: List[List[str]] = []
+    current: List[str] = []
+    prev_ts: float | None = None
+    for k, ts in items:
+        if prev_ts is None or (ts - prev_ts) <= BURST_SECONDS:
+            current.append(k)
         else:
-            leftovers.append(k)
+            if current:
+                bursts.append(current)
+            current = [k]
+        prev_ts = ts
+    if current:
+        bursts.append(current)
 
     pairs: List[Pair] = []
-    for stem, sides in buckets.items():
-        if "front" in sides and "back" in sides:
-            pairs.append(Pair(sides["front"], sides["back"], flags=["PAIRED_BY_STEM"]))
-        else:
-            # push any singletons into leftovers
-            leftovers.extend(list(sides.values()))
 
-    # Heuristic 2: pair leftovers sequentially
-    leftovers.sort()
-    for i in range(0, len(leftovers), 2):
-        if i+1 < len(leftovers):
-            pairs.append(Pair(leftovers[i], leftovers[i+1], flags=["PAIRED_SEQUENTIAL","SIDE_UNKNOWN"]))
-        else:
-            # odd tail: treat as single; put as front only (will still show in pending)
-            pairs.append(Pair(leftovers[i], leftovers[i], flags=["SINGLETON","SIDE_UNKNOWN"]))
+    for burst in bursts:
+        # compute phash for in-burst duplicate filtering
+        phashes: Dict[str, str] = {}
+        for k in burst:
+            try:
+                phashes[k] = _phash_for_key(k)
+            except Exception:
+                phashes[k] = ""
+
+        # remove near-duplicates within the burst (keep earliest)
+        unique_keys: List[str] = []
+        for k in sorted(burst, key=lambda kk: meta.get(kk, 0.0)):
+            is_dupe = False
+            for kept in unique_keys:
+                if phashes.get(k) and phashes.get(kept):
+                    if hamming(phashes[k], phashes[kept]) <= BATCH_DUPE_DISTANCE:
+                        is_dupe = True
+                        break
+            if not is_dupe:
+                unique_keys.append(k)
+
+        fronts = [k for k in unique_keys if _side(k) == "front"]
+        backs  = [k for k in unique_keys if _side(k) == "back"]
+
+        used: set[str] = set()
+
+        def _closest(a: str, pool: List[str]) -> str | None:
+            if not pool:
+                return None
+            pool_sorted = sorted(pool, key=lambda b: abs(meta.get(a, 0.0) - meta.get(b, 0.0)))
+            for cand in pool_sorted:
+                if cand not in used and cand != a:
+                    return cand
+            return None
+
+        # pair explicit fronts with closest backs
+        for f in sorted(fronts, key=lambda k: meta.get(k, 0.0)):
+            if f in used:
+                continue
+            b = _closest(f, backs)
+            if b:
+                used.add(f); used.add(b)
+                pairs.append(Pair(f, b, flags=["PAIRED_TIME_BURST"]))
+
+        # pair remaining by nearest-in-time, avoiding near-duplicates
+        remaining = [k for k in unique_keys if k not in used]
+        remaining.sort(key=lambda k: meta.get(k, 0.0))
+
+        i = 0
+        while i < len(remaining):
+            a = remaining[i]
+            if a in used:
+                i += 1
+                continue
+            partner = None
+            best_dt = None
+            for j in range(i + 1, len(remaining)):
+                b = remaining[j]
+                if b in used:
+                    continue
+                dt = abs(meta.get(a, 0.0) - meta.get(b, 0.0))
+                pa, pb = phashes.get(a, ""), phashes.get(b, "")
+                if pa and pb and hamming(pa, pb) <= BATCH_DUPE_DISTANCE:
+                    continue
+                if best_dt is None or dt < best_dt:
+                    best_dt = dt
+                    partner = b
+            if partner:
+                used.add(a); used.add(partner)
+                pairs.append(Pair(a, partner, flags=["PAIRED_TIME_BURST","SIDE_UNKNOWN"]))
+            else:
+                used.add(a)
+                pairs.append(Pair(a, a, flags=["SINGLETON","SIDE_UNKNOWN"]))
+            i += 1
 
     return pairs
 
@@ -91,6 +176,7 @@ def run_ingest(prefix: str = "inbox/unsorted/", dupe_threshold: int = 5) -> Dict
 
     # 1) list objects under prefix (paginated)
     keys: List[str] = []
+    meta: Dict[str, float] = {}
     token = None
     while True:
         kwargs = {"Bucket": settings.S3_BUCKET, "Prefix": prefix, "MaxKeys": 1000}
@@ -100,6 +186,12 @@ def run_ingest(prefix: str = "inbox/unsorted/", dupe_threshold: int = 5) -> Dict
             key = obj["Key"]
             if _ext(key) in IMG_EXTS:
                 keys.append(key)
+            # capture last-modified seconds for time-based pairing
+            lm = obj.get("LastModified")
+            if lm:
+                meta[key] = lm.timestamp() if hasattr(lm, "timestamp") else 0.0
+            else:
+                meta[key] = 0.0
         if resp.get("IsTruncated"):
             token = resp.get("NextContinuationToken")
         else:
@@ -108,7 +200,7 @@ def run_ingest(prefix: str = "inbox/unsorted/", dupe_threshold: int = 5) -> Dict
     if not keys:
         return {"pairs": 0, "inserted": 0, "skipped_existing": 0, "dupes_flagged": 0}
 
-    pairs = pair_keys(keys)
+    pairs = pair_keys(keys, meta=meta, s3=s3)
 
     # 2) load existing phashes from DB into memory
     db: Session = SessionLocal()
