@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apps.api.routes.health import router as health_router
 from apps.api.routes.files import router as files_router
+from apps.api.routes.ingest import router as ingest_router
+from apps.api.routes.pending import router as pending_router
 
 app = FastAPI(title="Pokeflip API")
 
@@ -15,3 +17,5 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(files_router)
+app.include_router(ingest_router)
+app.include_router(pending_router)

@@ -5,3 +5,7 @@ python-dotenv==1.0.1
 alembic==1.13.1
 pydantic-settings==2.2.1
 boto3==1.40.45
+rq==1.15.1
+redis==5.0.1
+Pillow==10.4.0
+imagehash==4.3.1
