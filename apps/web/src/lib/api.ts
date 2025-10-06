@@ -84,3 +84,39 @@ export async function checkUnprocessedFiles() {
   if (!res.ok) throw new Error(`GET /ingest/check ${res.status}`);
   return res.json() as Promise<{count: number; files: string[]}>;
 }
+
+export type ThumbBundle = {
+  list:   { webp: string; jpeg: string };
+  detail: { webp: string; jpeg: string };
+  zoom:   { webp: string; jpeg: string };
+};
+export type CardListItem = {
+  sku: string;
+  name: string;
+  set: string;
+  number: string;
+  language: string;
+  condition: string;
+  holo: boolean;
+  thumbs: { front: ThumbBundle | null; back: ThumbBundle | null };
+};
+export async function fetchCards(): Promise<CardListItem[]> {
+  const res = await fetch(`${API_BASE}/cards`);
+  if (!res.ok) throw new Error(`GET /cards ${res.status}`);
+  return (await res.json()).items as CardListItem[];
+}
+export async function fetchCard(sku: string) {
+  const res = await fetch(`${API_BASE}/cards/${encodeURIComponent(sku)}`);
+  if (!res.ok) throw new Error(`GET /cards/${sku} ${res.status}`);
+  return res.json() as Promise<{
+    sku: string;
+    name: string;
+    set: string;
+    number: string;
+    language: string;
+    condition: string;
+    holo: boolean;
+    thumbs: { front: ThumbBundle | null; back: ThumbBundle | null };
+    title: string; description: string;
+  }>;
+}

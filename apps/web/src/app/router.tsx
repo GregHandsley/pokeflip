@@ -4,13 +4,14 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { DashboardPage } from "@/app/pages/DashboardPage";
 import { UploadsPage } from "@/app/pages/UploadsPage";
 import { PendingPage } from "@/app/pages/PendingPage";
-import { CardsPage } from "@/app/pages/CardsPage";
+import CardsPage from "@/app/pages/CardsPage";
 import { PricingPage } from "@/app/pages/PricingPage";
 import { ExportsPage } from "@/app/pages/ExportsPage";
 import { InventoryPage } from "@/app/pages/InventoryPage";
 import { ReportsPage } from "@/app/pages/ReportsPage";
 import { SettingsPage } from "@/app/pages/SettingsPage";
 import ReviewPage from "@/app/pages/ReviewPage";
+import CardDetailPage from "@/app/pages/CardDetailPage"; // <-- add this
 
 export function AppRouter() {
   return (
@@ -22,6 +23,7 @@ export function AppRouter() {
           <Route path="/uploads" element={<UploadsPage />} />
           <Route path="/pending" element={<PendingPage />} />
           <Route path="/cards" element={<CardsPage />} />
+          <Route path="/cards/:sku" element={<CardDetailPage />} /> {/* <-- add this line */}
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/exports" element={<ExportsPage />} />
           <Route path="/inventory" element={<InventoryPage />} />

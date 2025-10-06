@@ -6,6 +6,7 @@ from datetime import datetime
 import os
 
 from apps.api.core.database import SessionLocal
+from apps.api.core.settings import settings
 from apps.api.models import Image as ImageRow, Card
 from apps.api.services.sku import make_candidate, ensure_unique
 from apps.api.storage.move import move_object
@@ -21,9 +22,6 @@ class StageReq(BaseModel):
     condition: str = "NM"
     holo: bool = False
 
-def _ext(key: str) -> str:
-    _, ext = os.path.splitext(key)
-    return ext.lower() or ".jpg"
 
 @router.post("/{id}/stage")
 def stage_pending(id: int, body: StageReq):
@@ -36,18 +34,25 @@ def stage_pending(id: int, body: StageReq):
         candidate = make_candidate(body.set, body.number, body.language, body.condition, body.holo)
         sku = ensure_unique(db, candidate)
 
-        # compute destination keys
-        dst_prefix = f"staged/{sku}"
-        fext = _ext(row.key_front) if row.key_front else ".jpg"
-        bext = _ext(row.key_back) if row.key_back else fext
-        dst_front = f"{dst_prefix}/front{fext}"
-        dst_back  = f"{dst_prefix}/back{bext}" if row.key_back else None
+        # source keys
+        src_front = row.key_front
+        src_back = row.key_back
+        
+        # decide extensions
+        def _ext(k: str) -> str:
+            return os.path.splitext(k)[1].lower() if k else ""
 
-        # move objects (source may be inbox/unsorted or inbox/pending)
-        if row.key_front:
-            move_object(row.key_front, dst_front)
-        if row.key_back and dst_back:
-            move_object(row.key_back, dst_back)
+        ext_f = _ext(src_front) or ".jpg"
+        ext_b = _ext(src_back) or ".jpg"
+
+        # destinations
+        dst_front = f"staged/{sku}/front{ext_f}"
+        dst_back = f"staged/{sku}/back{ext_b}" if src_back else None
+
+        # move in storage
+        move_object(src_front, dst_front)
+        if dst_back:
+            move_object(src_back, dst_back)
 
         # upsert Card
         card = Card(
@@ -61,17 +66,24 @@ def stage_pending(id: int, body: StageReq):
         )
         db.add(card)
 
-        # update Image row to link to card + new keys
+        # update DB keys to new staged locations
         row.sku = sku
         row.key_front = dst_front
-        row.key_back = dst_back
+        row.key_back = dst_back  # may be None when singleton
         row.staged_at = datetime.utcnow()
+        
+        db.add(row)
         db.commit()
+        db.refresh(row)
 
+        # response can include both urls
+        front_url = presign_get(row.key_front) if row.key_front else None
+        back_url = presign_get(row.key_back) if row.key_back else None
+        
         return {
             "sku": sku,
-            "front_url": presign_get(dst_front),
-            "back_url": presign_get(dst_back) if dst_back else None,
+            "front_url": front_url,
+            "back_url": back_url,
         }
     finally:
         db.close()
