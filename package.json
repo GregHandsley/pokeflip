@@ -1,0 +1,15 @@
+{
+    "name": "pokeflip",
+    "private": true,
+    "packageManager": "pnpm@10.26.2",
+    "workspaces": [
+      "apps/*",
+      "packages/*"
+    ],
+    "scripts": {
+      "dev": "pnpm -r dev",
+      "build": "pnpm -r build",
+      "lint": "pnpm -r lint",
+      "typecheck": "pnpm -r typecheck"
+    }
+  }
