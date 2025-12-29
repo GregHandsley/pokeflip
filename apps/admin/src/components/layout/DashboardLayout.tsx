@@ -42,8 +42,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {sidebarOpen ? (
             <>
               <div>
-                <h1 className="text-xl font-bold text-black">Pokeflip Admin</h1>
-                <p className="text-sm text-gray-600 mt-1">Sprint 1</p>
+          <h1 className="text-xl font-bold text-black">Pokeflip Admin</h1>
+          <p className="text-sm text-gray-600 mt-1">Sprint 1</p>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -117,7 +117,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         <div className={`p-6 border-t border-gray-200 ${!sidebarOpen ? "px-2" : ""}`}>
           {sidebarOpen ? (
-            <LogoutButton />
+          <LogoutButton />
           ) : (
             <button
               onClick={handleLogout}

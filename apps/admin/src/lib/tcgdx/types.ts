@@ -23,6 +23,7 @@ export type TcgdxCard = {
   name: string;
   image?: string;
   number?: string;
+  localId?: string; // Card number from TCGdx API (e.g., "1", "2", "3")
   rarity?: string;
   set?: {
     id: string;

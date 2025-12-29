@@ -96,3 +96,40 @@ export async function fetchCardsForSet(setId: string, locale: string = "en"): Pr
   throw new Error("Invalid API response: missing cards array");
 }
 
+/**
+ * Fetch a single card by ID from TCGdex API
+ * Endpoint: GET https://api.tcgdx.net/v2/{locale}/cards/{cardId}
+ * Returns null if card doesn't exist in the requested locale (404)
+ */
+export async function fetchCardById(cardId: string, locale: string = "en"): Promise<TcgdxCard | null> {
+  const url = `${BASE_URL}/${locale}/cards/${cardId}`;
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        // Card not found in this locale - this is normal, not an error
+        return null;
+      }
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch card: ${response.status} ${errorText}`);
+    }
+
+    const json = await response.json();
+    return json as TcgdxCard;
+  } catch (error: any) {
+    // Handle network errors or other issues
+    if (error.message?.includes("404")) {
+      return null; // Card doesn't exist in this locale
+    }
+    throw error; // Re-throw other errors
+  }
+}
+

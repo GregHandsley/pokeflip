@@ -6,6 +6,7 @@ type Args = {
   setId: string;
   cardId: string;
   locale: string;
+  quantity: number;
   defaults: {
     condition: Condition;
     forSale: boolean;
@@ -17,7 +18,7 @@ type Args = {
  * Insert a draft intake line via API route.
  * The API route ensures the card and set exist in the database first.
  */
-export async function insertDraftLine({ acquisitionId, setId, cardId, locale, defaults }: Args) {
+export async function insertDraftLine({ acquisitionId, setId, cardId, locale, quantity, defaults }: Args) {
   const res = await fetch("/api/intake/add-line", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -26,7 +27,7 @@ export async function insertDraftLine({ acquisitionId, setId, cardId, locale, de
       set_id: setId,
       card_id: cardId,
       condition: defaults.condition,
-      quantity: 1,
+      quantity,
       for_sale: defaults.forSale,
       list_price_pence: defaults.forSale ? poundsToPence(defaults.listPricePounds) : null,
       locale,

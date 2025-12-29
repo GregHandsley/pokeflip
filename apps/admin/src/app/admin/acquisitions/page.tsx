@@ -81,7 +81,7 @@ export default function AcquisitionsPage() {
   return (
     <main className="min-h-screen p-6">
       <div className="flex items-center justify-between">
-        <div>
+    <div>
           <h1 className="text-2xl font-semibold">Acquisitions</h1>
           <p className="mt-1 text-black/60">Create a purchase batch, intake via binder, then commit.</p>
         </div>
@@ -171,7 +171,7 @@ export default function AcquisitionsPage() {
                   <button className="text-sm underline" onClick={() => toggleStatus(a.id, "open")}>
                     Reopen
                   </button>
-                )}
+        )}
               </div>
             </li>
           ))}

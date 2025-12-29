@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { fetchAllSets, fetchCardsForSet } from "@/lib/tcgdx/tcgdxClient";
+import { fetchAllSets, fetchCardsForSet, fetchCardById } from "@/lib/tcgdx/tcgdxClient";
 
 export async function POST(req: Request) {
   try {
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
     const supabase = supabaseServer();
 
-    // Ensure set exists first
+    // Ensure set exists first - always store English version
     const { data: existingSet } = await supabase
       .from("sets")
       .select("id")
@@ -34,12 +34,21 @@ export async function POST(req: Request) {
 
     if (!existingSet) {
       try {
-        const sets = await fetchAllSets(locale);
-        const set = sets.find((s) => s.id === set_id);
+        // Always fetch English set name, regardless of user's locale selection
+        let set = null;
+        try {
+          const englishSets = await fetchAllSets("en");
+          set = englishSets.find((s) => s.id === set_id);
+        } catch (e) {
+          // If English doesn't exist, fall back to requested locale
+          const sets = await fetchAllSets(locale);
+          set = sets.find((s) => s.id === set_id);
+        }
+        
         if (set) {
           const { error: setError } = await supabase.from("sets").upsert({
             id: set.id,
-            name: set.name,
+            name: set.name, // English name (or fallback to requested locale)
             series: set.series?.name ?? null,
             release_date: set.releaseDate
               ? set.releaseDate.replaceAll("/", "-").slice(0, 10)
@@ -74,29 +83,59 @@ export async function POST(req: Request) {
       .single();
 
     // If card doesn't exist, fetch from TCGdx and insert it
+    // Always store English as the base/canonical record (like Cardmarket does)
     if (!existingCard) {
       try {
-        // Fetch the specific card from TCGdx
-        const cards = await fetchCardsForSet(set_id, locale);
-        const card = cards.find((c) => c.id === card_id);
+        // Strategy: Always try to get English version first, regardless of user's locale
+        // Card IDs are consistent across languages, so we can fetch English by same ID
+        let baseCard = null;
         
-        if (!card) {
+        // Method 1: Try direct fetch by card ID in English (fastest)
+        baseCard = await fetchCardById(card_id, "en");
+        
+        // Method 2: If that fails, try fetching English set and finding the card
+        if (!baseCard) {
+          try {
+            const englishCards = await fetchCardsForSet(set_id, "en");
+            baseCard = englishCards.find((c) => c.id === card_id) || null;
+          } catch (e) {
+            // English set might not exist for this set_id, continue
+          }
+        }
+        
+        // Method 3: If English doesn't exist, the card might be Japanese-only
+        // In this case, we still store it but note that it doesn't have English
+        // (This is rare - most cards have English versions)
+        if (!baseCard) {
+          // Try the requested locale as last resort
+          if (locale !== "en") {
+            try {
+              const cards = await fetchCardsForSet(set_id, locale);
+              baseCard = cards.find((c) => c.id === card_id) || null;
+            } catch (e) {
+              // Set might not exist in requested locale either
+            }
+          }
+        }
+        
+        if (!baseCard) {
           return NextResponse.json(
-            { error: `Card ${card_id} not found in set ${set_id}` },
+            { error: `Card ${card_id} not found` },
             { status: 404 }
           );
         }
 
-        // Try to insert the card with the original number
-        let cardNumber = card.number ?? "";
+        // Store English as canonical (or the card we found if English doesn't exist)
+        // TCGdx uses localId for the card number (e.g., "1", "2", "3")
+        let cardNumber = baseCard.localId ?? baseCard.number ?? "";
         let { error: cardError } = await supabase.from("cards").insert({
-          id: card.id,
+          id: baseCard.id,
           set_id: set_id,
           number: cardNumber,
-          name: card.name,
-          rarity: card.rarity ?? null,
-          api_image_url: card.image ?? null,
-          api_payload: card,
+          name: baseCard.name, // Always store English name (or base name)
+          rarity: baseCard.rarity ?? null,
+          api_image_url: baseCard.image ?? null,
+          api_payload: baseCard,
         });
 
         // If insert fails due to unique constraint on (set_id, number), 
@@ -112,30 +151,30 @@ export async function POST(req: Request) {
           
           if (conflictCard) {
             // Check if it's the same card (same name) - if so, use the existing card
-            if (conflictCard.name === card.name) {
+            if (conflictCard.name === baseCard.name) {
               // Same card, just use the existing one - don't insert, just proceed with the existing card_id
               // But wait, we need to use the requested card_id, not the conflict card's ID
               // Actually, if it's the same card with different ID, we should use the existing one
               // to maintain data consistency. But the user selected a specific card_id...
               // For now, let's make the number unique by appending the card_id suffix
-              const cardIdSuffix = card.id.split("-").pop() || card.id.slice(-4);
+              const cardIdSuffix = baseCard.id.split("-").pop() || baseCard.id.slice(-4);
               cardNumber = `${cardNumber}-${cardIdSuffix}`;
             } else {
               // Different card with same number - make number unique
               // Extract a unique suffix from the card_id (e.g., "015" from "sv08.5-015")
-              const cardIdSuffix = card.id.split("-").pop() || card.id.slice(-4);
+              const cardIdSuffix = baseCard.id.split("-").pop() || baseCard.id.slice(-4);
               cardNumber = `${cardNumber}-${cardIdSuffix}`;
             }
 
             // Try inserting again with the unique number
             const { error: retryError } = await supabase.from("cards").insert({
-              id: card.id,
+              id: baseCard.id,
               set_id: set_id,
               number: cardNumber,
-              name: card.name,
-              rarity: card.rarity ?? null,
-              api_image_url: card.image ?? null,
-              api_payload: card,
+              name: baseCard.name,
+              rarity: baseCard.rarity ?? null,
+              api_image_url: baseCard.image ?? null,
+              api_payload: baseCard,
             });
 
             if (retryError) {
