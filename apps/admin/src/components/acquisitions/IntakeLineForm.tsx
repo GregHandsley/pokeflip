@@ -43,7 +43,7 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
   useEffect(() => {
     if (setsError) {
       setError(setsError);
-    }
+      }
   }, [setsError]);
 
   // Reset card selection when set changes

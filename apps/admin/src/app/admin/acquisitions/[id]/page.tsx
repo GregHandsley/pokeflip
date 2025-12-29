@@ -1,128 +1,122 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabaseBrowser } from "@/lib/supabase/browser";
-import PageHeader from "@/components/ui/PageHeader";
-import IntakeLineForm from "@/components/acquisitions/IntakeLineForm";
-import IntakeLineList from "@/components/acquisitions/IntakeLineList";
-import AddCardsModal from "@/components/acquisitions/AddCardsModal";
-import Button from "@/components/ui/Button";
-import Alert from "@/components/ui/Alert";
-import Card from "@/components/ui/Card";
+import { useState } from "react";
+import { CardPicker } from "@/features/intake/CardPicker";
+import { DraftCart } from "@/features/intake/DraftCart";
+import { insertDraftLine } from "@/features/intake/intakeInsert";
+import type { Condition } from "@/features/intake/types";
 
-type IntakeRow = {
-  id: string;
-  condition: string;
-  quantity: number;
-  for_sale: boolean;
-  list_price_pence: number | null;
-  cards: { name: string; number: string; api_image_url: string | null } | null;
-};
-
-export default function AcquisitionEditorPage() {
+export default function IntakeWorkspacePage() {
   const { id } = useParams<{ id: string }>();
-  const supabase = supabaseBrowser();
-  const [draftLines, setDraftLines] = useState<IntakeRow[]>([]);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [committing, setCommitting] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const acquisitionId = id;
 
-  const loadDraftLines = async () => {
-    const { data, error } = await supabase
-      .from("intake_lines")
-      .select("id, condition, quantity, for_sale, list_price_pence, cards(name, number, api_image_url)")
-      .eq("acquisition_id", id)
-      .eq("status", "draft")
-      .order("created_at", { ascending: true });
+  const [locale, setLocale] = useState("en");
+  const [lastCondition, setLastCondition] = useState<Condition>("LP");
+  const [defaultForSale, setDefaultForSale] = useState(true);
+  const [defaultListPrice, setDefaultListPrice] = useState("0.99");
+  const [toast, setToast] = useState<string | null>(null);
+  const [cartKey, setCartKey] = useState(0); // Force cart refresh
 
-    if (error) {
-      setMsg(error.message);
-    } else {
-      const mapped = (data ?? []).map((row: any) => ({
-        ...row,
-        cards: Array.isArray(row.cards) ? row.cards[0] : row.cards,
-      }));
-      setDraftLines(mapped as IntakeRow[]);
-    }
-  };
-
-  useEffect(() => {
-    void loadDraftLines();
-  }, [id]);
-
-  const handleCommit = async () => {
-    setMsg(null);
-    setCommitting(true);
-    const { data, error } = await supabase.rpc("commit_acquisition", {
-      p_acquisition_id: id,
-    } as any);
+  const onPickCard = async ({ setId, cardId, locale: cardLocale }: { setId: string; cardId: string; locale: string }) => {
+    setToast(null);
+    const { error } = await insertDraftLine({
+      acquisitionId,
+      setId,
+      cardId,
+      locale,
+      defaults: {
+        condition: lastCondition,
+        forSale: defaultForSale,
+        listPricePounds: defaultListPrice
+      }
+    });
 
     if (error) {
-      setMsg(error.message);
+      setToast(error.message);
     } else {
-      const result = data as any;
-      setMsg(result?.message ?? "Committed");
-      await loadDraftLines();
+      setToast("Added to draft cart");
+      setCartKey(k => k + 1); // Trigger cart refresh
+      // Don't close modal - allow adding multiple cards
     }
-    setCommitting(false);
   };
 
   return (
-    <div>
-      <PageHeader
-        title="Acquisition Intake"
-        action={
-          <a
-            href="/admin/acquisitions"
-            className="text-sm text-blue-600 hover:underline"
-          >
-            ← Back
-          </a>
-        }
-      />
+    <main className="h-screen flex flex-col -m-6">
+      <div className="flex items-center justify-between flex-shrink-0 mb-4 px-6 pt-6">
+        <div>
+          <h1 className="text-2xl font-semibold">Intake Workspace</h1>
+          <p className="mt-1 text-black/60">
+            Browse cards on the left, manage your cart on the right.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <a className="text-sm underline" href="/admin/acquisitions">Back to acquisitions</a>
+          <a className="text-sm underline" href="/admin/inventory">Inventory totals</a>
+        </div>
+      </div>
 
-      <Card className="mb-6">
-        <div className="mb-4">
-          <Button onClick={() => setShowAddModal(true)}>
-            + Add Cards (New Flow)
-          </Button>
-        </div>
-        <div className="border-t border-gray-200 pt-4">
-          <IntakeLineForm acquisitionId={id} onLineAdded={loadDraftLines} />
-        </div>
-        <div className="mt-4 flex items-center justify-between pt-4 border-t border-gray-200">
-          <Button
-            variant="primary"
-            onClick={handleCommit}
-            disabled={committing || draftLines.length === 0}
-          >
-            {committing ? "Committing..." : "Commit to inventory"}
-          </Button>
-          <span className="text-sm text-gray-600">
-            Draft lines: {draftLines.length}
-          </span>
-        </div>
-        {msg && (
-          <div className="mt-4">
-            <Alert type={msg.includes("Error") ? "error" : "success"}>
-              {msg}
-            </Alert>
+      {/* Defaults / speed controls */}
+      <div className="rounded-2xl border border-black/10 bg-white p-5 flex-shrink-0 mb-4 mx-6">
+        <div className="grid gap-4 md:grid-cols-4">
+          <label className="text-sm">
+            Default condition
+            <select
+              className="mt-2 w-full rounded-lg border border-black/10 px-3 py-2.5"
+              value={lastCondition}
+              onChange={(e) => setLastCondition(e.target.value as Condition)}
+            >
+              {["NM","LP","MP","HP","DMG"].map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+
+          <label className="text-sm flex items-end gap-2 pb-2">
+            <input 
+              type="checkbox" 
+              checked={defaultForSale} 
+              onChange={(e) => setDefaultForSale(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span>Default for sale</span>
+          </label>
+
+          <label className="text-sm">
+            Default list price (£)
+            <input
+              className="mt-2 w-full rounded-lg border border-black/10 px-3 py-2.5 disabled:opacity-50"
+              value={defaultListPrice}
+              onChange={(e) => setDefaultListPrice(e.target.value)}
+              inputMode="decimal"
+              disabled={!defaultForSale}
+            />
+          </label>
+
+          <div className="text-sm text-black/60 flex items-center">
+            {toast ? (
+              <span className={`font-medium ${toast.includes("error") || toast.includes("violates") ? "text-red-600" : "text-green-600"}`}>
+                {toast}
+              </span>
+            ) : (
+              <span>Click cards to add them to your cart.</span>
+            )}
           </div>
-        )}
-      </Card>
+        </div>
+      </div>
 
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Draft intake lines</h2>
-        <IntakeLineList lines={draftLines} />
-      </section>
+      {/* Side-by-side layout */}
+      <div className="grid gap-6 lg:grid-cols-2 flex-1 min-h-0 px-6 pb-6">
+        <CardPicker 
+          onPickCard={onPickCard} 
+          locale={locale}
+          onLocaleChange={setLocale}
+        />
 
-      <AddCardsModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        acquisitionId={id}
-        onCardsAdded={loadDraftLines}
-      />
-    </div>
+        <DraftCart
+          key={cartKey}
+          acquisitionId={acquisitionId}
+          onCommitted={() => setToast("Committed. Inventory totals updated.")}
+        />
+      </div>
+    </main>
   );
 }
