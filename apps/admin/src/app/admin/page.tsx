@@ -33,6 +33,18 @@ export default function AdminHome() {
             View Inventory →
           </a>
         </Card>
+
+        <Card>
+          <h2 className="text-lg font-semibold mb-2">Catalog Sync</h2>
+          <p className="text-sm text-gray-600 mb-4">Manage Pokemon TCG sets and cards</p>
+          <a
+            href="/admin/catalog-sync"
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Manage Catalog →
+          </a>
+        </Card>
+
       </div>
     </div>
   );

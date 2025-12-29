@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import PageHeader from "@/components/ui/PageHeader";
 import IntakeLineForm from "@/components/acquisitions/IntakeLineForm";
 import IntakeLineList from "@/components/acquisitions/IntakeLineList";
+import AddCardsModal from "@/components/acquisitions/AddCardsModal";
 import Button from "@/components/ui/Button";
 import Alert from "@/components/ui/Alert";
 import Card from "@/components/ui/Card";
@@ -25,6 +26,7 @@ export default function AcquisitionEditorPage() {
   const [draftLines, setDraftLines] = useState<IntakeRow[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [committing, setCommitting] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const loadDraftLines = async () => {
     const { data, error } = await supabase
@@ -81,7 +83,14 @@ export default function AcquisitionEditorPage() {
       />
 
       <Card className="mb-6">
-        <IntakeLineForm acquisitionId={id} onLineAdded={loadDraftLines} />
+        <div className="mb-4">
+          <Button onClick={() => setShowAddModal(true)}>
+            + Add Cards (New Flow)
+          </Button>
+        </div>
+        <div className="border-t border-gray-200 pt-4">
+          <IntakeLineForm acquisitionId={id} onLineAdded={loadDraftLines} />
+        </div>
         <div className="mt-4 flex items-center justify-between pt-4 border-t border-gray-200">
           <Button
             variant="primary"
@@ -107,6 +116,13 @@ export default function AcquisitionEditorPage() {
         <h2 className="text-lg font-semibold mb-3">Draft intake lines</h2>
         <IntakeLineList lines={draftLines} />
       </section>
+
+      <AddCardsModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        acquisitionId={id}
+        onCardsAdded={loadDraftLines}
+      />
     </div>
   );
 }

@@ -1,11 +1,14 @@
 "use client";
 
 import { FormEvent, useState, useEffect, useMemo } from "react";
-import { supabaseBrowser } from "@/lib/supabase/browser";
 import { poundsToPence } from "@pokeflip/shared";
 import { Input, Select } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Alert from "@/components/ui/Alert";
+import type { TcgSet, TcgCard } from "@/lib/tcgdx/types";
+import { CARD_CONDITIONS } from "@/lib/tcgdx/constants";
+import { useCatalogSets } from "./hooks/useCatalogSets";
+import { useTcgdxCards } from "./hooks/useTcgdxCards";
 
 interface IntakeLineFormProps {
   acquisitionId: string;
@@ -13,9 +16,6 @@ interface IntakeLineFormProps {
 }
 
 export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLineFormProps) {
-  const supabase = supabaseBrowser();
-  const [sets, setSets] = useState<{ id: string; name: string }[]>([]);
-  const [cards, setCards] = useState<{ id: string; name: string; number: string; api_image_url: string | null }[]>([]);
   const [setId, setSetId] = useState("");
   const [cardId, setCardId] = useState("");
   const [condition, setCondition] = useState("LP");
@@ -25,47 +25,40 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const conditionOptions = [
-    { value: "NM", label: "NM" },
-    { value: "LP", label: "LP" },
-    { value: "MP", label: "MP" },
-    { value: "HP", label: "HP" },
-    { value: "DMG", label: "DMG" },
-  ];
+  // Use hooks for data fetching
+  const { sets, loading: loadingSets, error: setsError } = useCatalogSets();
+  const { cards, loading: loadingCards, error: cardsError } = useTcgdxCards(
+    setId || null,
+    "en"
+  );
+
+  const conditionOptions = CARD_CONDITIONS.map((c) => ({
+    value: c.value,
+    label: c.label,
+  }));
 
   const selectedCard = useMemo(() => cards.find((c) => c.id === cardId), [cards, cardId]);
 
+  // Handle errors from hooks
   useEffect(() => {
-    const loadSets = async () => {
-      const { data, error } = await supabase
-        .from("sets")
-        .select("id, name")
-        .order("release_date", { ascending: false })
-        .limit(5000);
-      if (error) setError(error.message);
-      else setSets((data ?? []) as { id: string; name: string }[]);
-    };
-    void loadSets();
-  }, []);
+    if (setsError) {
+      setError(setsError);
+    }
+  }, [setsError]);
 
+  // Reset card selection when set changes
   useEffect(() => {
     if (setId) {
-      const loadCards = async () => {
-        const { data, error } = await supabase
-          .from("cards")
-          .select("id, name, number, api_image_url")
-          .eq("set_id", setId)
-          .order("number", { ascending: true })
-          .limit(5000);
-        if (error) setError(error.message);
-        else setCards((data ?? []) as { id: string; name: string; number: string; api_image_url: string | null }[]);
-      };
-      void loadCards();
-    } else {
-      setCards([]);
       setCardId("");
     }
   }, [setId]);
+
+  // Handle cards error
+  useEffect(() => {
+    if (cardsError) {
+      setError(cardsError);
+    }
+  }, [cardsError]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -76,62 +69,86 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
     }
 
     setLoading(true);
-    const { error } = await supabase.from("intake_lines").insert({
-      acquisition_id: acquisitionId,
-      set_id: setId,
-      card_id: cardId,
-      condition,
-      quantity: qty,
-      for_sale: forSale,
-      list_price_pence: forSale ? poundsToPence(listPrice) : null,
-      status: "draft",
-    } as any);
+    try {
+      const res = await fetch("/api/intake/add-line", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acquisition_id: acquisitionId,
+          set_id: setId,
+          card_id: cardId,
+          condition,
+          quantity: qty,
+          for_sale: forSale,
+          list_price_pence: forSale ? poundsToPence(listPrice) : null,
+        }),
+      });
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to add intake line");
+
       setQty(1);
       setListPrice("0.99");
       onLineAdded();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
       setLoading(false);
     }
   };
 
-  const setOptions = sets.map((s) => ({ value: s.id, label: s.name }));
-  const cardOptions = cards.map((c) => ({ value: c.id, label: `${c.number} — ${c.name}` }));
+  const setOptions = sets.map((s) => ({
+    value: s.id,
+    label: `${s.name}${s.releaseDate ? ` (${s.releaseDate})` : ""}`,
+  }));
+
+  const cardOptions = cards.map((c) => ({
+    value: c.id,
+    label: `${c.number || "?"} — ${c.name}`,
+  }));
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4">
       <div className="grid gap-4 md:grid-cols-2">
-        <Select
-          label="Set"
-          value={setId}
-          onChange={(e) => {
-            setSetId(e.target.value);
-            setCardId("");
-          }}
-          options={[{ value: "", label: "Select…" }, ...setOptions]}
-        />
+        <div>
+          <Select
+            label="Set"
+            value={setId}
+            onChange={(e) => {
+              setSetId(e.target.value);
+              setCardId("");
+            }}
+            disabled={loadingSets}
+            options={[
+              { value: "", label: loadingSets ? "Loading sets..." : "Select…" },
+              ...setOptions,
+            ]}
+          />
+        </div>
 
-        <Select
-          label="Card"
-          value={cardId}
-          onChange={(e) => setCardId(e.target.value)}
-          disabled={!setId}
-          options={[{ value: "", label: "Select…" }, ...cardOptions]}
-        />
+        <div>
+          <Select
+            label="Card"
+            value={cardId}
+            onChange={(e) => setCardId(e.target.value)}
+            disabled={!setId || loadingCards}
+            options={[
+              { value: "", label: loadingCards ? "Loading cards..." : "Select…" },
+              ...cardOptions,
+            ]}
+          />
+        </div>
       </div>
 
-      {selectedCard?.api_image_url && (
+      {selectedCard?.image && (
         <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
           <img
-            src={selectedCard.api_image_url}
+            src={`${selectedCard.image}/high.webp`}
             alt={`${selectedCard.name} preview`}
             className="h-20 w-auto rounded-lg border border-gray-200"
           />
           <div className="text-sm text-gray-600">
-            Using API image for reference (photos optional later).
+            Card preview from TCGdex API
           </div>
         </div>
       )}
@@ -182,4 +199,3 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
     </form>
   );
 }
-
