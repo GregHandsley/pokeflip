@@ -58,6 +58,7 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [showDeletePhotoConfirm, setShowDeletePhotoConfirm] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<{ id: string; kind: string } | null>(null);
+  const [showMarkSoldConfirm, setShowMarkSoldConfirm] = useState(false);
 
   useEffect(() => {
     setCurrentLot(lot);
@@ -153,14 +154,14 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
     }
   };
 
-  const handleMarkAsSold = async () => {
-    if (!confirm(`Mark this lot as sold? This will change the status to "sold".`)) {
-      return;
-    }
+  const handleMarkAsSold = () => {
+    setShowMarkSoldConfirm(true);
+  };
 
+  const confirmMarkAsSold = async () => {
     setMarkingSold(true);
     try {
-      const res = await fetch(`/api/admin/lots/${lot.id}/status`, {
+      const res = await fetch(`/api/admin/lots/${currentLot.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "sold" }),
@@ -173,6 +174,7 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
 
       // Update local state
       setCurrentLot((prev) => ({ ...prev, status: "sold" as const }));
+      setShowMarkSoldConfirm(false);
       onLotUpdated?.();
       onClose();
     } catch (e: any) {
@@ -449,6 +451,45 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
             </p>
           </div>
         )}
+      </Modal>
+
+      {/* Mark as Sold Confirmation Modal */}
+      <Modal
+        isOpen={showMarkSoldConfirm}
+        onClose={() => setShowMarkSoldConfirm(false)}
+        title="Mark as Sold"
+        maxWidth="md"
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
+            <button
+              onClick={() => setShowMarkSoldConfirm(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmMarkAsSold}
+              disabled={markingSold}
+              className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {markingSold ? "Marking..." : "Mark as Sold"}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-gray-700">
+            Are you sure you want to mark this lot as sold? This will change the status to "sold" and update the inventory totals.
+          </p>
+          {currentLot.card && (
+            <div className="text-sm text-gray-600">
+              <strong>Card:</strong> #{currentLot.card.number} {currentLot.card.name}
+            </div>
+          )}
+          <div className="text-sm text-gray-600">
+            <strong>Quantity:</strong> {currentLot.quantity} card{currentLot.quantity !== 1 ? "s" : ""}
+          </div>
+        </div>
       </Modal>
     </Modal>
   );

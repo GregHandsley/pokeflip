@@ -132,9 +132,9 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
 
   return (
     <>
-      <div className="grid grid-cols-12 gap-2 px-4 py-2.5 items-center hover:bg-black/5 transition-colors">
+    <div className="grid grid-cols-12 gap-2 px-4 py-2.5 items-center hover:bg-black/5 transition-colors">
         {/* Camera icon with photo count */}
-        <div className="col-span-1">
+      <div className="col-span-1">
           <button
             type="button"
             onClick={() => setShowPhotoModal(true)}
@@ -158,7 +158,7 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
               </svg>
             )}
           </button>
-        </div>
+      </div>
 
       {/* Card name */}
       <div className="col-span-3">
