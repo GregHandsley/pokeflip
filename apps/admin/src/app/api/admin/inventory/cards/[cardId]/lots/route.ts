@@ -45,16 +45,25 @@ export async function GET(
       soldItemsMap.set(item.lot_id, current + (item.qty || 0));
     });
 
-    // Get eBay listing status
+    // Get eBay listing statuses and publish queue info
     const { data: ebayListings } = await supabase
       .from("ebay_listings")
       .select("lot_id, status")
       .in("lot_id", lotIds);
 
-    const ebayMap = new Map();
+    const ebayMap = new Map<string, string>();
     (ebayListings || []).forEach((listing: any) => {
       ebayMap.set(listing.lot_id, listing.status);
     });
+
+    // Get publish queue status
+    const { data: publishJobs } = await supabase
+      .from("ebay_publish_jobs")
+      .select("lot_id, status")
+      .in("lot_id", lotIds)
+      .in("status", ["queued", "running"]);
+
+    const queuedLotIds = new Set((publishJobs || []).map((job: any) => job.lot_id));
 
     // Get photo counts
     const { data: photoCounts } = await supabase
@@ -110,7 +119,10 @@ export async function GET(
         created_at: lot.created_at,
         updated_at: lot.updated_at,
         ebay_status: ebayMap.get(lot.id) || "not_listed",
+        ebay_publish_queued_at: lot.ebay_publish_queued_at || null,
+        is_queued: queuedLotIds.has(lot.id),
         photo_count: photoCountsMap.get(lot.id) || 0,
+        use_api_image: lot.use_api_image || false,
         purchase: purchase || null,
       };
     });

@@ -27,7 +27,10 @@ type Lot = {
   created_at: string;
   updated_at: string;
   ebay_status: string;
+  ebay_publish_queued_at: string | null;
+  is_queued: boolean;
   photo_count: number;
+  use_api_image?: boolean;
   purchase: Purchase | null;
 };
 
@@ -43,7 +46,55 @@ const STATUS_COLORS: Record<string, string> = {
   listed: "bg-green-100 text-green-700",
   sold: "bg-purple-100 text-purple-700",
   archived: "bg-gray-100 text-gray-500",
+  // Sale/listing statuses
+  "not_listed": "bg-gray-100 text-gray-700",
+  "queued": "bg-yellow-100 text-yellow-700",
+  "pending": "bg-orange-100 text-orange-700",
+  "live": "bg-green-100 text-green-700",
+  "ended": "bg-gray-100 text-gray-500",
+  "failed": "bg-red-100 text-red-700",
 };
+
+// Function to determine the display status for a lot
+function getDisplayStatus(lot: Lot): { label: string; color: string } {
+  // Priority 1: Sold/Archived status
+  if (lot.status === "sold") {
+    return { label: "Sold", color: STATUS_COLORS.sold };
+  }
+  if (lot.status === "archived") {
+    return { label: "Archived", color: STATUS_COLORS.archived };
+  }
+
+  // Priority 2: eBay listing status (if exists)
+  if (lot.ebay_status === "live") {
+    return { label: "Live", color: STATUS_COLORS.live };
+  }
+  if (lot.ebay_status === "pending") {
+    return { label: "Pending", color: STATUS_COLORS.pending };
+  }
+  if (lot.ebay_status === "ended") {
+    return { label: "Ended", color: STATUS_COLORS.ended };
+  }
+  if (lot.ebay_status === "failed") {
+    return { label: "Failed", color: STATUS_COLORS.failed };
+  }
+
+  // Priority 3: Queued for publishing
+  if (lot.is_queued || lot.ebay_publish_queued_at) {
+    return { label: "Queued", color: STATUS_COLORS.queued };
+  }
+
+  // Priority 4: Not listed (ready to list)
+  if (lot.ebay_status === "not_listed" && lot.for_sale) {
+    return { label: "Not Listed", color: STATUS_COLORS.not_listed };
+  }
+
+  // Fallback: Show lot status
+  return {
+    label: lot.status.charAt(0).toUpperCase() + lot.status.slice(1),
+    color: STATUS_COLORS[lot.status] || STATUS_COLORS.draft,
+  };
+}
 
 export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Props) {
   const [lots, setLots] = useState<Lot[]>([]);
@@ -299,18 +350,34 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                               )}
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              <span
-                                className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                  STATUS_COLORS[lot.status] || STATUS_COLORS.draft
-                                }`}
-                              >
-                                {lot.status}
-                              </span>
-                              {lot.photo_count > 0 && (
+                              {(() => {
+                                const displayStatus = getDisplayStatus(lot);
+                                return (
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-xs font-medium ${displayStatus.color}`}
+                                    title={`Status: ${displayStatus.label}`}
+                                  >
+                                    {displayStatus.label}
+                                  </span>
+                                );
+                              })()}
+                              {!lot.for_sale && (
+                                <span
+                                  className="px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700"
+                                  title="Not for sale - will not appear in inbox"
+                                >
+                                  Not For Sale
+                                </span>
+                              )}
+                              {lot.use_api_image ? (
+                                <span className="text-blue-600 text-xs" title="Using API image">
+                                  🖼️ API
+                                </span>
+                              ) : lot.photo_count > 0 ? (
                                 <span className="text-gray-500 text-xs" title={`${lot.photo_count} photo${lot.photo_count !== 1 ? "s" : ""}`}>
                                   📷 {lot.photo_count}
                                 </span>
-                              )}
+                              ) : null}
                               {lot.ebay_status !== "not_listed" && (
                                 <span
                                   className="text-xs"

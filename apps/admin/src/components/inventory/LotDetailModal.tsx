@@ -20,7 +20,10 @@ type Lot = {
   created_at: string;
   updated_at: string;
   ebay_status: string;
+  ebay_publish_queued_at?: string | null;
+  is_queued?: boolean;
   photo_count: number;
+  use_api_image?: boolean;
   card: {
     id: string;
     number: string;
@@ -49,6 +52,58 @@ const STATUS_COLORS: Record<string, string> = {
   archived: "bg-gray-100 text-gray-500",
 };
 
+// Function to determine the display status for a lot
+function getDisplayStatus(lot: {
+  status: string;
+  ebay_status: string;
+  ebay_publish_queued_at?: string | null;
+  is_queued?: boolean;
+  for_sale: boolean;
+}): { label: string; color: string } {
+  // Priority 1: Sold/Archived status
+  if (lot.status === "sold") {
+    return { label: "Sold", color: "bg-purple-100 text-purple-700" };
+  }
+  if (lot.status === "archived") {
+    return { label: "Archived", color: "bg-gray-100 text-gray-500" };
+  }
+
+  // Priority 2: eBay listing status (if exists)
+  if (lot.ebay_status === "live") {
+    return { label: "Live", color: "bg-green-100 text-green-700" };
+  }
+  if (lot.ebay_status === "pending") {
+    return { label: "Pending", color: "bg-orange-100 text-orange-700" };
+  }
+  if (lot.ebay_status === "ended") {
+    return { label: "Ended", color: "bg-gray-100 text-gray-500" };
+  }
+  if (lot.ebay_status === "failed") {
+    return { label: "Failed", color: "bg-red-100 text-red-700" };
+  }
+
+  // Priority 3: Queued for publishing
+  if (lot.is_queued || lot.ebay_publish_queued_at) {
+    return { label: "Queued", color: "bg-yellow-100 text-yellow-700" };
+  }
+
+  // Priority 4: Not listed (ready to list)
+  if (lot.ebay_status === "not_listed" && lot.for_sale) {
+    return { label: "Not Listed", color: "bg-gray-100 text-gray-700" };
+  }
+
+  // Fallback: Show lot status
+  const statusColors: Record<string, string> = {
+    draft: "bg-gray-100 text-gray-700",
+    ready: "bg-blue-100 text-blue-700",
+    listed: "bg-green-100 text-green-700",
+  };
+  return {
+    label: lot.status.charAt(0).toUpperCase() + lot.status.slice(1),
+    color: statusColors[lot.status] || "bg-gray-100 text-gray-700",
+  };
+}
+
 export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCountChanged }: Props) {
   const [markingSold, setMarkingSold] = useState(false);
   const [photos, setPhotos] = useState<Array<{ id: string; kind: string; signedUrl: string | null }>>([]);
@@ -59,15 +114,20 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
   const [showDeletePhotoConfirm, setShowDeletePhotoConfirm] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<{ id: string; kind: string } | null>(null);
   const [showMarkSoldConfirm, setShowMarkSoldConfirm] = useState(false);
+  const [updatingForSale, setUpdatingForSale] = useState(false);
+  const [useApiImage, setUseApiImage] = useState(false);
+  const [updatingApiImage, setUpdatingApiImage] = useState(false);
 
   useEffect(() => {
     setCurrentLot(lot);
+    setUseApiImage(lot.use_api_image || false);
     loadPhotos();
   }, [lot.id]);
 
   // Update currentLot when lot prop changes (e.g., from parent refresh)
   useEffect(() => {
     setCurrentLot(lot);
+    setUseApiImage(lot.use_api_image || false);
   }, [lot]);
 
   const loadPhotos = async () => {
@@ -184,7 +244,68 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
     }
   };
 
+  const handleToggleForSale = async () => {
+    const newForSale = !currentLot.for_sale;
+    setUpdatingForSale(true);
+    try {
+      const res = await fetch(`/api/admin/lots/${currentLot.id}/for-sale`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          for_sale: newForSale,
+          list_price_pence: newForSale && !currentLot.list_price_pence ? 0.99 : undefined,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to update for_sale status");
+      }
+
+      // Update local state
+      setCurrentLot((prev) => ({
+        ...prev,
+        for_sale: newForSale,
+        list_price_pence: newForSale && !prev.list_price_pence ? 99 : prev.list_price_pence,
+      }));
+      onLotUpdated?.();
+    } catch (e: any) {
+      alert(e.message || "Failed to update for sale status");
+    } finally {
+      setUpdatingForSale(false);
+    }
+  };
+
+  const handleToggleApiImage = async () => {
+    const newValue = !useApiImage;
+    setUpdatingApiImage(true);
+    try {
+      const res = await fetch(`/api/admin/lots/${currentLot.id}/use-api-image`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ use_api_image: newValue }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to update API image flag");
+      }
+
+      setUseApiImage(newValue);
+      setCurrentLot((prev) => ({
+        ...prev,
+        use_api_image: newValue,
+      }));
+      onLotUpdated?.();
+    } catch (e: any) {
+      alert(e.message || "Failed to update API image flag");
+    } finally {
+      setUpdatingApiImage(false);
+    }
+  };
+
   const canMarkAsSold = currentLot.status !== "sold" && currentLot.status !== "archived";
+  const canToggleForSale = currentLot.status !== "sold" && currentLot.status !== "archived";
 
   return (
     <Modal
@@ -260,14 +381,51 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
           )}
           <div className="flex justify-between">
             <span className="text-gray-600">Status:</span>
-            <span
-              className={`px-2 py-1 rounded text-xs font-medium ${
-                STATUS_COLORS[currentLot.status] || STATUS_COLORS.draft
-              }`}
-            >
-              {currentLot.status}
-            </span>
+            {(() => {
+              const displayStatus = getDisplayStatus({
+                status: currentLot.status,
+                ebay_status: currentLot.ebay_status,
+                ebay_publish_queued_at: currentLot.ebay_publish_queued_at,
+                is_queued: currentLot.is_queued,
+                for_sale: currentLot.for_sale,
+              });
+              return (
+                <span
+                  className={`px-2 py-1 rounded text-xs font-medium ${displayStatus.color}`}
+                  title={`Sale Status: ${displayStatus.label}`}
+                >
+                  {displayStatus.label}
+                </span>
+              );
+            })()}
           </div>
+          {canToggleForSale && (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">For Sale:</span>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`px-2 py-1 rounded text-xs font-medium ${
+                    currentLot.for_sale
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-700"
+                  }`}
+                >
+                  {currentLot.for_sale ? "Yes" : "No"}
+                </span>
+                <button
+                  onClick={handleToggleForSale}
+                  disabled={updatingForSale}
+                  className="px-3 py-1 text-xs font-medium rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {updatingForSale
+                    ? "..."
+                    : currentLot.for_sale
+                    ? "Mark Not For Sale"
+                    : "Mark For Sale"}
+                </button>
+              </div>
+            </div>
+          )}
           {currentLot.for_sale && currentLot.list_price_pence != null && (
             <div className="flex justify-between">
               <span className="text-gray-600">List Price:</span>
@@ -299,7 +457,11 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
           >
               <div className="flex items-center gap-2">
               <span className="text-gray-600 font-medium">Photos</span>
-              <span className="text-xs text-gray-500">({photos.length})</span>
+              {useApiImage ? (
+                <span className="text-xs text-blue-600 font-medium">(Using API Image)</span>
+              ) : (
+                <span className="text-xs text-gray-500">({photos.length})</span>
+              )}
               {photos.length > 0 && photos.length !== currentLot.photo_count && (
                 <span className="text-xs text-green-600">• Updated</span>
               )}
@@ -323,19 +485,56 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
 
           {photoSectionExpanded && (
             <div className="mt-4 space-y-4">
-              {/* Upload buttons */}
-              <div className="flex gap-2 flex-wrap">
-                <LotPhotoUpload lotId={currentLot.id} kind="front" onUploaded={handlePhotoUploaded} />
-                <LotPhotoUpload lotId={currentLot.id} kind="back" onUploaded={handlePhotoUploaded} />
-                <LotPhotoUpload lotId={currentLot.id} kind="extra" onUploaded={handlePhotoUploaded} />
-              </div>
+              {/* API Image Option */}
+              {currentLot.card?.image_url && (
+                <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-sm mb-1">Use API Image</h3>
+                      <p className="text-xs text-gray-600">
+                        For low quality cards, you can use the API image instead of uploading photos.
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useApiImage}
+                        onChange={handleToggleApiImage}
+                        disabled={updatingApiImage}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50"
+                      />
+                      <span className="text-sm font-medium">
+                        {updatingApiImage ? "Updating..." : useApiImage ? "Using API Image" : "Use API Image"}
+                      </span>
+                    </label>
+                  </div>
+                  {useApiImage && (
+                    <div className="mt-3">
+                      <img
+                        src={`${currentLot.card.image_url}/low.webp`}
+                        alt="API card image"
+                        className="h-32 w-auto rounded border border-gray-200"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
-              {/* Photo gallery */}
-              {loadingPhotos ? (
-                <div className="text-sm text-gray-500">Loading photos...</div>
-              ) : photos.length === 0 ? (
-                <div className="text-sm text-gray-500">No photos yet. Upload some above.</div>
-              ) : (
+              {/* Upload buttons - only show if not using API image */}
+              {!useApiImage && (
+                <>
+                  <div className="flex gap-2 flex-wrap">
+                    <LotPhotoUpload lotId={currentLot.id} kind="front" onUploaded={handlePhotoUploaded} />
+                    <LotPhotoUpload lotId={currentLot.id} kind="back" onUploaded={handlePhotoUploaded} />
+                    <LotPhotoUpload lotId={currentLot.id} kind="extra" onUploaded={handlePhotoUploaded} />
+                  </div>
+
+                  {/* Photo gallery */}
+                  {loadingPhotos ? (
+                    <div className="text-sm text-gray-500">Loading photos...</div>
+                  ) : photos.length === 0 ? (
+                    <div className="text-sm text-gray-500">No photos yet. Upload some above.</div>
+                  ) : (
                 <div className="grid grid-cols-3 gap-3">
                   {photos.map((photo) => {
                     const isDeleting = deletingPhotoId === photo.id;
@@ -405,6 +604,8 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
                     );
                   })}
                 </div>
+                  )}
+                </>
               )}
             </div>
           )}
