@@ -67,7 +67,7 @@ export default function AcquisitionForm({ onSubmit }: AcquisitionFormProps) {
       {error && <Alert type="error">{error}</Alert>}
 
       <Button type="submit" disabled={loading}>
-        {loading ? "Creating..." : "Create acquisition"}
+        {loading ? "Creating..." : "Create Purchase"}
       </Button>
     </form>
   );

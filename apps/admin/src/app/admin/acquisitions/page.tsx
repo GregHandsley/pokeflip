@@ -73,17 +73,17 @@ export default function AcquisitionsPage() {
   };
 
   const header = useMemo(() => {
-    if (filter === "open") return "Open acquisitions";
-    if (filter === "closed") return "Closed acquisitions";
-    return "All acquisitions";
+    if (filter === "open") return "Open Purchases";
+    if (filter === "closed") return "Closed Purchases";
+    return "All Purchases";
   }, [filter]);
 
   return (
     <main className="min-h-screen p-6">
       <div className="flex items-center justify-between">
     <div>
-          <h1 className="text-2xl font-semibold">Acquisitions</h1>
-          <p className="mt-1 text-black/60">Create a purchase batch, intake via binder, then commit.</p>
+          <h1 className="text-2xl font-semibold">Purchases</h1>
+          <p className="mt-1 text-black/60">Create a purchase, add cards to draft cart, then commit to inventory.</p>
         </div>
         <a className="text-sm underline" href="/admin">Admin</a>
       </div>
@@ -103,7 +103,7 @@ export default function AcquisitionsPage() {
       </div>
 
       <form onSubmit={create} className="mt-6 grid gap-3 max-w-2xl rounded-2xl border border-black/10 bg-white p-4">
-        <h2 className="text-lg font-semibold">New acquisition</h2>
+        <h2 className="text-lg font-semibold">New Purchase</h2>
 
         <div className="grid gap-3 md:grid-cols-2">
           <label className="text-sm">
@@ -145,7 +145,7 @@ export default function AcquisitionsPage() {
             value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
 
-        <button className="rounded-lg bg-black text-white py-2 font-medium">Create acquisition</button>
+        <button className="rounded-lg bg-black text-white py-2 font-medium">Create Purchase</button>
         {msg && <p className="text-sm text-red-600">{msg}</p>}
       </form>
 
@@ -175,7 +175,7 @@ export default function AcquisitionsPage() {
               </div>
             </li>
           ))}
-          {rows.length === 0 && <p className="text-sm text-black/60">No acquisitions.</p>}
+          {rows.length === 0 && <p className="text-sm text-black/60">No purchases.</p>}
         </ul>
       </section>
     </main>

@@ -58,7 +58,7 @@ export default function IntakeWorkspacePage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <a className="text-sm underline" href="/admin/acquisitions">Back to acquisitions</a>
+          <a className="text-sm underline" href="/admin/acquisitions">Back to purchases</a>
           <a className="text-sm underline" href="/admin/inventory">Inventory totals</a>
         </div>
       </div>

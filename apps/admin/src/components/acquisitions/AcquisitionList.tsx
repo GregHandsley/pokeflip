@@ -16,7 +16,7 @@ interface AcquisitionListProps {
 
 export default function AcquisitionList({ acquisitions }: AcquisitionListProps) {
   if (acquisitions.length === 0) {
-    return <p className="text-sm text-gray-600">No acquisitions yet.</p>;
+    return <p className="text-sm text-gray-600">No purchases yet.</p>;
   }
 
   return (

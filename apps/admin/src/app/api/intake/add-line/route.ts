@@ -138,64 +138,76 @@ export async function POST(req: Request) {
           api_payload: baseCard,
         });
 
-        // If insert fails due to unique constraint on (set_id, number), 
-        // handle the conflict by making the number unique
-        if (cardError && (cardError.message.includes("unique constraint") || cardError.message.includes("duplicate key"))) {
-          // Check if there's a card with the same set_id + number
-          const { data: conflictCard } = await supabase
-            .from("cards")
-            .select("id, name, number")
-            .eq("set_id", set_id)
-            .eq("number", cardNumber)
-            .single();
-          
-          if (conflictCard) {
-            // Check if it's the same card (same name) - if so, use the existing card
-            if (conflictCard.name === baseCard.name) {
-              // Same card, just use the existing one - don't insert, just proceed with the existing card_id
-              // But wait, we need to use the requested card_id, not the conflict card's ID
-              // Actually, if it's the same card with different ID, we should use the existing one
-              // to maintain data consistency. But the user selected a specific card_id...
-              // For now, let's make the number unique by appending the card_id suffix
-              const cardIdSuffix = baseCard.id.split("-").pop() || baseCard.id.slice(-4);
-              cardNumber = `${cardNumber}-${cardIdSuffix}`;
-            } else {
+        // Handle different types of conflicts
+        if (cardError) {
+          // Check if it's a primary key conflict (card already exists with this ID)
+          if (cardError.message.includes("cards_pkey") || cardError.message.includes("duplicate key value violates unique constraint \"cards_pkey\"")) {
+            // Card already exists with this ID - that's fine, just proceed
+            // The card is already in the database, so we can continue
+          }
+          // Check if it's a unique constraint on (set_id, number)
+          else if (cardError.message.includes("unique constraint") || cardError.message.includes("duplicate key") || cardError.message.includes("cards_set_id_number_key")) {
+            // Check if there's a card with the same set_id + number
+            const { data: conflictCard } = await supabase
+              .from("cards")
+              .select("id, name, number")
+              .eq("set_id", set_id)
+              .eq("number", cardNumber)
+              .single();
+            
+            if (conflictCard) {
               // Different card with same number - make number unique
               // Extract a unique suffix from the card_id (e.g., "015" from "sv08.5-015")
               const cardIdSuffix = baseCard.id.split("-").pop() || baseCard.id.slice(-4);
               cardNumber = `${cardNumber}-${cardIdSuffix}`;
-            }
 
-            // Try inserting again with the unique number
-            const { error: retryError } = await supabase.from("cards").insert({
-              id: baseCard.id,
-              set_id: set_id,
-              number: cardNumber,
-              name: baseCard.name,
-              rarity: baseCard.rarity ?? null,
-              api_image_url: baseCard.image ?? null,
-              api_payload: baseCard,
-            });
+              // Try inserting again with the unique number
+              const { error: retryError } = await supabase.from("cards").insert({
+                id: baseCard.id,
+                set_id: set_id,
+                number: cardNumber,
+                name: baseCard.name,
+                rarity: baseCard.rarity ?? null,
+                api_image_url: baseCard.image ?? null,
+                api_payload: baseCard,
+              });
 
-            if (retryError) {
-              return NextResponse.json(
-                { error: `Failed to save card after conflict resolution: ${retryError.message}` },
-                { status: 500 }
-              );
+              if (retryError) {
+                // If retry also fails with primary key, card already exists - that's fine
+                if (retryError.message.includes("cards_pkey")) {
+                  // Card already exists, proceed
+                } else {
+                  return NextResponse.json(
+                    { error: `Failed to save card after conflict resolution: ${retryError.message}` },
+                    { status: 500 }
+                  );
+                }
+              }
+            } else {
+              // Conflict error but no conflict card found - might be primary key issue
+              // Check if card exists by ID
+              const { data: existingById } = await supabase
+                .from("cards")
+                .select("id")
+                .eq("id", baseCard.id)
+                .single();
+              
+              if (existingById) {
+                // Card already exists - that's fine, proceed
+              } else {
+                return NextResponse.json(
+                  { error: `Failed to save card: ${cardError.message}` },
+                  { status: 500 }
+                );
+              }
             }
           } else {
-            // Conflict error but no conflict card found - strange, return the error
+            // Other errors
             return NextResponse.json(
               { error: `Failed to save card: ${cardError.message}` },
               { status: 500 }
             );
           }
-        } else if (cardError) {
-          // Other errors
-          return NextResponse.json(
-            { error: `Failed to save card: ${cardError.message}` },
-            { status: 500 }
-          );
         }
       } catch (e: any) {
         return NextResponse.json(

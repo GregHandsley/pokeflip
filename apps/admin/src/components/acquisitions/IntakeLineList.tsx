@@ -34,7 +34,8 @@ export default function IntakeLineList({ lines }: IntakeLineListProps) {
               )}
               <div>
                 <div className="font-medium">
-                  {line.cards?.number} — {line.cards?.name}
+                  <span className="text-gray-500 font-normal">#{line.cards?.number}</span>{" "}
+                  {line.cards?.name}
                 </div>
                 <div className="text-sm text-gray-600">
                   {line.condition} • qty {line.quantity} •{" "}
