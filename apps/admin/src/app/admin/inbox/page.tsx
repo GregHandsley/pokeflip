@@ -6,7 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import InboxTable from "@/components/inbox/InboxTable";
 import InboxFilters from "@/components/inbox/InboxFilters";
 import InboxBulkActions from "@/components/inbox/InboxBulkActions";
-import InboxLotPhotoModal from "@/components/inbox/InboxLotPhotoModal";
+import SalesFlowModal from "@/components/inbox/sales-flow/SalesFlowModal";
 
 type InboxLot = {
   lot_id: string;
@@ -23,10 +23,6 @@ type InboxLot = {
   quantity: number;
   available_qty: number;
   photo_count: number;
-  ebay_status: string;
-  ebay_listing_id: string | null;
-  ebay_publish_queued_at: string | null;
-  ebay_last_error: string | null;
   updated_at: string;
   created_at: string;
   use_api_image?: boolean;
@@ -126,7 +122,7 @@ export default function InboxPage() {
     <div>
       <PageHeader title="Inbox" />
       <p className="text-sm text-gray-600 mb-6">
-        Lots ready to list on eBay. Select items to queue for publishing or update in bulk.
+        Lots ready to list. Select items to update in bulk.
       </p>
 
       <InboxFilters
@@ -143,7 +139,6 @@ export default function InboxPage() {
       {hasSelection && (
         <InboxBulkActions
           selectedCount={selectedLotIds.size}
-          onQueuePublish={() => handleBulkAction("queue_publish")}
           onUpdatePrice={(price) => handleBulkAction("update_list_price", { list_price: price })}
           onMarkNotForSale={() => handleBulkAction("mark_not_for_sale", { for_sale: false })}
           onClearSelection={() => setSelectedLotIds(new Set())}
@@ -163,7 +158,7 @@ export default function InboxPage() {
       />
 
       {selectedLot && (
-        <InboxLotPhotoModal
+        <SalesFlowModal
           lot={selectedLot}
           onClose={() => setSelectedLot(null)}
           onUpdated={loadLots}

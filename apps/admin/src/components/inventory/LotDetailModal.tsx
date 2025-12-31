@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { penceToPounds } from "@pokeflip/shared";
 import Modal from "@/components/ui/Modal";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
-import LotPhotoUpload from "./LotPhotoUpload";
+import PhotoDropZone from "@/components/inbox/sales-flow/PhotoDropZone";
 
 type Lot = {
   id: string;
@@ -19,9 +19,6 @@ type Lot = {
   note: string | null;
   created_at: string;
   updated_at: string;
-  ebay_status: string;
-  ebay_publish_queued_at?: string | null;
-  is_queued?: boolean;
   photo_count: number;
   use_api_image?: boolean;
   card: {
@@ -55,9 +52,6 @@ const STATUS_COLORS: Record<string, string> = {
 // Function to determine the display status for a lot
 function getDisplayStatus(lot: {
   status: string;
-  ebay_status: string;
-  ebay_publish_queued_at?: string | null;
-  is_queued?: boolean;
   for_sale: boolean;
 }): { label: string; color: string } {
   // Priority 1: Sold/Archived status
@@ -66,30 +60,6 @@ function getDisplayStatus(lot: {
   }
   if (lot.status === "archived") {
     return { label: "Archived", color: "bg-gray-100 text-gray-500" };
-  }
-
-  // Priority 2: eBay listing status (if exists)
-  if (lot.ebay_status === "live") {
-    return { label: "Live", color: "bg-green-100 text-green-700" };
-  }
-  if (lot.ebay_status === "pending") {
-    return { label: "Pending", color: "bg-orange-100 text-orange-700" };
-  }
-  if (lot.ebay_status === "ended") {
-    return { label: "Ended", color: "bg-gray-100 text-gray-500" };
-  }
-  if (lot.ebay_status === "failed") {
-    return { label: "Failed", color: "bg-red-100 text-red-700" };
-  }
-
-  // Priority 3: Queued for publishing
-  if (lot.is_queued || lot.ebay_publish_queued_at) {
-    return { label: "Queued", color: "bg-yellow-100 text-yellow-700" };
-  }
-
-  // Priority 4: Not listed (ready to list)
-  if (lot.ebay_status === "not_listed" && lot.for_sale) {
-    return { label: "Not Listed", color: "bg-gray-100 text-gray-700" };
   }
 
   // Fallback: Show lot status
@@ -117,6 +87,8 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
   const [updatingForSale, setUpdatingForSale] = useState(false);
   const [useApiImage, setUseApiImage] = useState(false);
   const [updatingApiImage, setUpdatingApiImage] = useState(false);
+  const [dragOverKind, setDragOverKind] = useState<"front" | "back" | "extra" | null>(null);
+  const [uploadingKind, setUploadingKind] = useState<"front" | "back" | "extra" | null>(null);
 
   useEffect(() => {
     setCurrentLot(lot);
@@ -129,6 +101,24 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
     setCurrentLot(lot);
     setUseApiImage(lot.use_api_image || false);
   }, [lot]);
+
+  // Prevent default drag behavior on the document
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener("dragover", handleDragOver);
+    document.addEventListener("drop", handleDrop);
+
+    return () => {
+      document.removeEventListener("dragover", handleDragOver);
+      document.removeEventListener("drop", handleDrop);
+    };
+  }, []);
 
   const loadPhotos = async () => {
     setLoadingPhotos(true);
@@ -167,6 +157,123 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
     await loadPhotos();
     // Note: We don't call onLotUpdated here to avoid closing the modal
     // The photo count in the parent will update when the modal is closed
+  };
+
+  const uploadFile = async (file: File, kind: "front" | "back" | "extra") => {
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file");
+      return;
+    }
+
+    // Prevent uploading multiple front or back images
+    if (kind === "front" || kind === "back") {
+      const existingPhoto = photos.find((p) => p.kind === kind);
+      if (existingPhoto) {
+        alert(`A ${kind} photo already exists. Please delete it first if you want to replace it.`);
+        return;
+      }
+    }
+
+    setUploadingKind(kind);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("kind", kind);
+
+      const uploadRes = await fetch(`/api/admin/lots/${currentLot.id}/photos/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const uploadJson = await uploadRes.json();
+      if (!uploadRes.ok) {
+        throw new Error(uploadJson.error || "Upload failed");
+      }
+
+      if (uploadJson.photo) {
+        await handlePhotoUploaded({
+          id: uploadJson.photo.id,
+          kind: uploadJson.photo.kind,
+          signedUrl: uploadJson.photo.signedUrl || null,
+        });
+      }
+    } catch (e: any) {
+      alert(e.message || "Upload failed");
+    } finally {
+      setUploadingKind(null);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, kind: "front" | "back" | "extra") => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverKind(kind);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverKind(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, kind: "front" | "back" | "extra") => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverKind(null);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await uploadFile(file, kind);
+    }
+  };
+
+  const handleFileSelect = (kind: "front" | "back" | "extra") => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        await uploadFile(file, kind);
+      }
+    };
+    input.click();
+  };
+
+  const downloadImage = async (photo: { id: string; kind: string; signedUrl: string | null }) => {
+    if (!photo.signedUrl) {
+      alert("Image URL not available");
+      return;
+    }
+
+    try {
+      const response = await fetch(photo.signedUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${currentLot.card?.name.replace(/\s+/g, "_") || "card"}_${photo.kind}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) {
+      console.error("Failed to download image:", e);
+      alert("Failed to download image");
+    }
+  };
+
+  const downloadAllImages = async () => {
+    if (photos.length === 0) {
+      alert("No images to download");
+      return;
+    }
+
+    for (const photo of photos) {
+      await downloadImage(photo);
+      // Small delay between downloads to avoid browser blocking
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
   };
 
   const handleDeletePhoto = (photoId: string, photoKind: string) => {
@@ -384,9 +491,6 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
             {(() => {
               const displayStatus = getDisplayStatus({
                 status: currentLot.status,
-                ebay_status: currentLot.ebay_status,
-                ebay_publish_queued_at: currentLot.ebay_publish_queued_at,
-                is_queued: currentLot.is_queued,
                 for_sale: currentLot.for_sale,
               });
               return (
@@ -431,14 +535,6 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
               <span className="text-gray-600">List Price:</span>
               <span className="font-medium text-green-600">
                 £{penceToPounds(currentLot.list_price_pence)}
-              </span>
-            </div>
-          )}
-          {currentLot.ebay_status !== "not_listed" && (
-            <div className="flex justify-between">
-              <span className="text-gray-600">eBay Status:</span>
-              <span className="text-xs">
-                {currentLot.ebay_status === "live" ? "🟢 Live" : "⚪ " + currentLot.ebay_status}
               </span>
             </div>
           )}
@@ -520,13 +616,58 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
                 </div>
               )}
 
-              {/* Upload buttons - only show if not using API image */}
+              {/* Upload zones - only show if not using API image */}
               {!useApiImage && (
                 <>
-                  <div className="flex gap-2 flex-wrap">
-                    <LotPhotoUpload lotId={currentLot.id} kind="front" onUploaded={handlePhotoUploaded} />
-                    <LotPhotoUpload lotId={currentLot.id} kind="back" onUploaded={handlePhotoUploaded} />
-                    <LotPhotoUpload lotId={currentLot.id} kind="extra" onUploaded={handlePhotoUploaded} />
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    {(() => {
+                      const hasFrontPhoto = photos.some((p) => p.kind === "front");
+                      return (
+                        <PhotoDropZone
+                          kind="front"
+                          label="Front Photo"
+                          hasPhoto={hasFrontPhoto}
+                          isUploading={uploadingKind === "front"}
+                          isDragOver={dragOverKind === "front"}
+                          isDisabled={hasFrontPhoto || uploadingKind === "front"}
+                          onDragOver={(e) => handleDragOver(e, "front")}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, "front")}
+                          onFileSelect={() => handleFileSelect("front")}
+                        />
+                      );
+                    })()}
+
+                    {(() => {
+                      const hasBackPhoto = photos.some((p) => p.kind === "back");
+                      return (
+                        <PhotoDropZone
+                          kind="back"
+                          label="Back Photo"
+                          hasPhoto={hasBackPhoto}
+                          isUploading={uploadingKind === "back"}
+                          isDragOver={dragOverKind === "back"}
+                          isDisabled={hasBackPhoto || uploadingKind === "back"}
+                          onDragOver={(e) => handleDragOver(e, "back")}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, "back")}
+                          onFileSelect={() => handleFileSelect("back")}
+                        />
+                      );
+                    })()}
+
+                    <PhotoDropZone
+                      kind="extra"
+                      label="Extra Photo"
+                      hasPhoto={false}
+                      isUploading={uploadingKind === "extra"}
+                      isDragOver={dragOverKind === "extra"}
+                      isDisabled={uploadingKind === "extra" ? true : false}
+                      onDragOver={(e) => handleDragOver(e, "extra")}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, "extra")}
+                      onFileSelect={() => handleFileSelect("extra")}
+                    />
                   </div>
 
                   {/* Photo gallery */}
@@ -535,75 +676,70 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
                   ) : photos.length === 0 ? (
                     <div className="text-sm text-gray-500">No photos yet. Upload some above.</div>
                   ) : (
-                <div className="grid grid-cols-3 gap-3">
-                  {photos.map((photo) => {
-                    const isDeleting = deletingPhotoId === photo.id;
-                    return (
-                      <div
-                        key={photo.id}
-                        className="relative aspect-square bg-gray-100 rounded border border-gray-200 overflow-hidden group"
-                      >
-                        {photo.signedUrl ? (
-                          <img
-                            src={photo.signedUrl}
-                            alt={`${photo.kind} photo`}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
-                            Failed to load
-                          </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-sm">Uploaded Photos</h3>
+                        {photos.length > 0 && (
+                          <button
+                            onClick={downloadAllImages}
+                            className="px-3 py-1.5 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+                          >
+                            Download All Images
+                          </button>
                         )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-2 py-1 text-center">
-                          {photo.kind}
-                        </div>
-                        {/* Delete button - appears on hover */}
-                        <button
-                          onClick={() => handleDeletePhoto(photo.id, photo.kind)}
-                          disabled={isDeleting}
-                          className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-700"
-                          title="Delete photo"
-                        >
-                          {isDeleting ? (
-                            <svg
-                              className="w-4 h-4 animate-spin"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              />
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              />
-                            </svg>
-                          ) : (
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          )}
-                        </button>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        {photos.map((photo) => {
+                          const isDeleting = deletingPhotoId === photo.id;
+                          return (
+                            <div
+                              key={photo.id}
+                              className="relative aspect-square bg-gray-100 rounded border border-gray-200 overflow-hidden group"
+                            >
+                              {photo.signedUrl ? (
+                                <img
+                                  src={photo.signedUrl}
+                                  alt={`${photo.kind} photo`}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
+                                  Failed to load
+                                </div>
+                              )}
+                              <div className="absolute top-1 left-1">
+                                <span className="px-1.5 py-0.5 bg-black/50 text-white text-xs rounded">
+                                  {photo.kind}
+                                </span>
+                              </div>
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => downloadImage(photo)}
+                                  className="opacity-0 group-hover:opacity-100 bg-white rounded-lg px-3 py-1.5 text-sm font-medium shadow-lg transition-opacity hover:bg-gray-100 cursor-pointer"
+                                >
+                                  Download
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeletePhoto(photo.id, photo.kind);
+                                  }}
+                                  disabled={isDeleting}
+                                  className="opacity-0 group-hover:opacity-100 bg-red-600 text-white rounded-lg px-3 py-1.5 text-sm font-medium shadow-lg transition-opacity hover:bg-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {isDeleting ? "Deleting..." : "Delete"}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-xs text-gray-600">
+                          Download images to easily upload them to your eBay listing. Hover over an image to download it individually, or use the "Download All Images" button above.
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </>
               )}

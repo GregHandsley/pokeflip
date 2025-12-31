@@ -19,10 +19,6 @@ type InboxLot = {
   quantity: number;
   available_qty: number;
   photo_count: number;
-  ebay_status: string;
-  ebay_listing_id: string | null;
-  ebay_publish_queued_at: string | null;
-  ebay_last_error: string | null;
   updated_at: string;
   created_at: string;
   use_api_image?: boolean;
@@ -93,16 +89,6 @@ export default function InboxTable({
     return lot.rarity_rank >= RARE_RARITY_RANK;
   };
 
-  const getEbayStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      not_listed: "bg-gray-100 text-gray-700",
-      pending: "bg-yellow-100 text-yellow-700",
-      live: "bg-green-100 text-green-700",
-      ended: "bg-blue-100 text-blue-700",
-      failed: "bg-red-100 text-red-700",
-    };
-    return colors[status] || colors.not_listed;
-  };
 
   if (loading) {
     return (
@@ -117,7 +103,7 @@ export default function InboxTable({
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <div className="text-gray-600">No lots in inbox</div>
         <div className="text-sm text-gray-500 mt-2">
-          Lots will appear here when they're ready to list and not currently live on eBay.
+          Lots ready to list will appear here.
         </div>
       </div>
     );
@@ -158,7 +144,7 @@ export default function InboxTable({
                 Photos
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
-                eBay Status
+                Status
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
                 Highlights
@@ -270,16 +256,58 @@ export default function InboxTable({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${getEbayStatusBadge(
-                        lot.ebay_status
-                      )}`}
-                    >
-                      {lot.ebay_status}
-                    </span>
-                    {lot.ebay_publish_queued_at && (
-                      <div className="text-xs text-gray-500 mt-1">Queued</div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {lot.status === "draft" && (
+                        <span
+                          className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 flex items-center gap-1"
+                          title="Draft - Saved as draft"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
+                          </svg>
+                          Draft
+                        </span>
+                      )}
+                      {lot.status === "listed" && (
+                        <span
+                          className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 flex items-center gap-1"
+                          title="Listed - Uploaded to eBay"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                          Listed
+                        </span>
+                      )}
+                      {lot.status === "ready" && (
+                        <span
+                          className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700"
+                          title="Ready to list"
+                        >
+                          Ready
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 flex-wrap">
