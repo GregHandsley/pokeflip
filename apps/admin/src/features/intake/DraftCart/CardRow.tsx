@@ -6,7 +6,6 @@ import type { DraftLine } from "./types";
 import IntakeLinePhotoUpload from "@/components/intake/IntakeLinePhotoUpload";
 import SplitModal from "@/components/ui/SplitModal";
 import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
-import { useEffect } from "react";
 
 type Props = {
   line: DraftLine;
