@@ -53,18 +53,29 @@ export function CardAccordion({
     onToggleCard(cardGroupKey);
   };
 
-  // Single card, single condition, quantity 1 - show directly
+  // Single card, single condition, quantity 1 - show directly with headers
   if (!showCardAccordion && cardLines.length === 1 && cardLines[0].quantity === 1) {
     return (
-      <SingleCardRow
-        line={cardLines[0]}
-        cardDisplay={cardDisplay}
-        imageUrl={imageUrl}
-        onUpdate={onUpdate}
-        onRemove={onRemove}
-        onHoverImage={onHoverImage}
-        onLeaveImage={onLeaveImage}
-      />
+      <div className="border-b border-black/5 last:border-b-0">
+        <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-black/5 text-xs font-semibold text-black/70">
+          <div className="col-span-1"></div>
+          <div className="col-span-2">Card</div>
+          <div className="col-span-2">Cond</div>
+          <div className="col-span-2">Variation</div>
+          <div className="col-span-1">Qty</div>
+          <div className="col-span-1">Sale</div>
+          <div className="col-span-3">Actions</div>
+        </div>
+        <SingleCardRow
+          line={cardLines[0]}
+          cardDisplay={cardDisplay}
+          imageUrl={imageUrl}
+          onUpdate={onUpdate}
+          onRemove={onRemove}
+          onHoverImage={onHoverImage}
+          onLeaveImage={onLeaveImage}
+        />
+      </div>
     );
   }
 
