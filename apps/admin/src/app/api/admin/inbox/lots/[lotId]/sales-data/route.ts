@@ -94,19 +94,17 @@ export async function GET(
     const rawTitle = titleParts.join(" - ");
     const title = rawTitle.length > 80 ? rawTitle.slice(0, 80) : rawTitle;
 
-    // Generate description (configurable template - placeholder for settings)
-    // Default template includes card info, condition, and quantity
+    // Enticing, concise description; mention photos on request and multi-buy discounts
     const description = `Pokemon Trading Card Game
 
-Card: ${card?.name || "N/A"} #${card?.number || "N/A"}
-Set: ${set?.name || "N/A"}
+${card?.name || "Card"}${number ? ` #${number}` : ""}${setName ? ` (${setName})` : ""}${rarity ? ` • ${rarity}` : ""}
 Condition: ${conditionLabel} (${lot.condition})
-Quantity Available: ${availableQty}
-${card?.rarity ? `Rarity: ${card.rarity}` : ""}
 
-Please review the photos carefully for condition details. All cards are authentic Pokemon TCG cards.
+- Authentic Pokemon TCG card, handled with care
+- More photos available on request
+- Multi-card discounts available—ask for a bundle
 
-Thank you for looking!`;
+Thanks for looking and happy collecting!`;
 
     // Pricing suggestion (placeholder for future update)
     const suggestedPrice = lot.list_price_pence;
