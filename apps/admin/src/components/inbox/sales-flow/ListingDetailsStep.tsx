@@ -166,31 +166,32 @@ export default function ListingDetailsStep({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Listing Title
         </label>
-        <div className="flex items-start gap-3">
-          <textarea
-            value={salesData.title}
-            onChange={(e) => onUpdateTitle(e.target.value)}
-            rows={2}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm min-h-[64px] max-h-[120px]"
-            placeholder="Enter listing title..."
-          />
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(salesData.title);
-                setCopyStatus("copied");
-                setTimeout(() => setCopyStatus("idle"), 1500);
-              } catch (e) {
-                setCopyStatus("error");
-                setTimeout(() => setCopyStatus("idle"), 1500);
-              }
-            }}
-            className="px-3 py-2 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-100 transition min-w-[70px]"
-            aria-label="Copy listing title"
-          >
-            {copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Failed" : "Copy"}
-          </button>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 relative">
+            <input
+              value={salesData.title}
+              onChange={(e) => onUpdateTitle(e.target.value)}
+              className="w-full pr-10 pl-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              placeholder="Enter listing title..."
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(salesData.title);
+                  setCopyStatus("copied");
+                  setTimeout(() => setCopyStatus("idle"), 1500);
+                } catch (e) {
+                  setCopyStatus("error");
+                  setTimeout(() => setCopyStatus("idle"), 1500);
+                }
+              }}
+              className="absolute inset-y-0 right-2 my-auto px-2 h-8 rounded border border-gray-200 bg-white text-xs text-gray-700 hover:bg-gray-100 transition"
+              aria-label="Copy listing title"
+            >
+              {copyStatus === "copied" ? "✓" : copyStatus === "error" ? "!" : "Copy"}
+            </button>
+          </div>
         </div>
         <p className="text-xs text-gray-500 mt-1">
           This title will be used for your eBay listing. You can customize it in settings.
