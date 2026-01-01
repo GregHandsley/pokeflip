@@ -121,7 +121,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
         setCardName(card.name || "");
       }
     } catch (e) {
-      console.error("Failed to load lots:", e);
+      console.error("Failed to load cards:", e);
     } finally {
       setLoading(false);
     }
@@ -146,7 +146,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
 
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(json.error || "Failed to delete lot");
+        throw new Error(json.error || "Failed to delete card");
       }
 
       // Remove from local state
@@ -160,7 +160,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
       // Notify parent to refresh totals
       onLotsChanged?.();
     } catch (e: any) {
-      alert(e.message || "Failed to delete lot");
+      alert(e.message || "Failed to delete card");
     } finally {
       setDeletingLotId(null);
       setShowSingleDeleteConfirm(false);
@@ -188,7 +188,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
       // Notify parent to refresh totals
       onLotsChanged?.();
     } catch (e: any) {
-      alert("Failed to delete some lots");
+      alert("Failed to delete some cards");
     } finally {
       setDeletingLotId(null);
       setShowBulkDeleteConfirm(false);
@@ -258,7 +258,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
   if (loading) {
     return (
       <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-        <div className="text-sm text-gray-600">Loading lots...</div>
+        <div className="text-sm text-gray-600">Loading cards...</div>
       </div>
     );
   }
@@ -266,7 +266,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
   if (lots.length === 0) {
     return (
       <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-        <div className="text-sm text-gray-500">No lots found</div>
+        <div className="text-sm text-gray-500">No cards found</div>
       </div>
     );
   }
@@ -333,7 +333,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
 
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(json.error || "Failed to merge lots");
+        throw new Error(json.error || "Failed to merge cards");
       }
 
       setSelectedLots(new Set());
@@ -341,7 +341,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
       loadLots();
       onLotsChanged?.();
     } catch (e: any) {
-      alert(e.message || "Failed to merge lots");
+      alert(e.message || "Failed to merge cards");
       throw e;
     } finally {
       setMerging(false);
@@ -379,7 +379,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                 className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
               />
               <span>
-                Lots ({lots.length})
+                Cards ({lots.length})
                 {selectedLots.size > 0 && (
                   <span className="text-blue-600 ml-1">
                     • {selectedLots.size} selected
@@ -404,7 +404,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                 disabled={deletingLotId === "bulk"}
                 className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {deletingLotId === "bulk" ? "Deleting..." : `Delete ${selectedLots.size} lot${selectedLots.size !== 1 ? "s" : ""}`}
+                {deletingLotId === "bulk" ? "Deleting..." : `Delete ${selectedLots.size} card${selectedLots.size !== 1 ? "s" : ""}`}
               </button>
             </div>
           )}
@@ -727,7 +727,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                 className="w-full flex items-center justify-between text-left text-sm text-gray-600 hover:text-gray-900"
               >
                 <span className="font-medium">
-                  Sold Lots ({soldLots.length})
+                  Sold Cards ({soldLots.length})
                 </span>
                 <svg
                   className={`w-4 h-4 text-gray-400 transition-transform ${
@@ -883,7 +883,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
           setShowSingleDeleteConfirm(false);
           setLotToDelete(null);
         }}
-        title="Delete Lot"
+        title="Delete Card"
         maxWidth="md"
         footer={
           <div className="flex items-center justify-end gap-3 w-full">
@@ -900,7 +900,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
               onClick={() => lotToDelete && handleDeleteLot(lotToDelete.id)}
               className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700"
             >
-              Delete Lot
+              Delete Card
             </button>
           </div>
         }
@@ -908,7 +908,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
         {lotToDelete && (
           <div className="space-y-3">
             <p className="text-gray-700">
-              Are you sure you want to delete this lot? This action cannot be undone.
+              Are you sure you want to delete this card? This action cannot be undone.
             </p>
             <div className="bg-gray-50 rounded p-3 space-y-1 text-sm">
               <div>
@@ -933,7 +933,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
               )}
             </div>
             <p className="text-xs text-gray-500">
-              This will also delete all associated photos, eBay listings, and sales records for this lot.
+              This will also delete all associated photos, eBay listings, and sales records for this card.
             </p>
           </div>
         )}
@@ -943,7 +943,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
       <Modal
         isOpen={showBulkDeleteConfirm}
         onClose={() => setShowBulkDeleteConfirm(false)}
-        title="Delete Multiple Lots"
+        title="Delete Multiple Cards"
         maxWidth="md"
         footer={
           <div className="flex items-center justify-end gap-3 w-full">
@@ -957,17 +957,17 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
               onClick={handleBulkDelete}
               className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700"
             >
-              Delete {selectedLots.size} Lot{selectedLots.size !== 1 ? "s" : ""}
+              Delete {selectedLots.size} Card{selectedLots.size !== 1 ? "s" : ""}
             </button>
           </div>
         }
       >
         <div className="space-y-3">
           <p className="text-gray-700">
-            Are you sure you want to delete <strong>{selectedLots.size}</strong> lot{selectedLots.size !== 1 ? "s" : ""}? This action cannot be undone.
+            Are you sure you want to delete <strong>{selectedLots.size}</strong> card{selectedLots.size !== 1 ? "s" : ""}? This action cannot be undone.
           </p>
           <p className="text-xs text-gray-500">
-            This will also delete all associated photos, eBay listings, and sales records for these lots.
+            This will also delete all associated photos, eBay listings, and sales records for these cards.
           </p>
         </div>
       </Modal>
@@ -1025,14 +1025,14 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
 
               const json = await res.json();
               if (!res.ok) {
-                throw new Error(json.error || "Failed to split lot");
+                throw new Error(json.error || "Failed to split card");
               }
 
               setLotToSplit(null);
               loadLots();
               onLotsChanged?.();
             } catch (e: any) {
-              alert(e.message || "Failed to split lot");
+              alert(e.message || "Failed to split card");
               throw e;
             }
           }}
@@ -1040,7 +1040,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
           currentForSale={lotToSplit.for_sale}
           currentPrice={lotToSplit.list_price_pence}
           currentCondition={lotToSplit.condition}
-          title={`Split Lot`}
+          title={`Split Card`}
         />
       )}
 

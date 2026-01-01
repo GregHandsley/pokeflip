@@ -104,6 +104,31 @@ export default function SalesPage() {
     }
   };
 
+  const [overallProfit, setOverallProfit] = useState<{
+    purchase_cost_pence: number;
+    revenue_pence: number;
+    consumables_cost_pence: number;
+    total_costs_pence: number;
+    net_profit_pence: number;
+    margin_percent: number;
+  } | null>(null);
+
+  useEffect(() => {
+    loadOverallProfit();
+  }, []);
+
+  const loadOverallProfit = async () => {
+    try {
+      const res = await fetch("/api/admin/sales/overall-profit");
+      const json = await res.json();
+      if (json.ok && json.profit) {
+        setOverallProfit(json.profit);
+      }
+    } catch (e) {
+      console.error("Failed to load overall profit:", e);
+    }
+  };
+
   const totalRevenue = profitData.reduce((sum, p) => sum + (p.revenue_pence || 0), 0);
   const totalCosts = profitData.reduce((sum, p) => sum + (p.total_costs_pence || 0), 0);
   const totalProfit = profitData.reduce((sum, p) => sum + (p.net_profit_pence || 0), 0);
@@ -136,24 +161,70 @@ export default function SalesPage() {
 
       <OperationalDashboard />
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Overall Profit & Loss */}
+      {overallProfit && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6 mb-6">
+          <h2 className="text-xl font-bold mb-4">Overall Profit & Loss</h2>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div>
+              <div className="text-xs text-gray-600 mb-1">Purchase Costs</div>
+              <div className="text-2xl font-bold text-red-600">
+                £{penceToPounds(overallProfit.purchase_cost_pence)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-600 mb-1">Revenue</div>
+              <div className="text-2xl font-bold text-green-600">
+                £{penceToPounds(overallProfit.revenue_pence)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-600 mb-1">Consumables</div>
+              <div className="text-2xl font-bold text-orange-600">
+                £{penceToPounds(overallProfit.consumables_cost_pence)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-600 mb-1">Total Costs</div>
+              <div className="text-2xl font-bold text-red-600">
+                £{penceToPounds(overallProfit.total_costs_pence)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-600 mb-1">Net Profit/Loss</div>
+              <div className={`text-2xl font-bold ${
+                overallProfit.net_profit_pence >= 0 ? "text-green-600" : "text-red-600"
+              }`}>
+                £{penceToPounds(overallProfit.net_profit_pence)}
+              </div>
+              <div className={`text-sm mt-1 ${
+                overallProfit.margin_percent >= 0 ? "text-green-600" : "text-red-600"
+              }`}>
+                {overallProfit.margin_percent >= 0 ? "+" : ""}{overallProfit.margin_percent.toFixed(1)}% margin
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Summary Cards - Per Order Averages */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-sm text-gray-600">Total Revenue</div>
+          <div className="text-sm text-gray-600">Avg Revenue per Order</div>
           <div className="text-2xl font-bold text-green-600 mt-1">
-            £{penceToPounds(totalRevenue)}
+            £{penceToPounds(profitData.length > 0 ? totalRevenue / profitData.length : 0)}
           </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-sm text-gray-600">Total Costs</div>
+          <div className="text-sm text-gray-600">Avg Costs per Order</div>
           <div className="text-2xl font-bold text-red-600 mt-1">
-            £{penceToPounds(totalCosts)}
+            £{penceToPounds(profitData.length > 0 ? totalCosts / profitData.length : 0)}
           </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-sm text-gray-600">Net Profit</div>
+          <div className="text-sm text-gray-600">Avg Profit per Order</div>
           <div className={`text-2xl font-bold mt-1 ${totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
-            £{penceToPounds(totalProfit)}
+            £{penceToPounds(profitData.length > 0 ? totalProfit / profitData.length : 0)}
           </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">

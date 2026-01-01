@@ -109,7 +109,7 @@ export function SetAccordion({
             const baseNumber = localId || numberField;
             const cardName = englishNames.get(cardId) || firstLine.cards?.name || 'Unknown card';
             const cardDisplay = baseNumber 
-              ? `#${baseNumber} ${cardName}` 
+              ? `${baseNumber} ${cardName}` 
               : cardName;
             const totalQty = cardLines.reduce((sum, l) => sum + l.quantity, 0);
             const cardGroupKey = `${setId}-${cardId}`;

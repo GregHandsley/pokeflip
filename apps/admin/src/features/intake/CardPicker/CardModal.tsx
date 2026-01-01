@@ -4,17 +4,19 @@ import { useState, useEffect } from "react";
 import type { TcgdxCard, Condition, CardVariation } from "./types";
 import { CONDITIONS, CONDITION_LABELS } from "./types";
 import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
+import { DEFAULT_CARD_BACK_IMAGE } from "@/lib/constants/images";
 
 type Props = {
   card: TcgdxCard;
   imageUrl: string;
   selectedSetId: string;
+  locale: string;
   onAdd: (args: { setId: string; cardId: string; locale: string; condition: Condition; quantity: number; variation: CardVariation }) => Promise<void>;
   onClose: () => void;
   onCardAdded: (cardId: string) => void;
 };
 
-export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCardAdded }: Props) {
+export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClose, onCardAdded }: Props) {
   const [quantities, setQuantities] = useState<Record<Condition, number>>({
     NM: 0,
     LP: 0,
@@ -66,7 +68,7 @@ export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCar
         await onAdd({
           setId: selectedSetId,
           cardId: card.id,
-          locale: "en",
+          locale,
           condition,
           quantity: qty,
           variation,
@@ -86,8 +88,23 @@ export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCar
     const loadVariants = async () => {
       setLoadingVariants(true);
       try {
-        const res = await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(card.id)}`);
-        const json = await res.json();
+        const variantLocales = locale === "en" ? ["en"] : ["en", locale];
+        let json: any = null;
+
+        for (const variantLocale of variantLocales) {
+          try {
+            const res = await fetch(`https://api.tcgdex.net/v2/${variantLocale}/cards/${encodeURIComponent(card.id)}`);
+            if (!res.ok) continue;
+            json = await res.json();
+            break;
+          } catch (err) {
+            // try next locale
+          }
+        }
+
+        if (!json) {
+          throw new Error("No variants payload");
+        }
         const variants = json?.variants;
         if (!variants || typeof variants !== "object") {
           throw new Error("No variants field");
@@ -119,7 +136,7 @@ export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCar
     return () => {
       active = false;
     };
-  }, [card.id]);
+  }, [card.id, locale]);
 
   return (
     <div
@@ -149,14 +166,18 @@ export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCar
           <h3 className="text-base font-semibold mb-0.5 pr-8">{card.name}</h3>
           {(card.localId || card.number) && (
             <div className="text-xs text-gray-600 mb-1.5">
-              #{card.localId || card.number}
+              {card.localId || card.number}
             </div>
           )}
           <div className="aspect-[2.5/3.5] w-full max-w-[100px] mx-auto overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
             <img
-              src={imageUrl}
-              alt={card.name}
+              src={imageUrl || DEFAULT_CARD_BACK_IMAGE}
+              alt={card.name || "Card"}
               className="w-full h-full object-cover"
+              onError={(e) => {
+                // Fallback to default card back if image fails to load
+                (e.target as HTMLImageElement).src = DEFAULT_CARD_BACK_IMAGE;
+              }}
             />
           </div>
         </div>

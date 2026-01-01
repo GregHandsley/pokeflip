@@ -184,7 +184,6 @@ export function DraftCart({ acquisitionId, newlyAddedSetId, newlyAddedCardId, on
       <div className="overflow-y-auto flex-1 pr-2">
         {lines.length === 0 ? (
           <div className="py-12 text-center">
-            <div className="text-4xl mb-3">🃏</div>
             <p className="text-sm text-black/60">No cards in cart yet</p>
             <p className="text-xs text-black/40 mt-1">Click cards on the left to add them</p>
           </div>

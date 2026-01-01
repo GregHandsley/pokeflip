@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import LogoutButton from "./LogoutButton";
@@ -13,8 +13,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = supabaseBrowser();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [inboxCount, setInboxCount] = useState<number | null>(null);
 
   const handleLogout = async () => {
     setLogoutLoading(true);
@@ -23,9 +24,47 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     router.refresh();
   };
 
+  // Load inbox count
+  const loadInboxCount = async () => {
+    try {
+      const res = await fetch("/api/admin/inbox/count");
+      const json = await res.json();
+      if (json.ok) {
+        setInboxCount(json.count);
+      }
+    } catch (e) {
+      console.error("Failed to load inbox count:", e);
+    }
+  };
+
+  useEffect(() => {
+    loadInboxCount();
+    
+    // Listen for inbox update events
+    const handleInboxUpdate = () => {
+      // Small delay to allow database operations to complete
+      setTimeout(loadInboxCount, 500);
+    };
+    
+    window.addEventListener("inboxUpdated", handleInboxUpdate);
+    
+    return () => {
+      window.removeEventListener("inboxUpdated", handleInboxUpdate);
+    };
+  }, []);
+
+  // Refresh count when navigating to/from inbox page
+  useEffect(() => {
+    if (pathname === "/admin/inbox" || pathname?.startsWith("/admin/inbox")) {
+      // Small delay to allow inbox operations to complete
+      const timeout = setTimeout(loadInboxCount, 1000);
+      return () => clearTimeout(timeout);
+    }
+  }, [pathname]);
+
   const navItems = [
-    { href: "/admin", label: "Dashboard", exact: true },
-    { href: "/admin/acquisitions", label: "Acquisitions" },
+    { href: "/admin", label: "Command Center", exact: true },
+    { href: "/admin/acquisitions", label: "Purchases" },
     { href: "/admin/inventory", label: "Inventory" },
     { href: "/admin/inbox", label: "Inbox" },
     { href: "/admin/sales", label: "Sales & Profit" },
@@ -34,6 +73,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const settingsItems = [
     { href: "/admin/settings/consumables", label: "Consumables" },
     { href: "/admin/settings/packaging-rules", label: "Packaging Rules" },
+    { href: "/admin/settings/set-translations", label: "Set Translations" },
   ];
 
   return (
@@ -41,7 +81,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Sidebar */}
       <aside
         className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 z-40 ${
-          sidebarOpen ? "w-64" : "w-16"
+          sidebarOpen ? "w-64" : "w-0 overflow-hidden"
         }`}
       >
         <div className={`p-6 flex items-center ${sidebarOpen ? "justify-between" : "justify-center"}`}>
@@ -99,20 +139,41 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               ? pathname === item.href
               : pathname?.startsWith(item.href);
             
+            const isInbox = item.href === "/admin/inbox";
+            const showBadge = isInbox && inboxCount !== null && inboxCount > 0;
+            
             return (
               <a
                 key={item.href}
                 href={item.href}
-                className={`block px-6 py-3 text-sm font-medium transition-colors ${
+                className={`block px-6 py-3 text-sm font-medium transition-colors relative ${
                   isActive
                     ? "bg-black text-white"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
                 title={sidebarOpen ? undefined : item.label}
               >
-                {sidebarOpen ? item.label : (
-                  <div className="flex justify-center">
+                {sidebarOpen ? (
+                  <div className="flex items-center justify-between">
+                    <span>{item.label}</span>
+                    {showBadge && (
+                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        isActive
+                          ? "bg-white text-black"
+                          : "bg-blue-600 text-white"
+                      }`}>
+                        {inboxCount}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex justify-center relative">
                     <span className="text-lg">{item.label.charAt(0)}</span>
+                    {showBadge && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 rounded-full border-2 border-white flex items-center justify-center">
+                        <span className="text-[8px] text-white font-bold">{inboxCount! > 99 ? '99+' : inboxCount}</span>
+                      </span>
+                    )}
                   </div>
                 )}
               </a>
@@ -173,8 +234,31 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </aside>
 
+      {/* Sidebar toggle button (when closed) */}
+      {!sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="fixed left-4 top-4 z-50 p-2 bg-white border border-gray-200 rounded-lg shadow-md hover:bg-gray-50 transition-colors"
+          aria-label="Open sidebar"
+        >
+          <svg
+            className="w-5 h-5 text-gray-600"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          </svg>
+        </button>
+      )}
+
       {/* Main content */}
-      <main className={`transition-all duration-300 ${sidebarOpen ? "ml-64" : "ml-16"}`}>
+      <main className={`transition-all duration-300 ${sidebarOpen ? "ml-64" : "ml-0"}`}>
         <div className="p-6">
           {children}
         </div>

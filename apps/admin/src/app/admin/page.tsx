@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Card from "@/components/ui/Card";
 import PageHeader from "@/components/ui/PageHeader";
+import { InboxSummary, FinancialOverview, QuickStats } from "@/components/dashboard";
 
 const links = [
   {
@@ -11,7 +13,7 @@ const links = [
     cta: "Open Inbox",
   },
   {
-    title: "Acquisitions",
+    title: "Purchases",
     description: "Add and commit cards from new purchases.",
     href: "/admin/acquisitions",
     cta: "Add Cards",
@@ -36,21 +38,86 @@ const links = [
   },
 ];
 
-const shortcuts = [
-  { key: "/", label: "Focus filters" },
-  { key: "e / m", label: "Open selected lot" },
-  { key: "c / Esc", label: "Close modal" },
-  { key: "?", label: "Shortcut help" },
-];
+
+type DashboardSummary = {
+  inbox: {
+    readyToList: number;
+    needsPhotos: number;
+    highValueReady: number;
+  };
+  purchases: {
+    open: number;
+  };
+  inventory: {
+    total: number;
+    listed: number;
+  };
+  recentSales: {
+    count: number;
+    revenue_pence: number;
+  };
+  overallProfit: {
+    purchase_cost_pence: number;
+    revenue_pence: number;
+    consumables_cost_pence: number;
+    total_costs_pence: number;
+    net_profit_pence: number;
+    margin_percent: number;
+  } | null;
+};
 
 export default function AdminHome() {
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadSummary = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/admin/dashboard/summary");
+        const json = await res.json();
+        if (json.ok) {
+          setSummary(json);
+        }
+      } catch (e) {
+        console.error("Failed to load dashboard summary:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSummary();
+  }, []);
+
   return (
     <div className="space-y-8">
       <PageHeader
         title="Command Center"
-        description="Stay on top of acquisitions, listing readiness, and sales. Built for fast daily ops."
+        description="Stay on top of purchases, listing readiness, and sales. Built for fast daily ops."
       />
 
+      {/* Dashboard Widgets */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
+          <InboxSummary 
+            data={summary?.inbox || null} 
+            loading={loading}
+          />
+          <FinancialOverview 
+            data={summary?.overallProfit || null} 
+            loading={loading}
+          />
+        </div>
+        <QuickStats 
+          data={summary ? {
+            purchases: summary.purchases,
+            inventory: summary.inventory,
+            recentSales: summary.recentSales,
+          } : null} 
+          loading={loading}
+        />
+      </div>
+
+      {/* Quick Links */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {links.map((link) => (
           <Card key={link.title} className="border border-gray-200 shadow-sm hover:shadow-md transition">
@@ -59,38 +126,13 @@ export default function AdminHome() {
               <p className="text-sm text-gray-600">{link.description}</p>
               <a
                 href={link.href}
-                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                className="text-sm font-semibold text-gray-600 hover:text-gray-900 underline"
               >
-                {link.cta} →
+                {link.cta}
               </a>
             </div>
           </Card>
         ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2 border border-gray-200 shadow-sm">
-          <h3 className="text-base font-semibold text-gray-900 mb-2">Ops essentials</h3>
-          <ul className="text-sm text-gray-700 space-y-2">
-            <li>• Inbox highlights show high-value and missing-photo lots immediately.</li>
-            <li>• Pricing step refreshes market snapshots (Cardmarket/TCGplayer via TCGdex).</li>
-            <li>• Variations now respect TCGdex availability to avoid listing wrong variants.</li>
-          </ul>
-        </Card>
-
-        <Card className="border border-gray-200 shadow-sm">
-          <h3 className="text-base font-semibold text-gray-900 mb-2">Keyboard shortcuts</h3>
-          <ul className="text-sm text-gray-700 space-y-2">
-            {shortcuts.map((s) => (
-              <li key={s.key} className="flex items-center justify-between">
-                <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded border border-gray-200 text-gray-800">
-                  {s.key}
-                </span>
-                <span className="text-xs text-gray-700">{s.label}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
       </div>
     </div>
   );

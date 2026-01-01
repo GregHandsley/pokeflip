@@ -24,7 +24,7 @@ export default function IntakeWorkspacePage() {
       acquisitionId,
       setId,
       cardId,
-      locale: "en", // Always use English
+      locale: cardLocale || "en",
       quantity,
       defaults: {
         condition,

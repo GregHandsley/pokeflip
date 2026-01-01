@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { fetchAllSets, fetchCardsForSet } from "@/lib/tcgdx/tcgdxClient";
+import { getSetDisplayName } from "@/lib/tcgdx/englishNameOverrides";
+import { getLanguageNameEn } from "@/lib/tcgdx/constants";
 import type { TcgdxSet, TcgdxCard, Condition, CardVariation } from "./CardPicker/types";
 import { SetGrid } from "./CardPicker/SetGrid";
 import { CardGrid } from "./CardPicker/CardGrid";
@@ -13,10 +15,14 @@ type Props = {
 
 type View = "set" | "cards";
 
+type LocaleOption = "en" | "ja" | "zh-hant" | "zh" | "fr" | "de" | "it" | "es" | "pt" | "ko" | "zh-Hans" | "zh-Hant";
+
 export function CardPicker({ onPickCard }: Props) {
-  const locale = "en"; // Always use English
+  const [locale, setLocale] = useState<string>("en");
   const [view, setView] = useState<View>("set");
   const [sets, setSets] = useState<TcgdxSet[]>([]);
+  const [englishSetNames, setEnglishSetNames] = useState<Record<string, string>>({});
+  const [dbTranslations, setDbTranslations] = useState<Record<string, string>>({});
   const [selectedSet, setSelectedSet] = useState<TcgdxSet | null>(null);
   const [cards, setCards] = useState<TcgdxCard[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -25,20 +31,104 @@ export function CardPicker({ onPickCard }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [recentlyAdded, setRecentlyAdded] = useState<Set<string>>(new Set());
   const [modalCard, setModalCard] = useState<{ card: TcgdxCard; imageUrl: string } | null>(null);
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
 
-  // Load sets on mount (always English)
+  // Load available languages from database (languages that have translations)
+  useEffect(() => {
+    fetch("/api/catalog/set-translations")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.ok && json.translationsList) {
+          // Get unique source_language values, always include English
+          const languages = new Set<string>(["en"]);
+          (json.translationsList || []).forEach((t: any) => {
+            if (t.source_language) {
+              languages.add(t.source_language);
+            }
+          });
+          setAvailableLanguages(Array.from(languages));
+        } else {
+          // Fallback: always show English
+          setAvailableLanguages(["en"]);
+        }
+      })
+      .catch((e) => {
+        console.warn("Failed to load available languages", e);
+        setAvailableLanguages(["en"]);
+      });
+  }, []);
+
+  // Preload English set names from TCGdx API (used for display even when browsing JP/ZH)
+  useEffect(() => {
+    fetchAllSets("en")
+      .then((englishSets) => {
+        const map = Object.fromEntries(englishSets.map((s) => [s.id, s.name]));
+        setEnglishSetNames(map);
+      })
+      .catch((e) => {
+        console.warn("Failed to preload English set names", e);
+      });
+  }, []);
+
+  // Load database translations (English display names from our set_translations table)
+  useEffect(() => {
+    fetch("/api/catalog/set-translations")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.ok && json.translations) {
+          setDbTranslations(json.translations);
+        }
+      })
+      .catch((e) => {
+        console.warn("Failed to load database translations", e);
+      });
+  }, []);
+
+  // Helper to map display locale codes to API codes
+  const getApiLocale = (displayLocale: string): string => {
+    if (displayLocale === "zh-hant") return "zh-Hant";
+    if (displayLocale === "zh") return "zh-Hant";
+    return displayLocale;
+  };
+
+  // Load sets on mount / locale change
   useEffect(() => {
     if (view === "set") {
       setLoadingSets(true);
       setError(null);
-      fetchAllSets("en")
-        .then((fetchedSets) => {
-          // Deduplicate sets by ID (keep first occurrence)
-          const uniqueSets = Array.from(
-            new Map(fetchedSets.map(set => [set.id, set])).values()
-          );
-          setSets(uniqueSets);
-        })
+      const apiLocale = getApiLocale(locale);
+      const localeCandidates: string[] =
+        apiLocale === "zh-Hant" ? ["zh-Hant", "zh-Hans", "zh"] : [apiLocale];
+
+      const loadSets = async () => {
+        let fetchedSets: TcgdxSet[] | null = null;
+        let lastError: any = null;
+
+        for (const candidate of localeCandidates) {
+          try {
+            const result = await fetchAllSets(candidate);
+            fetchedSets = result;
+            break;
+          } catch (e) {
+            lastError = e;
+          }
+        }
+
+        if (!fetchedSets) {
+          throw lastError;
+        }
+
+        // Deduplicate sets by ID (keep first occurrence) and apply English names
+        const uniqueSets = Array.from(new Map(fetchedSets.map(set => [set.id, set])).values()).map(
+          (set) => ({
+            ...set,
+            name: getSetDisplayName(set.id, set.name, englishSetNames, dbTranslations),
+          })
+        );
+        setSets(uniqueSets);
+      };
+
+      loadSets()
         .catch((e: any) => {
           setError(`Failed to load sets: ${e.message}`);
         })
@@ -46,18 +136,41 @@ export function CardPicker({ onPickCard }: Props) {
           setLoadingSets(false);
         });
     }
-  }, [view]);
+  }, [view, locale, englishSetNames, dbTranslations]);
 
-  // Load cards when set is selected (always English)
+  // Load cards when set is selected (prefer English names; fall back to chosen locale)
   useEffect(() => {
     if (view === "cards" && selectedSet) {
       setLoadingCards(true);
       setError(null);
       setSearchQuery(""); // Reset search when set changes
-      fetchCardsForSet(selectedSet.id, "en")
-        .then((fetchedCards) => {
-          setCards(fetchedCards);
-        })
+
+      const apiLocale = getApiLocale(locale);
+      const localeCandidates: string[] =
+        apiLocale === "zh-Hant" ? ["en", "zh-Hant", "zh-Hans", "zh"] : locale === "en" ? ["en"] : ["en", apiLocale];
+
+      const loadCards = async () => {
+        let fetchedCards: TcgdxCard[] | null = null;
+        let lastError: any = null;
+
+        for (const candidate of localeCandidates) {
+          try {
+            const result = await fetchCardsForSet(selectedSet.id, candidate);
+            fetchedCards = result;
+            break;
+          } catch (e) {
+            lastError = e;
+          }
+        }
+
+        if (!fetchedCards) {
+          throw lastError;
+        }
+
+        setCards(fetchedCards);
+      };
+
+      loadCards()
         .catch((e: any) => {
           setError(`Failed to load cards: ${e.message}`);
           setCards([]);
@@ -66,7 +179,8 @@ export function CardPicker({ onPickCard }: Props) {
           setLoadingCards(false);
         });
     }
-  }, [view, selectedSet]);
+  }, [view, selectedSet, locale]);
+
 
   const handleSetSelect = (set: TcgdxSet) => {
     setSelectedSet(set);
@@ -98,6 +212,35 @@ export function CardPicker({ onPickCard }: Props) {
             {view === "cards" && `Cards in ${selectedSet?.name || "set"}`}
           </p>
         </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <label className="text-sm text-black/60" htmlFor="card-locale">
+            Language
+          </label>
+          <select
+            id="card-locale"
+            value={locale}
+            onChange={(e) => {
+              setLocale(e.target.value as LocaleOption);
+              setSelectedSet(null);
+              setView("set");
+              setCards([]);
+            }}
+            className="rounded-lg border border-black/10 px-3 py-2 text-sm bg-white"
+          >
+            {availableLanguages.map((langCode) => {
+              // Map zh-Hans and zh-Hant to zh-hant for the selector (CardPicker uses zh-hant)
+              let displayCode: string = langCode;
+              if (langCode === "zh-Hans" || langCode === "zh-Hant") {
+                displayCode = "zh-hant";
+              }
+              return (
+                <option key={langCode} value={displayCode}>
+                  {getLanguageNameEn(langCode)}
+                </option>
+              );
+            })}
+          </select>
+        </div>
         {view === "cards" && (
           <button
             type="button"
@@ -106,9 +249,9 @@ export function CardPicker({ onPickCard }: Props) {
               setSelectedSet(null);
               setCards([]);
             }}
-            className="text-sm text-blue-600 hover:underline"
+            className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium"
           >
-            ← Back
+            Back
           </button>
         )}
       </div>
@@ -122,7 +265,7 @@ export function CardPicker({ onPickCard }: Props) {
       {/* Set Selection */}
       {view === "set" && (
         <div className="overflow-y-auto flex-1 pr-2">
-          <SetGrid sets={sets} loading={loadingSets} onSelectSet={handleSetSelect} />
+          <SetGrid sets={sets} loading={loadingSets} onSelectSet={handleSetSelect} locale={locale} />
         </div>
       )}
 
@@ -141,6 +284,7 @@ export function CardPicker({ onPickCard }: Props) {
             searchQuery={searchQuery}
             recentlyAdded={recentlyAdded}
             onCardClick={handleCardClick}
+            locale={locale}
           />
         </div>
       )}
@@ -151,6 +295,7 @@ export function CardPicker({ onPickCard }: Props) {
           card={modalCard.card}
           imageUrl={modalCard.imageUrl}
           selectedSetId={selectedSet.id}
+          locale={locale}
           onAdd={onPickCard}
           onClose={() => setModalCard(null)}
           onCardAdded={handleCardAdded}

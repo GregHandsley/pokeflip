@@ -83,9 +83,16 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
     setLoadingSalesData(true);
     try {
       const res = await fetch(`/api/admin/inbox/lots/${lot.lot_id}/sales-data`);
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Failed to load sales data:", res.status, text);
+        return;
+      }
       const json = await res.json();
-      if (json.ok) {
+      if (json.ok && json.data) {
         setSalesData(json.data);
+      } else {
+        console.error("Invalid sales data response:", json);
       }
     } catch (e) {
       console.error("Failed to load sales data:", e);
@@ -98,6 +105,8 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
     setPhotos((prev) => [...prev, newPhoto]);
     await loadPhotos();
     onUpdated();
+    // Dispatch event to update inbox count in sidebar
+    window.dispatchEvent(new CustomEvent("inboxUpdated"));
   };
 
   const uploadFile = async (file: File, kind: "front" | "back" | "extra") => {
@@ -194,6 +203,8 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       setPhotoToDelete(null);
       await loadPhotos();
       onUpdated();
+      // Dispatch event to update inbox count in sidebar
+      window.dispatchEvent(new CustomEvent("inboxUpdated"));
     } catch (e: any) {
       alert(e.message || "Failed to delete photo");
       await loadPhotos();
@@ -216,6 +227,8 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
         throw new Error(json.error || "Failed to update variation");
       }
       onUpdated();
+      // Dispatch event to update inbox count in sidebar
+      window.dispatchEvent(new CustomEvent("inboxUpdated"));
     } catch (e: any) {
       alert(e.message || "Failed to update variation");
     }
@@ -240,6 +253,8 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
 
       setUseApiImage(newValue);
       onUpdated();
+      // Dispatch event to update inbox count in sidebar
+      window.dispatchEvent(new CustomEvent("inboxUpdated"));
     } catch (e: any) {
       alert(e.message || "Failed to update API image flag");
     } finally {
@@ -344,6 +359,8 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       }
 
       onUpdated();
+      // Dispatch event to update inbox count in sidebar
+      window.dispatchEvent(new CustomEvent("inboxUpdated"));
       onClose();
     } catch (e: any) {
       alert(e.message || "Failed to update status");

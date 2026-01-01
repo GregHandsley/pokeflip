@@ -1,6 +1,7 @@
 "use client";
 
 import type { TcgdxCard } from "./types";
+import { DEFAULT_CARD_BACK_IMAGE } from "@/lib/constants/images";
 
 type Props = {
   cards: TcgdxCard[];
@@ -8,9 +9,10 @@ type Props = {
   searchQuery: string;
   recentlyAdded: Set<string>;
   onCardClick: (card: TcgdxCard, imageUrl: string) => void;
+  locale?: string;
 };
 
-export function CardGrid({ cards, loading, searchQuery, recentlyAdded, onCardClick }: Props) {
+export function CardGrid({ cards, loading, searchQuery, recentlyAdded, onCardClick, locale = "en" }: Props) {
   if (loading) {
     return <div className="text-center py-16 text-gray-600 flex-1">Loading cards...</div>;
   }
@@ -29,16 +31,15 @@ export function CardGrid({ cards, loading, searchQuery, recentlyAdded, onCardCli
     <div className="overflow-y-auto flex-1 pr-2">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
         {filteredCards.map((card) => {
-          const imageUrl = card.image ? `${card.image}/high.webp` : undefined;
+          const imageUrl = card.image ? `${card.image}/high.webp` : DEFAULT_CARD_BACK_IMAGE;
+          const displayImageUrl = imageUrl || DEFAULT_CARD_BACK_IMAGE;
 
           return (
             <button
               key={card.id}
               type="button"
               onClick={() => {
-                if (imageUrl) {
-                  onCardClick(card, imageUrl);
-                }
+                onCardClick(card, displayImageUrl);
               }}
               className={`group rounded-xl border-2 bg-white p-3 text-left transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 recentlyAdded.has(card.id)
@@ -46,25 +47,25 @@ export function CardGrid({ cards, loading, searchQuery, recentlyAdded, onCardCli
                   : "border-gray-200 hover:border-blue-500 hover:shadow-lg"
               }`}
             >
+              {locale === "en" && (
+                <div className="text-sm font-semibold line-clamp-2 leading-tight break-words mb-2">{card.name}</div>
+              )}
               <div className="aspect-[2.5/3.5] w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center mb-3">
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt={card.name}
-                    className="h-full w-full object-cover group-hover:scale-105 transition-transform"
-                  />
-                ) : (
-                  <div className="text-sm text-gray-400 p-3">No image</div>
-                )}
+                <img
+                  src={displayImageUrl}
+                  alt={card.name || "Card"}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    // Fallback if default image also fails to load
+                    (e.target as HTMLImageElement).src = DEFAULT_CARD_BACK_IMAGE;
+                  }}
+                />
               </div>
-              <div className="space-y-1.5">
-                {(card.localId || card.number) && (
-                  <div className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded inline-block">
-                    #{card.localId || card.number}
-                  </div>
-                )}
-                <div className="text-sm font-semibold line-clamp-2 leading-tight break-words">{card.name}</div>
-              </div>
+              {(card.localId || card.number) && (
+                <div className={`font-bold ${locale === "en" ? "text-base text-gray-900 text-center" : "text-lg text-gray-900 text-center"}`}>
+                  {card.localId || card.number}
+                </div>
+              )}
             </button>
           );
         })}

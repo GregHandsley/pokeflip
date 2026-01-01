@@ -152,6 +152,8 @@ export default function InboxPage() {
       // Clear selection and reload
       setSelectedLotIds(new Set());
       await loadLots();
+      // Dispatch event to update inbox count in sidebar
+      window.dispatchEvent(new CustomEvent("inboxUpdated"));
     } catch (e: any) {
       alert(e.message || "Failed to perform bulk action");
     }

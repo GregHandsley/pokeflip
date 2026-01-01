@@ -95,7 +95,7 @@ export default function InboxTable({
   if (loading) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-        <div className="text-gray-600">Loading inbox lots...</div>
+        <div className="text-gray-600">Loading inbox cards...</div>
       </div>
     );
   }
@@ -103,9 +103,9 @@ export default function InboxTable({
   if (lots.length === 0) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-        <div className="text-gray-600">No lots in inbox</div>
+        <div className="text-gray-600">No cards in inbox</div>
         <div className="text-sm text-gray-500 mt-2">
-          Lots ready to list will appear here.
+          Cards ready to list will appear here.
         </div>
       </div>
     );
@@ -173,7 +173,7 @@ export default function InboxTable({
                       checked={selected}
                       onChange={() => toggleSelection(lot.lot_id)}
                       className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      aria-label={`Select lot ${lot.card_name} #${lot.card_number}`}
+                      aria-label={`Select card ${lot.card_name} #${lot.card_number}`}
                     />
                   </td>
                   <td className="px-4 py-3">
@@ -319,7 +319,7 @@ export default function InboxTable({
         <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
           <div className="text-sm text-gray-600">
             Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, totalCount)} of{" "}
-            {totalCount} lots
+            {totalCount} cards
           </div>
           <div className="flex items-center gap-2">
             <button

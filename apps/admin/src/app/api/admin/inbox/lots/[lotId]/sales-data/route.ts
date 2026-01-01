@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
+import { variationLabel } from "@/components/inventory/variations";
 
 export async function GET(
   req: Request,
@@ -9,120 +11,168 @@ export async function GET(
     const { lotId } = await params;
     const supabase = supabaseServer();
 
-    // Fetch lot with card and set information
+    // Fetch the lot
     const { data: lot, error: lotError } = await supabase
       .from("inventory_lots")
-      .select(
-        `
-        id,
-        condition,
-        quantity,
-        list_price_pence,
-        cards:card_id (
-          id,
-          number,
-          name,
-          rarity,
-          sets:set_id (
-            id,
-            name
-          )
-        )
-      `
-      )
+      .select("*")
       .eq("id", lotId)
       .single();
 
     if (lotError || !lot) {
+      console.error("Error fetching lot:", lotError);
       return NextResponse.json(
         { error: "Lot not found" },
         { status: 404 }
       );
     }
 
-    const card = lot.cards as any;
-    const set = card?.sets as any;
+    // Fetch the card
+    const { data: card, error: cardError } = await supabase
+      .from("cards")
+      .select(`
+        id,
+        number,
+        name,
+        rarity,
+        set_id,
+        sets (
+          id,
+          name
+        )
+      `)
+      .eq("id", lot.card_id)
+      .single();
 
-    // Enrich with TCGdex data for number/total/rarity where possible
-    let tcgdexCard: any = null;
-    try {
-      const tcgRes = await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(card?.id || "")}`);
-      if (tcgRes.ok) {
-        tcgdexCard = await tcgRes.json();
+    if (cardError || !card) {
+      console.error("Error fetching card:", cardError);
+      return NextResponse.json(
+        { error: "Card not found" },
+        { status: 404 }
+      );
+    }
+
+    const set = (card.sets as any) || null;
+    const conditionLabel = CONDITION_LABELS[lot.condition as keyof typeof CONDITION_LABELS] || lot.condition;
+    const variation = variationLabel(lot.variation || "standard");
+
+    // Generate title: "Pokemon card [Card Name] [Set Name] [Number/Total] [Variation] [Condition]"
+    // Format: "Pokemon card {name} {set} {number} {variation} {condition}"
+    // Remove leading zeros from card number
+    const cardNumber = card.number?.replace(/^0+/, "") || card.number || "";
+    const setTotal = set?.name || "";
+    
+    // Build title parts
+    const titleParts: string[] = ["Pokemon card"];
+    
+    if (card.name) {
+      titleParts.push(card.name);
+    }
+    
+    if (setTotal) {
+      titleParts.push(setTotal);
+    }
+    
+    if (cardNumber) {
+      titleParts.push(cardNumber);
+    }
+    
+    if (variation && variation !== "Standard") {
+      titleParts.push(variation);
+    }
+    
+    if (conditionLabel) {
+      titleParts.push(conditionLabel);
+    }
+
+    const title = titleParts.join(" ").trim();
+    
+    // Ensure title is under 80 characters (eBay limit)
+    const maxTitleLength = 80;
+    const finalTitle = title.length > maxTitleLength 
+      ? title.substring(0, maxTitleLength).trim()
+      : title;
+
+    // Generate description
+    const descriptionParts: string[] = [];
+    
+    if (card.name) {
+      descriptionParts.push(card.name);
+    }
+    
+    if (setTotal) {
+      descriptionParts.push(`Set: ${setTotal}`);
+    }
+    
+    if (cardNumber) {
+      descriptionParts.push(`Card No: ${cardNumber}`);
+    }
+    
+    if (card.rarity) {
+      descriptionParts.push(`Rarity: ${card.rarity}`);
+    }
+    
+    if (conditionLabel) {
+      descriptionParts.push(`Condition: ${conditionLabel}`);
+    }
+    
+    if (variation && variation !== "Standard") {
+      descriptionParts.push(`Variation: ${variation}`);
+    }
+    
+    descriptionParts.push("");
+    descriptionParts.push("Photos show the exact card(s) you will receive.");
+    descriptionParts.push("Packed securely and dispatched promptly.");
+    
+    // Add multi-card discount note if quantity > 1
+    if (lot.quantity > 1) {
+      descriptionParts.push("");
+      descriptionParts.push(`Multiple cards available. Discounts available for multiple purchases.`);
+    }
+
+    const description = descriptionParts.join("\n");
+
+    // Get suggested price from list_price_pence or market price
+    let suggestedPrice: number | null = lot.list_price_pence || null;
+
+    // If no list price, try to get market price
+    if (!suggestedPrice) {
+      try {
+        const origin = req.headers.get("origin") || 
+                      req.headers.get("host") ? `http://${req.headers.get("host")}` : 
+                      "http://localhost:3000";
+        const marketRes = await fetch(
+          `${origin}/api/admin/market/prices/${card.id}`,
+          { 
+            headers: {
+              "Content-Type": "application/json",
+            }
+          }
+        );
+        if (marketRes.ok) {
+          const marketJson = await marketRes.json();
+          if (marketJson?.chosen?.price_pence) {
+            suggestedPrice = marketJson.chosen.price_pence;
+          }
+        }
+      } catch (e) {
+        // Ignore market price fetch errors
+        console.warn("Failed to fetch market price:", e);
       }
-    } catch (e) {
-      console.warn("TCGdex fetch failed, using DB fields only", e);
     }
-
-    // Calculate available quantity (quantity minus sold)
-    const { data: salesItems } = await supabase
-      .from("sales_items")
-      .select("qty")
-      .eq("lot_id", lotId);
-
-    const soldQty = salesItems?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
-    const availableQty = lot.quantity - soldQty;
-
-    // Condition label mapping (matches frontend CONDITION_LABELS)
-    const conditionLabels: Record<string, string> = {
-      NM: "Near Mint",
-      LP: "Lightly Played",
-      MP: "Moderately Played",
-      HP: "Heavily Played",
-      DMG: "Damaged",
-    };
-    const conditionLabel = conditionLabels[lot.condition] || lot.condition;
-
-    // Build better title: "{Name} - {Num}/{Total} {Rarity} - {Set} - Pokemon TCG {Condition}"
-    const name = tcgdexCard?.name || card?.name || "Pokemon TCG Card";
-    const rawNumber = tcgdexCard?.localId || card?.number || "";
-    const setTotal = tcgdexCard?.set?.cardCount?.total;
-    const number = rawNumber ? String(rawNumber) : "";
-    const rarity = tcgdexCard?.rarity || card?.rarity || "";
-    const setName = tcgdexCard?.set?.name || set?.name || "Set";
-
-    let titleParts = [name];
-    if (number) {
-      titleParts.push(setTotal ? `${number}/${setTotal}` : number);
-    }
-    if (rarity) {
-      titleParts.push(rarity);
-    }
-    titleParts.push(setName);
-    titleParts.push(`Pokemon TCG ${conditionLabel}`);
-
-    const rawTitle = titleParts.join(" - ");
-    const title = rawTitle.length > 80 ? rawTitle.slice(0, 80) : rawTitle;
-
-    // Enticing, concise description; mention photos on request and multi-buy discounts
-    const description = `Pokemon Trading Card Game
-
-${card?.name || "Card"}${number ? ` #${number}` : ""}${setName ? ` (${setName})` : ""}${rarity ? ` • ${rarity}` : ""}
-Condition: ${conditionLabel} (${lot.condition})
-
-- Authentic Pokemon TCG card, handled with care
-- More photos available on request
-- Multi-card discounts available (applied at checkout)
-
-Thanks for looking and happy collecting!`;
-
-    // Pricing suggestion (placeholder for future update)
-    const suggestedPrice = lot.list_price_pence;
 
     return NextResponse.json({
       ok: true,
       data: {
-        title,
+        title: finalTitle,
         description,
         suggestedPrice,
       },
     });
   } catch (error: any) {
-    console.error("Error in sales data API:", error);
+    console.error("Error in sales-data API:", error);
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }
     );
   }
 }
-

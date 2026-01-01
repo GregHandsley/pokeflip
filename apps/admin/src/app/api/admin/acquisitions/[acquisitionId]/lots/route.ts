@@ -23,7 +23,7 @@ export async function GET(
       );
     }
 
-    // Fetch all lots from this purchase
+    // Fetch all cards from this purchase
     const { data: lots, error: lotsError } = await supabase
       .from("inventory_lots")
       .select(`
@@ -44,9 +44,9 @@ export async function GET(
       .order("created_at", { ascending: false });
 
     if (lotsError) {
-      console.error("Error fetching lots:", lotsError);
+      console.error("Error fetching cards:", lotsError);
       return NextResponse.json(
-        { error: lotsError.message || "Failed to fetch lots" },
+        { error: lotsError.message || "Failed to fetch cards" },
         { status: 500 }
       );
     }
