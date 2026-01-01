@@ -171,7 +171,7 @@ export default function ListingDetailsStep({
             value={salesData.title}
             onChange={(e) => onUpdateTitle(e.target.value)}
             rows={2}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm min-h-[64px] max-h-[120px]"
             placeholder="Enter listing title..."
           />
           <button
@@ -186,7 +186,7 @@ export default function ListingDetailsStep({
                 setTimeout(() => setCopyStatus("idle"), 1500);
               }
             }}
-            className="px-3 py-2 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-100 transition"
+            className="px-3 py-2 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-100 transition min-w-[70px]"
             aria-label="Copy listing title"
           >
             {copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Failed" : "Copy"}
