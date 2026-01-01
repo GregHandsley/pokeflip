@@ -25,8 +25,6 @@ export type LotRow = {
   note: string | null;
   created_at: string;
   updated_at: string;
-  ebay_status: string;
-  ebay_last_synced_at: string | null;
   photo_count?: number;
 };
 

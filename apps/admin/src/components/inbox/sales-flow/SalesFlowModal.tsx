@@ -30,10 +30,13 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
   const [photoToDelete, setPhotoToDelete] = useState<{ id: string; kind: string } | null>(null);
   const [dragOverKind, setDragOverKind] = useState<"front" | "back" | "extra" | null>(null);
   const [uploadingKind, setUploadingKind] = useState<"front" | "back" | "extra" | null>(null);
+  const [itemNumber, setItemNumber] = useState<string>("");
+  const [publishQuantity, setPublishQuantity] = useState<number | null>(null);
 
   useEffect(() => {
     if (lot) {
       setUseApiImage(lot.use_api_image || false);
+      setPublishQuantity(lot.available_qty); // Default to all available
       loadPhotos();
       loadSalesData();
     }
@@ -237,15 +240,86 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
     if (!lot) return;
     setUpdatingStatus(true);
     try {
-      const res = await fetch(`/api/admin/lots/${lot.lot_id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
+      const qtyToPublish = publishQuantity ?? lot.available_qty;
+      const needsSplit = status === "listed" && qtyToPublish < lot.available_qty;
 
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to update status");
+      if (needsSplit) {
+        // Split the lot: split off the remaining quantity (stays for sale, in draft/ready status)
+        // The original lot will keep the publish quantity and be marked as listed
+        const remainingQty = lot.available_qty - qtyToPublish;
+        
+        const splitRes = await fetch(`/api/admin/lots/${lot.lot_id}/split`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            split_qty: remainingQty, // Split off the remaining quantity
+            for_sale: true, // Remaining lot stays for sale so it appears in inbox
+            list_price_pence: lot.list_price_pence, // Keep the same price
+            condition: lot.condition,
+          }),
+        });
+
+        const splitJson = await splitRes.json();
+        if (!splitRes.ok) {
+          throw new Error(splitJson.error || "Failed to split lot");
+        }
+
+        // The original lot now has qtyToPublish quantity
+        // Update it to listed status with for_sale = true
+        const statusRes = await fetch(`/api/admin/lots/${lot.lot_id}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "listed" }),
+        });
+
+        const statusJson = await statusRes.json();
+        if (!statusRes.ok) {
+          throw new Error(statusJson.error || "Failed to update status");
+        }
+
+        // Mark as for_sale and set item_number
+        const forSaleRes = await fetch(`/api/admin/lots/${lot.lot_id}/for-sale`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            for_sale: true,
+            item_number: itemNumber.trim() || null,
+          }),
+        });
+
+        const forSaleJson = await forSaleRes.json();
+        if (!forSaleRes.ok) {
+          console.warn("Failed to update for_sale status:", forSaleJson.error);
+        }
+      } else {
+        // No split needed - update status normally
+        const statusRes = await fetch(`/api/admin/lots/${lot.lot_id}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+
+        const statusJson = await statusRes.json();
+        if (!statusRes.ok) {
+          throw new Error(statusJson.error || "Failed to update status");
+        }
+
+        // If marking as listed, also mark as for_sale and set item_number
+        if (status === "listed") {
+          const forSaleRes = await fetch(`/api/admin/lots/${lot.lot_id}/for-sale`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              for_sale: true,
+              item_number: itemNumber.trim() || null,
+            }),
+          });
+
+          const forSaleJson = await forSaleRes.json();
+          if (!forSaleRes.ok) {
+            console.warn("Failed to update for_sale status:", forSaleJson.error);
+          }
+        }
       }
 
       onUpdated();
@@ -412,6 +486,10 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
               lot={lot}
               salesData={salesData}
               loadingSalesData={loadingSalesData}
+              itemNumber={itemNumber}
+              onItemNumberChange={setItemNumber}
+              publishQuantity={publishQuantity ?? undefined}
+              onPublishQuantityChange={(qty) => setPublishQuantity(qty)}
             />
           )}
         </div>

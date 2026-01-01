@@ -5,6 +5,7 @@ import { CONDITIONS, Condition } from "../types";
 import { poundsToPence, penceToPounds } from "@pokeflip/shared";
 import type { DraftLine } from "./types";
 import IntakeLinePhotoUpload from "@/components/intake/IntakeLinePhotoUpload";
+import SplitModal from "@/components/ui/SplitModal";
 
 type Props = {
   line: DraftLine;
@@ -25,73 +26,26 @@ type Photo = {
 };
 
 export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId, onUpdate, onRemove, supabase, setMsg }: Props) {
-  const isFirstCard = cardIndex === 1;
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showSplitModal, setShowSplitModal] = useState(false);
 
   const handleChange = async (field: string, value: any) => {
-    // If the line has quantity > 1, we need to split the edited card into its own line
-    if (line.quantity > 1) {
-      const newLine: any = {
-        acquisition_id: acquisitionId,
-        set_id: line.set_id,
-        card_id: line.card_id,
-        condition: line.condition,
-        quantity: 1,
-        for_sale: line.for_sale,
-        list_price_pence: line.list_price_pence,
-        note: line.note,
-        status: "draft",
-      };
-      
-      // Apply the change to the new line
-      if (field === 'condition') {
-        newLine.condition = value;
-      } else if (field === 'for_sale') {
-        newLine.for_sale = value;
-        newLine.list_price_pence = value ? (line.list_price_pence ?? poundsToPence("0.99")) : null;
-      } else if (field === 'list_price_pence') {
-        newLine.list_price_pence = value;
-        newLine.for_sale = line.for_sale;
-      } else if (field === 'note') {
-        newLine.note = value;
-      }
-
-      // Insert the new line first
-      const { error: insertError } = await supabase.from("intake_lines").insert(newLine as any);
-      if (insertError) {
-        setMsg(insertError.message);
-        return;
-      }
-
-      // Then decrease the original line's quantity
-      await onUpdate(line.id, { quantity: line.quantity - 1 });
+    // Update the line directly - no splitting
+    if (field === 'for_sale') {
+      await onUpdate(line.id, {
+        for_sale: value,
+        list_price_pence: value ? (line.list_price_pence ?? poundsToPence("0.99")) : null
+      });
     } else {
-      // Single card line - update directly
-      if (field === 'for_sale') {
-        await onUpdate(line.id, {
-          for_sale: value,
-          list_price_pence: value ? (line.list_price_pence ?? poundsToPence("0.99")) : null
-        });
-      } else {
-        await onUpdate(line.id, { [field]: value });
-      }
+      await onUpdate(line.id, { [field]: value });
     }
   };
 
   const handleRemove = async () => {
-    if (isFirstCard && line.quantity > 1) {
-      await onUpdate(line.id, { quantity: line.quantity - 1 });
-    } else if (isFirstCard && line.quantity === 1) {
-      await onRemove(line.id);
-    } else {
-      if (line.quantity > 1) {
-        await onUpdate(line.id, { quantity: line.quantity - 1 });
-      } else {
-        await onRemove(line.id);
-      }
-    }
+    // Remove the entire line
+    await onRemove(line.id);
   };
 
   // Load photos for this line
@@ -130,6 +84,36 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
     }
   };
 
+  const handleSplit = async (splitQty: number, forSale: boolean, price: string | null, condition?: Condition) => {
+    try {
+      const res = await fetch(`/api/admin/intake-lines/${line.id}/split`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          split_qty: splitQty,
+          for_sale: forSale,
+          list_price_pence: price,
+          condition: condition,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to split line");
+      }
+
+      // Update the current line's quantity
+      await onUpdate(line.id, { quantity: line.quantity - splitQty });
+      
+      // Trigger a page refresh to show the new split line
+      // The parent component will reload the data
+      window.location.reload();
+    } catch (e: any) {
+      setMsg(e.message || "Failed to split line");
+      throw e;
+    }
+  };
+
   return (
     <>
     <div className="grid grid-cols-12 gap-2 px-4 py-2.5 items-center hover:bg-black/5 transition-colors">
@@ -164,7 +148,6 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
       <div className="col-span-3">
         <div className="font-medium text-sm truncate">
           {cardDisplay}
-          {totalQty > 1 && <span className="text-xs text-black/50 ml-1">({cardIndex}/{totalQty})</span>}
         </div>
       </div>
 
@@ -179,9 +162,15 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
         </select>
       </div>
 
-      {/* Quantity - always show as 1 for individual cards */}
+      {/* Quantity */}
       <div className="col-span-1">
-        <div className="text-xs text-black/60 text-center">1</div>
+        <input
+          className="w-full rounded border border-black/10 px-2 py-1.5 text-xs"
+          type="number"
+          min={1}
+          value={line.quantity}
+          onChange={(e) => handleChange('quantity', Number(e.target.value))}
+        />
       </div>
 
       {/* For sale */}
@@ -206,13 +195,26 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
         />
       </div>
 
-      {/* Remove */}
-      <div className="col-span-1">
+      {/* Actions */}
+      <div className="col-span-1 flex items-center gap-1">
+        {line.quantity > 1 && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowSplitModal(true);
+            }}
+            className="px-2 py-1.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded border border-blue-200 transition-colors"
+            title="Split quantity"
+          >
+            Split
+          </button>
+        )}
         <button
           type="button"
           onClick={handleRemove}
-          className="w-full rounded border border-black/10 px-2 py-1.5 text-xs hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
-          title="Remove this card"
+          className="px-2 py-1.5 text-xs hover:bg-red-50 hover:border-red-300 hover:text-red-600 rounded border border-black/10 transition-colors"
+          title="Remove this line"
         >
           ×
         </button>
@@ -279,6 +281,18 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
           </div>
         </div>
       )}
+
+      {/* Split Modal */}
+      <SplitModal
+        isOpen={showSplitModal}
+        onClose={() => setShowSplitModal(false)}
+        onSplit={handleSplit}
+        currentQuantity={line.quantity}
+        currentForSale={line.for_sale}
+        currentPrice={line.list_price_pence}
+        currentCondition={line.condition}
+        title={`Split ${cardDisplay}`}
+      />
     </>
   );
 }

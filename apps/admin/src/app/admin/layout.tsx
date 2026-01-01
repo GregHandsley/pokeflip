@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
@@ -11,6 +11,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = supabaseBrowser();
   const [loading, setLoading] = useState(true);
 
@@ -18,12 +19,12 @@ export default function AdminLayout({
     // Check if user is authenticated
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
-        router.push("/login?next=" + encodeURIComponent(window.location.pathname));
+        router.push("/login?next=" + encodeURIComponent(pathname || "/admin"));
       } else {
         setLoading(false);
       }
     });
-  }, [router, supabase]);
+  }, [router, supabase, pathname]);
 
   if (loading) {
     return (

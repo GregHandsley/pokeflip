@@ -141,6 +141,7 @@ export default function InboxPage() {
           selectedCount={selectedLotIds.size}
           onUpdatePrice={(price) => handleBulkAction("update_list_price", { list_price: price })}
           onMarkNotForSale={() => handleBulkAction("mark_not_for_sale", { for_sale: false })}
+          onGroupLots={() => handleBulkAction("group_lots", {})}
           onClearSelection={() => setSelectedLotIds(new Set())}
         />
       )}

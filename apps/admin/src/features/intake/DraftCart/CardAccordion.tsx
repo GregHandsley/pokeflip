@@ -138,53 +138,36 @@ export function CardAccordion({
         </div>
       </div>
 
-      {/* Card content - individual card rows */}
+      {/* Card content - show lines directly */}
       {isCardExpanded && (
         <div className="bg-black/2 border-t border-black/5">
           {/* Table header */}
           <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-black/5 text-xs font-semibold text-black/70">
             <div className="col-span-1"></div>
-            <div className="col-span-4">Card</div>
+            <div className="col-span-3">Card</div>
             <div className="col-span-2">Cond</div>
             <div className="col-span-1">Qty</div>
             <div className="col-span-1">Sale</div>
             <div className="col-span-2">Price</div>
-            <div className="col-span-1"></div>
+            <div className="col-span-2">Actions</div>
           </div>
 
-          {/* Individual card rows - one per card */}
+          {/* Show lines directly - no flattening */}
           <div className="divide-y divide-black/5">
-            {(() => {
-              // Flatten all cards from all lines and track global index
-              const allCards: Array<{ line: DraftLine; lineIndex: number; globalIndex: number }> = [];
-              let globalIndex = 0;
-              
-              cardLines.forEach((l) => {
-                for (let i = 0; i < l.quantity; i++) {
-                  globalIndex++;
-                  allCards.push({
-                    line: l,
-                    lineIndex: i,
-                    globalIndex
-                  });
-                }
-              });
-
-              return allCards.map(({ line: l, globalIndex: cardIndex }) => (
-                <CardRow
-                  key={`${l.id}-${cardIndex}`}
-                  line={l}
-                  cardDisplay={cardDisplay}
-                  cardIndex={cardIndex}
-                  totalQty={totalQty}
-                  acquisitionId={acquisitionId}
-                  onUpdate={onUpdate}
-                  onRemove={onRemove}
-                  supabase={supabase}
-                  setMsg={setMsg}
-                />
-              ));
-            })()}
+            {cardLines.map((line) => (
+              <CardRow
+                key={line.id}
+                line={line}
+                cardDisplay={cardDisplay}
+                cardIndex={1}
+                totalQty={totalQty}
+                acquisitionId={acquisitionId}
+                onUpdate={onUpdate}
+                onRemove={onRemove}
+                supabase={supabase}
+                setMsg={setMsg}
+              />
+            ))}
           </div>
         </div>
       )}

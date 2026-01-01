@@ -5,6 +5,7 @@ import { penceToPounds } from "@pokeflip/shared";
 import Modal from "@/components/ui/Modal";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 import PhotoDropZone from "@/components/inbox/sales-flow/PhotoDropZone";
+import MarkSoldModal from "./MarkSoldModal";
 
 type Lot = {
   id: string;
@@ -75,7 +76,6 @@ function getDisplayStatus(lot: {
 }
 
 export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCountChanged }: Props) {
-  const [markingSold, setMarkingSold] = useState(false);
   const [photos, setPhotos] = useState<Array<{ id: string; kind: string; signedUrl: string | null }>>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [photoSectionExpanded, setPhotoSectionExpanded] = useState(true); // Expanded by default
@@ -83,12 +83,14 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [showDeletePhotoConfirm, setShowDeletePhotoConfirm] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<{ id: string; kind: string } | null>(null);
-  const [showMarkSoldConfirm, setShowMarkSoldConfirm] = useState(false);
   const [updatingForSale, setUpdatingForSale] = useState(false);
+  const [itemNumber, setItemNumber] = useState<string>("");
+  const [showItemNumberInput, setShowItemNumberInput] = useState(false);
   const [useApiImage, setUseApiImage] = useState(false);
   const [updatingApiImage, setUpdatingApiImage] = useState(false);
   const [dragOverKind, setDragOverKind] = useState<"front" | "back" | "extra" | null>(null);
   const [uploadingKind, setUploadingKind] = useState<"front" | "back" | "extra" | null>(null);
+  const [showMarkSoldModal, setShowMarkSoldModal] = useState(false);
 
   useEffect(() => {
     setCurrentLot(lot);
@@ -322,37 +324,27 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
   };
 
   const handleMarkAsSold = () => {
-    setShowMarkSoldConfirm(true);
-  };
-
-  const confirmMarkAsSold = async () => {
-    setMarkingSold(true);
-    try {
-      const res = await fetch(`/api/admin/lots/${currentLot.id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "sold" }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to update status");
-      }
-
-      // Update local state
-      setCurrentLot((prev) => ({ ...prev, status: "sold" as const }));
-      setShowMarkSoldConfirm(false);
-      onLotUpdated?.();
-      onClose();
-    } catch (e: any) {
-      alert(e.message || "Failed to mark as sold");
-    } finally {
-      setMarkingSold(false);
-    }
+    setShowMarkSoldModal(true);
   };
 
   const handleToggleForSale = async () => {
-    const newForSale = !currentLot.for_sale;
+    // If marking as for sale, show input for item_number first
+    if (!currentLot.for_sale) {
+      setShowItemNumberInput(true);
+      return;
+    }
+
+    // If marking as not for sale, proceed directly
+    await updateForSaleStatus(false, null);
+  };
+
+  const handleConfirmForSale = async () => {
+    await updateForSaleStatus(true, itemNumber.trim() || null);
+    setShowItemNumberInput(false);
+    setItemNumber("");
+  };
+
+  const updateForSaleStatus = async (newForSale: boolean, itemNumberValue: string | null) => {
     setUpdatingForSale(true);
     try {
       const res = await fetch(`/api/admin/lots/${currentLot.id}/for-sale`, {
@@ -361,6 +353,7 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
         body: JSON.stringify({
           for_sale: newForSale,
           list_price_pence: newForSale && !currentLot.list_price_pence ? 0.99 : undefined,
+          item_number: itemNumberValue,
         }),
       });
 
@@ -425,10 +418,9 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
           {canMarkAsSold && (
             <button
               onClick={handleMarkAsSold}
-              disabled={markingSold}
               className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {markingSold ? "Marking..." : "Mark as Sold"}
+              Mark as Sold
             </button>
           )}
           <button
@@ -504,30 +496,77 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
             })()}
           </div>
           {canToggleForSale && (
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">For Sale:</span>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`px-2 py-1 rounded text-xs font-medium ${
-                    currentLot.for_sale
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-700"
-                  }`}
-                >
-                  {currentLot.for_sale ? "Yes" : "No"}
-                </span>
-                <button
-                  onClick={handleToggleForSale}
-                  disabled={updatingForSale}
-                  className="px-3 py-1 text-xs font-medium rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {updatingForSale
-                    ? "..."
-                    : currentLot.for_sale
-                    ? "Mark Not For Sale"
-                    : "Mark For Sale"}
-                </button>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">For Sale:</span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-medium ${
+                      currentLot.for_sale
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {currentLot.for_sale ? "Yes" : "No"}
+                  </span>
+                  <button
+                    onClick={handleToggleForSale}
+                    disabled={updatingForSale}
+                    className="px-3 py-1 text-xs font-medium rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {updatingForSale
+                      ? "..."
+                      : currentLot.for_sale
+                      ? "Mark Not For Sale"
+                      : "Mark For Sale"}
+                  </button>
+                </div>
               </div>
+              {showItemNumberInput && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Item Number <span className="text-gray-500 text-xs">(optional - for grouping)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={itemNumber}
+                    onChange={(e) => setItemNumber(e.target.value)}
+                    placeholder="e.g., EBAY-001"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleConfirmForSale();
+                      } else if (e.key === "Escape") {
+                        setShowItemNumberInput(false);
+                        setItemNumber("");
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleConfirmForSale}
+                      disabled={updatingForSale}
+                      className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {updatingForSale ? "Saving..." : "Confirm"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowItemNumberInput(false);
+                        setItemNumber("");
+                      }}
+                      disabled={updatingForSale}
+                      className="px-3 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Cards with the same item number will be grouped together when marking as sold.
+                  </p>
+                </div>
+              )}
             </div>
           )}
           {currentLot.for_sale && currentLot.list_price_pence != null && (
@@ -790,44 +829,28 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
         )}
       </Modal>
 
-      {/* Mark as Sold Confirmation Modal */}
-      <Modal
-        isOpen={showMarkSoldConfirm}
-        onClose={() => setShowMarkSoldConfirm(false)}
-        title="Mark as Sold"
-        maxWidth="md"
-        footer={
-          <div className="flex items-center justify-end gap-3 w-full">
-            <button
-              onClick={() => setShowMarkSoldConfirm(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={confirmMarkAsSold}
-              disabled={markingSold}
-              className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {markingSold ? "Marking..." : "Mark as Sold"}
-            </button>
-          </div>
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-gray-700">
-            Are you sure you want to mark this lot as sold? This will change the status to "sold" and update the inventory totals.
-          </p>
-          {currentLot.card && (
-            <div className="text-sm text-gray-600">
-              <strong>Card:</strong> #{currentLot.card.number} {currentLot.card.name}
-            </div>
-          )}
-          <div className="text-sm text-gray-600">
-            <strong>Quantity:</strong> {currentLot.quantity} card{currentLot.quantity !== 1 ? "s" : ""}
-          </div>
-        </div>
-      </Modal>
+      {/* Mark Sold Modal */}
+      {showMarkSoldModal && (
+        <MarkSoldModal
+          lot={{
+            id: currentLot.id,
+            condition: currentLot.condition,
+            quantity: currentLot.quantity,
+            available_qty: currentLot.available_qty,
+            sold_qty: currentLot.sold_qty,
+            for_sale: currentLot.for_sale,
+            list_price_pence: currentLot.list_price_pence,
+            status: currentLot.status,
+            card: currentLot.card,
+          }}
+          onClose={() => setShowMarkSoldModal(false)}
+          onSaleCreated={() => {
+            setShowMarkSoldModal(false);
+            onLotUpdated?.();
+            onClose();
+          }}
+        />
+      )}
     </Modal>
   );
 }

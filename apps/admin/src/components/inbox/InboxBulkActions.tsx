@@ -5,7 +5,6 @@ import Modal from "@/components/ui/Modal";
 
 interface Props {
   selectedCount: number;
-  onQueuePublish: () => void;
   onUpdatePrice: (price: number) => void;
   onMarkNotForSale: () => void;
   onClearSelection: () => void;
@@ -13,7 +12,6 @@ interface Props {
 
 export default function InboxBulkActions({
   selectedCount,
-  onQueuePublish,
   onUpdatePrice,
   onMarkNotForSale,
   onClearSelection,
@@ -40,12 +38,6 @@ export default function InboxBulkActions({
             {selectedCount} lot{selectedCount !== 1 ? "s" : ""} selected
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={onQueuePublish}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
-            >
-              Queue Publish
-            </button>
             <button
               onClick={() => setShowPriceModal(true)}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"

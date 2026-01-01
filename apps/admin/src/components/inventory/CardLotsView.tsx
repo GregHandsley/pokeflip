@@ -4,7 +4,12 @@ import { useState, useEffect } from "react";
 import { penceToPounds } from "@pokeflip/shared";
 import Modal from "@/components/ui/Modal";
 import LotDetailModal from "./LotDetailModal";
+import MarkSoldModal from "./MarkSoldModal";
+import SplitModal from "@/components/ui/SplitModal";
+import MergeLotsModal from "./MergeLotsModal";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
+import { supabaseBrowser } from "@/lib/supabase/browser";
+import CardAnalyticsPanel from "../analytics/CardAnalyticsPanel";
 
 type Purchase = {
   id: string;
@@ -26,9 +31,6 @@ type Lot = {
   note: string | null;
   created_at: string;
   updated_at: string;
-  ebay_status: string;
-  ebay_publish_queued_at: string | null;
-  is_queued: boolean;
   photo_count: number;
   use_api_image?: boolean;
   purchase: Purchase | null;
@@ -46,13 +48,6 @@ const STATUS_COLORS: Record<string, string> = {
   listed: "bg-green-100 text-green-700",
   sold: "bg-purple-100 text-purple-700",
   archived: "bg-gray-100 text-gray-500",
-  // Sale/listing statuses
-  "not_listed": "bg-gray-100 text-gray-700",
-  "queued": "bg-yellow-100 text-yellow-700",
-  "pending": "bg-orange-100 text-orange-700",
-  "live": "bg-green-100 text-green-700",
-  "ended": "bg-gray-100 text-gray-500",
-  "failed": "bg-red-100 text-red-700",
 };
 
 // Function to determine the display status for a lot
@@ -65,30 +60,6 @@ function getDisplayStatus(lot: Lot): { label: string; color: string } {
     return { label: "Archived", color: STATUS_COLORS.archived };
   }
 
-  // Priority 2: eBay listing status (if exists)
-  if (lot.ebay_status === "live") {
-    return { label: "Live", color: STATUS_COLORS.live };
-  }
-  if (lot.ebay_status === "pending") {
-    return { label: "Pending", color: STATUS_COLORS.pending };
-  }
-  if (lot.ebay_status === "ended") {
-    return { label: "Ended", color: STATUS_COLORS.ended };
-  }
-  if (lot.ebay_status === "failed") {
-    return { label: "Failed", color: STATUS_COLORS.failed };
-  }
-
-  // Priority 3: Queued for publishing
-  if (lot.is_queued || lot.ebay_publish_queued_at) {
-    return { label: "Queued", color: STATUS_COLORS.queued };
-  }
-
-  // Priority 4: Not listed (ready to list)
-  if (lot.ebay_status === "not_listed" && lot.for_sale) {
-    return { label: "Not Listed", color: STATUS_COLORS.not_listed };
-  }
-
   // Fallback: Show lot status
   return {
     label: lot.status.charAt(0).toUpperCase() + lot.status.slice(1),
@@ -96,16 +67,37 @@ function getDisplayStatus(lot: Lot): { label: string; color: string } {
   };
 }
 
+type SalesItem = {
+  id: string;
+  qty: number;
+  sold_price_pence: number;
+  sold_at: string;
+  order_group: string | null;
+  platform: string;
+  platform_order_ref: string | null;
+  buyer_handle: string | null;
+  created_at: string;
+};
+
 export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Props) {
+  const supabase = supabaseBrowser();
   const [lots, setLots] = useState<Lot[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cardName, setCardName] = useState<string>("");
   const [selectedLots, setSelectedLots] = useState<Set<string>>(new Set());
   const [deletingLotId, setDeletingLotId] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showSingleDeleteConfirm, setShowSingleDeleteConfirm] = useState(false);
   const [lotToDelete, setLotToDelete] = useState<Lot | null>(null);
   const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
+  const [lotToMarkSold, setLotToMarkSold] = useState<Lot | null>(null);
   const [soldLotsExpanded, setSoldLotsExpanded] = useState(false);
+  const [activeLotSoldItemsExpanded, setActiveLotSoldItemsExpanded] = useState<Set<string>>(new Set());
+  const [salesItemsByLot, setSalesItemsByLot] = useState<Map<string, SalesItem[]>>(new Map());
+  const [loadingSalesItems, setLoadingSalesItems] = useState<Set<string>>(new Set());
+  const [lotToSplit, setLotToSplit] = useState<Lot | null>(null);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [merging, setMerging] = useState(false);
 
   const loadLots = async () => {
     setLoading(true);
@@ -114,6 +106,17 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
       const json = await res.json();
       if (json.ok) {
         setLots(json.lots || []);
+      }
+      
+      // Fetch card name
+      const { data: card, error: cardError } = await supabase
+        .from("cards")
+        .select("name")
+        .eq("id", cardId)
+        .single();
+      
+      if (!cardError && card) {
+        setCardName(card.name || "");
       }
     } catch (e) {
       console.error("Failed to load lots:", e);
@@ -210,6 +213,44 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
     }
   };
 
+  const toggleActiveLotSoldItems = async (lotId: string) => {
+    const isExpanded = activeLotSoldItemsExpanded.has(lotId);
+    if (isExpanded) {
+      // Collapse
+      setActiveLotSoldItemsExpanded((prev) => {
+        const next = new Set(prev);
+        next.delete(lotId);
+        return next;
+      });
+    } else {
+      // Expand - load sales items if not already loaded
+      setActiveLotSoldItemsExpanded((prev) => new Set(prev).add(lotId));
+      
+      if (!salesItemsByLot.has(lotId)) {
+        setLoadingSalesItems((prev) => new Set(prev).add(lotId));
+        try {
+          const res = await fetch(`/api/admin/lots/${lotId}/sales`);
+          const json = await res.json();
+          if (json.ok) {
+            setSalesItemsByLot((prev) => {
+              const next = new Map(prev);
+              next.set(lotId, json.sales_items || []);
+              return next;
+            });
+          }
+        } catch (e) {
+          console.error("Failed to load sales items:", e);
+        } finally {
+          setLoadingSalesItems((prev) => {
+            const next = new Set(prev);
+            next.delete(lotId);
+            return next;
+          });
+        }
+      }
+    }
+  };
+
   if (!isExpanded) return null;
 
   if (loading) {
@@ -253,8 +294,70 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
   const allSelected = selectedLots.size === lots.length && lots.length > 0;
   const someSelected = selectedLots.size > 0 && selectedLots.size < lots.length;
 
+  // Check if selected lots can be merged (same card, condition, no sold items, active status)
+  const canMergeSelected = (() => {
+    if (selectedLots.size < 2) return false;
+    const selectedLotsArray = lots.filter((lot) => selectedLots.has(lot.id));
+    
+    // Check all have same card (already filtered by cardId in this view) and condition
+    const firstLot = selectedLotsArray[0];
+    const allSameCondition = selectedLotsArray.every(
+      (lot) => lot.condition === firstLot.condition
+    );
+    
+    // Check all are active (not sold/archived)
+    const allActive = selectedLotsArray.every(
+      (lot) => lot.status !== "sold" && lot.status !== "archived"
+    );
+    
+    // Check none have sold items
+    const noneHaveSales = selectedLotsArray.every((lot) => lot.sold_qty === 0);
+    
+    return allSameCondition && allActive && noneHaveSales;
+  })();
+
+  const handleMerge = async (targetLotId: string) => {
+    setMerging(true);
+    try {
+      const lotIds = Array.from(selectedLots);
+      const res = await fetch("/api/admin/lots/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lot_ids: lotIds,
+          target_lot_id: targetLotId,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to merge lots");
+      }
+
+      setSelectedLots(new Set());
+      setShowMergeModal(false);
+      loadLots();
+      onLotsChanged?.();
+    } catch (e: any) {
+      alert(e.message || "Failed to merge lots");
+      throw e;
+    } finally {
+      setMerging(false);
+    }
+  };
+
   return (
     <>
+      <div className="px-4 py-3 bg-white border-t border-gray-200">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-xs text-gray-500">Card analytics</div>
+            <div className="text-base font-semibold">{cardName || "Card"}</div>
+          </div>
+        </div>
+        <CardAnalyticsPanel cardId={cardId} />
+      </div>
+
       <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
         {/* Header with bulk actions */}
         <div className="flex items-center justify-between mb-3">
@@ -284,13 +387,24 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
             </button>
           </div>
           {selectedLots.size > 0 && (
-            <button
-              onClick={() => setShowBulkDeleteConfirm(true)}
-              disabled={deletingLotId === "bulk"}
-              className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {deletingLotId === "bulk" ? "Deleting..." : `Delete ${selectedLots.size} lot${selectedLots.size !== 1 ? "s" : ""}`}
-            </button>
+            <div className="flex items-center gap-2">
+              {canMergeSelected && (
+                <button
+                  onClick={() => setShowMergeModal(true)}
+                  disabled={merging}
+                  className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded border border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Merge
+                </button>
+              )}
+              <button
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                disabled={deletingLotId === "bulk"}
+                className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {deletingLotId === "bulk" ? "Deleting..." : `Delete ${selectedLots.size} lot${selectedLots.size !== 1 ? "s" : ""}`}
+              </button>
+            </div>
           )}
         </div>
 
@@ -378,13 +492,55 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                                   📷 {lot.photo_count}
                                 </span>
                               ) : null}
-                              {lot.ebay_status !== "not_listed" && (
-                                <span
-                                  className="text-xs"
-                                  title={`eBay: ${lot.ebay_status}`}
+                              {/* Split button - only show for active lots with quantity > 1 and available quantity > 1 */}
+                              {lot.status !== "sold" && lot.status !== "archived" && lot.available_qty > 1 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLotToSplit(lot);
+                                  }}
+                                  className="ml-1 p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                                  title="Split quantity"
                                 >
-                                  {lot.ebay_status === "live" ? "🟢" : "⚪"}
-                                </span>
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                    />
+                                  </svg>
+                                </button>
+                              )}
+                              {/* Mark Sold button - only show for active lots with available quantity */}
+                              {lot.status !== "sold" && lot.status !== "archived" && lot.available_qty > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLotToMarkSold(lot);
+                                  }}
+                                  className="ml-1 p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-colors"
+                                  title="Mark as sold"
+                                >
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    />
+                                  </svg>
+                                </button>
                               )}
                               {/* Delete button */}
                               <button
@@ -457,6 +613,86 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                               {lot.note}
                             </div>
                           )}
+                          {/* Sold items dropdown for active lots with sold quantities */}
+                          {lot.sold_qty > 0 && lot.status !== "sold" && (
+                            <div className="mt-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleActiveLotSoldItems(lot.id);
+                                }}
+                                className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-900"
+                              >
+                                <span className="font-medium">
+                                  Sold Items ({lot.sold_qty})
+                                </span>
+                                <svg
+                                  className={`w-3 h-3 text-gray-400 transition-transform ${
+                                    activeLotSoldItemsExpanded.has(lot.id) ? "rotate-180" : ""
+                                  }`}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M19 9l-7 7-7-7"
+                                  />
+                                </svg>
+                              </button>
+                              {activeLotSoldItemsExpanded.has(lot.id) && (
+                                <div className="mt-2 ml-4 space-y-2 border-l-2 border-gray-200 pl-3">
+                                  {loadingSalesItems.has(lot.id) ? (
+                                    <div className="text-xs text-gray-500">Loading sales...</div>
+                                  ) : (
+                                    (() => {
+                                      const salesItems = salesItemsByLot.get(lot.id) || [];
+                                      if (salesItems.length === 0) {
+                                        return (
+                                          <div className="text-xs text-gray-500">No sales found</div>
+                                        );
+                                      }
+                                      return salesItems.map((item) => (
+                                        <div
+                                          key={item.id}
+                                          className="text-xs bg-gray-50 rounded p-2 border border-gray-200"
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-medium text-gray-700">
+                                                {item.qty} × £{penceToPounds(item.sold_price_pence)}
+                                              </span>
+                                              <span className="text-gray-500">
+                                                = £{penceToPounds(item.qty * item.sold_price_pence)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                          <div className="mt-1 space-y-0.5 text-gray-600">
+                                            {item.buyer_handle && (
+                                              <div>
+                                                <span className="font-medium">Buyer:</span> {item.buyer_handle}
+                                              </div>
+                                            )}
+                                            {item.order_group && (
+                                              <div>
+                                                <span className="font-medium">Order:</span> {item.order_group}
+                                              </div>
+                                            )}
+                                            <div>
+                                              <span className="font-medium">Sold:</span>{" "}
+                                              {new Date(item.sold_at).toLocaleDateString()}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ));
+                                    })()
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -507,7 +743,20 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                           return (
                             <div
                               key={lot.id}
-                              className={`pl-3 pr-2 py-2 bg-gray-50 rounded border border-gray-200 opacity-75`}
+                              className={`pl-3 pr-2 py-2 bg-gray-50 rounded border border-gray-200 opacity-75 cursor-pointer hover:bg-gray-100`}
+                              onClick={async () => {
+                                // Find sales order for this lot
+                                try {
+                                  const res = await fetch(`/api/admin/lots/${lot.id}/sales-order`);
+                                  const json = await res.json();
+                                  if (json.ok && json.salesOrderId) {
+                                    // Navigate to sales page with order ID
+                                    window.location.href = `/admin/sales?orderId=${json.salesOrderId}`;
+                                  }
+                                } catch (e) {
+                                  console.error("Failed to get sales order:", e);
+                                }
+                              }}
                             >
                               <div className="flex items-center gap-2">
                                 <input
@@ -717,6 +966,69 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
               )
             );
           }}
+        />
+      )}
+
+      {/* Mark Sold Modal */}
+      {lotToMarkSold && (
+        <MarkSoldModal
+          lot={lotToMarkSold}
+          onClose={() => setLotToMarkSold(null)}
+          onSaleCreated={() => {
+            setLotToMarkSold(null);
+            loadLots();
+            onLotsChanged?.();
+          }}
+        />
+      )}
+
+      {/* Split Modal */}
+      {lotToSplit && (
+        <SplitModal
+          isOpen={!!lotToSplit}
+          onClose={() => setLotToSplit(null)}
+          onSplit={async (splitQty, forSale, price, condition) => {
+            try {
+              const res = await fetch(`/api/admin/lots/${lotToSplit.id}/split`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  split_qty: splitQty,
+                  for_sale: forSale,
+                  list_price_pence: price,
+                  condition: condition,
+                }),
+              });
+
+              const json = await res.json();
+              if (!res.ok) {
+                throw new Error(json.error || "Failed to split lot");
+              }
+
+              setLotToSplit(null);
+              loadLots();
+              onLotsChanged?.();
+            } catch (e: any) {
+              alert(e.message || "Failed to split lot");
+              throw e;
+            }
+          }}
+          currentQuantity={lotToSplit.available_qty}
+          currentForSale={lotToSplit.for_sale}
+          currentPrice={lotToSplit.list_price_pence}
+          currentCondition={lotToSplit.condition}
+          title={`Split Lot`}
+        />
+      )}
+
+      {/* Merge Modal */}
+      {showMergeModal && (
+        <MergeLotsModal
+          isOpen={showMergeModal}
+          onClose={() => setShowMergeModal(false)}
+          onMerge={handleMerge}
+          lots={lots.filter((lot) => selectedLots.has(lot.id))}
+          cardName={cardName || "Card"}
         />
       )}
     </>

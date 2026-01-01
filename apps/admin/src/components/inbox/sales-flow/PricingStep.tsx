@@ -1,16 +1,30 @@
 "use client";
 
+import { useState } from "react";
 import { penceToPounds } from "@pokeflip/shared";
 import { InboxLot, SalesData } from "./types";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
+import { Input } from "@/components/ui/Input";
 
 interface Props {
   lot: InboxLot;
   salesData: SalesData | null;
   loadingSalesData: boolean;
+  itemNumber?: string;
+  onItemNumberChange?: (itemNumber: string) => void;
+  publishQuantity?: number;
+  onPublishQuantityChange?: (quantity: number) => void;
 }
 
-export default function PricingStep({ lot, salesData, loadingSalesData }: Props) {
+export default function PricingStep({ 
+  lot, 
+  salesData, 
+  loadingSalesData, 
+  itemNumber = "", 
+  onItemNumberChange,
+  publishQuantity,
+  onPublishQuantityChange,
+}: Props) {
   if (loadingSalesData) {
     return (
       <div className="text-center py-8">
@@ -98,6 +112,51 @@ export default function PricingStep({ lot, salesData, loadingSalesData }: Props)
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Publish Quantity */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Quantity to Publish to eBay
+        </label>
+        <Input
+          type="number"
+          min={1}
+          max={lot.available_qty}
+          value={publishQuantity ?? lot.available_qty}
+          onChange={(e) => {
+            const qty = Math.max(1, Math.min(lot.available_qty, Number(e.target.value) || 1));
+            onPublishQuantityChange?.(qty);
+          }}
+          className="w-full"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          {publishQuantity && publishQuantity < lot.available_qty ? (
+            <>
+              <strong>{publishQuantity}</strong> card{publishQuantity !== 1 ? "s" : ""} will be published to eBay.
+              The remaining <strong>{lot.available_qty - publishQuantity}</strong> card{lot.available_qty - publishQuantity !== 1 ? "s" : ""} will remain in draft status.
+            </>
+          ) : (
+            <>All <strong>{lot.available_qty}</strong> available card{lot.available_qty !== 1 ? "s" : ""} will be published.</>
+          )}
+        </p>
+      </div>
+
+      {/* Item Number / eBay Number */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Item Number <span className="text-gray-500 text-xs font-normal">(eBay listing number - optional)</span>
+        </label>
+        <Input
+          type="text"
+          value={itemNumber}
+          onChange={(e) => onItemNumberChange?.(e.target.value)}
+          placeholder="e.g., 123456789012"
+          className="w-full"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Cards with the same item number will be grouped together when marking as sold.
+        </p>
       </div>
     </div>
   );

@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 
 type BulkAction =
-  | { action: "queue_publish"; lotIds: string[] }
   | { action: "update_list_price"; lotIds: string[]; list_price: number }
-  | { action: "mark_not_for_sale"; lotIds: string[]; for_sale: boolean };
+  | { action: "mark_not_for_sale"; lotIds: string[]; for_sale: boolean }
+  | { action: "group_lots"; lotIds: string[] };
 
 export async function POST(req: Request) {
   try {
@@ -21,102 +21,6 @@ export async function POST(req: Request) {
     let result: any = { ok: true, message: "", affected: 0 };
 
     switch (body.action) {
-      case "queue_publish": {
-        // Check photo requirements before queuing
-        const { data: lotsData } = await supabase
-          .from("inventory_lots")
-          .select(`
-            id,
-            use_api_image,
-            cards!inner(api_image_url)
-          `)
-          .in("id", body.lotIds);
-
-        // Get photo counts by kind (front/back) for each lot
-        const { data: photosData } = await supabase
-          .from("lot_photos")
-          .select("lot_id, kind")
-          .in("lot_id", body.lotIds)
-          .in("kind", ["front", "back"]);
-
-        const photoKindsMap = new Map<string, Set<string>>();
-        (photosData || []).forEach((photo: any) => {
-          if (!photoKindsMap.has(photo.lot_id)) {
-            photoKindsMap.set(photo.lot_id, new Set());
-          }
-          photoKindsMap.get(photo.lot_id)!.add(photo.kind);
-        });
-
-        // Filter lots that meet photo requirements
-        const eligibleLotIds: string[] = [];
-        const missingPhotoLotIds: string[] = [];
-
-        (lotsData || []).forEach((lot: any) => {
-          const photoKinds = photoKindsMap.get(lot.id) || new Set();
-          const hasFront = photoKinds.has("front");
-          const hasBack = photoKinds.has("back");
-          const hasRequiredPhotos = hasFront && hasBack;
-
-          if (lot.use_api_image || hasRequiredPhotos) {
-            eligibleLotIds.push(lot.id);
-          } else {
-            missingPhotoLotIds.push(lot.id);
-          }
-        });
-
-        if (missingPhotoLotIds.length > 0) {
-          return NextResponse.json(
-            {
-              error: `Cannot queue ${missingPhotoLotIds.length} lot(s): Missing required photos (front and back) or API image flag not set`,
-              missingPhotoLotIds,
-            },
-            { status: 400 }
-          );
-        }
-
-        // Insert publish jobs for lots that don't have active jobs
-        const { data: existingJobs } = await supabase
-          .from("ebay_publish_jobs")
-          .select("lot_id")
-          .in("lot_id", eligibleLotIds)
-          .in("status", ["queued", "running"]);
-
-        const existingLotIds = new Set((existingJobs || []).map((j: any) => j.lot_id));
-        const newLotIds = eligibleLotIds.filter((id) => !existingLotIds.has(id));
-
-        if (newLotIds.length > 0) {
-          const jobsToInsert = newLotIds.map((lotId) => ({
-            lot_id: lotId,
-            status: "queued" as const,
-            attempts: 0,
-          }));
-
-          const { error: insertError } = await supabase
-            .from("ebay_publish_jobs")
-            .insert(jobsToInsert);
-
-          if (insertError) {
-            throw new Error(insertError.message || "Failed to queue publish jobs");
-          }
-
-          // Also update inventory_lots.ebay_publish_queued_at
-          const { error: updateError } = await supabase
-            .from("inventory_lots")
-            .update({ ebay_publish_queued_at: new Date().toISOString() })
-            .in("id", newLotIds);
-
-          if (updateError) {
-            console.warn("Failed to update ebay_publish_queued_at:", updateError);
-          }
-
-          result.affected = newLotIds.length;
-          result.message = `Queued ${newLotIds.length} lot(s) for publishing`;
-        } else {
-          result.message = "All selected lots already have active publish jobs";
-        }
-        break;
-      }
-
       case "update_list_price": {
         if (body.list_price === undefined || body.list_price === null) {
           return NextResponse.json(
@@ -153,6 +57,146 @@ export async function POST(req: Request) {
 
         result.affected = body.lotIds.length;
         result.message = `Updated for_sale status for ${body.lotIds.length} lot(s)`;
+        break;
+      }
+
+      case "group_lots": {
+        if (body.lotIds.length < 2) {
+          return NextResponse.json(
+            { error: "At least 2 lots are required to group" },
+            { status: 400 }
+          );
+        }
+
+        // Fetch all lots to validate they can be grouped
+        const { data: lots, error: fetchError } = await supabase
+          .from("inventory_lots")
+          .select("id, card_id, condition, quantity, for_sale, list_price_pence, status, note, acquisition_id, use_api_image")
+          .in("id", body.lotIds);
+
+        if (fetchError || !lots || lots.length === 0) {
+          throw new Error(fetchError?.message || "Failed to fetch lots");
+        }
+
+        if (lots.length !== body.lotIds.length) {
+          throw new Error("Some lots were not found");
+        }
+
+        // Validate all lots can be grouped (same card_id, condition, for_sale, list_price_pence)
+        const firstLot = lots[0];
+        const canGroup = lots.every(
+          (lot) =>
+            lot.card_id === firstLot.card_id &&
+            lot.condition === firstLot.condition &&
+            lot.for_sale === firstLot.for_sale &&
+            lot.list_price_pence === firstLot.list_price_pence &&
+            lot.status !== "sold" &&
+            lot.status !== "archived"
+        );
+
+        if (!canGroup) {
+          return NextResponse.json(
+            {
+              error:
+                "All selected lots must have the same card, condition, price, and for_sale status. Sold or archived lots cannot be grouped.",
+            },
+            { status: 400 }
+          );
+        }
+
+        // Calculate combined quantity
+        const totalQuantity = lots.reduce((sum, lot) => sum + lot.quantity, 0);
+
+        // Create new grouped lot
+        const { data: newLot, error: createError } = await supabase
+          .from("inventory_lots")
+          .insert({
+            card_id: firstLot.card_id,
+            condition: firstLot.condition,
+            quantity: totalQuantity,
+            for_sale: firstLot.for_sale,
+            list_price_pence: firstLot.list_price_pence,
+            status: firstLot.status === "draft" ? "draft" : "ready",
+            note: firstLot.note || null,
+            acquisition_id: firstLot.acquisition_id || null,
+            use_api_image: firstLot.use_api_image || false,
+          })
+          .select("id")
+          .single();
+
+        if (createError || !newLot) {
+          throw new Error(createError?.message || "Failed to create grouped lot");
+        }
+
+        // Transfer photos from all source lots to the new lot
+        // Get all photos from source lots
+        const { data: allPhotos, error: photosError } = await supabase
+          .from("lot_photos")
+          .select("kind, object_key")
+          .in("lot_id", body.lotIds);
+
+        if (photosError) {
+          console.error("Error fetching photos:", photosError);
+          // Continue even if photos fail - we'll still group the lots
+        } else if (allPhotos && allPhotos.length > 0) {
+          // Group photos by kind and deduplicate
+          // For front and back, only keep one photo (first one found)
+          // For extra photos, keep all unique ones
+          const photosByKind = new Map<string, { kind: string; object_key: string }>();
+          const extraPhotos: { kind: string; object_key: string }[] = [];
+          
+          for (const photo of allPhotos) {
+            if (photo.kind === "front" || photo.kind === "back") {
+              // Only keep first front/back photo
+              if (!photosByKind.has(photo.kind)) {
+                photosByKind.set(photo.kind, photo);
+              }
+            } else if (photo.kind === "extra") {
+              // Keep all unique extra photos
+              const key = photo.object_key;
+              if (!extraPhotos.some((p) => p.object_key === key)) {
+                extraPhotos.push(photo);
+              }
+            }
+          }
+
+          // Combine front/back photos with extra photos
+          const photosToInsert = [
+            ...Array.from(photosByKind.values()),
+            ...extraPhotos,
+          ].map((photo) => ({
+            lot_id: newLot.id,
+            kind: photo.kind,
+            object_key: photo.object_key,
+          }));
+
+          if (photosToInsert.length > 0) {
+            const { error: insertPhotosError } = await supabase
+              .from("lot_photos")
+              .insert(photosToInsert);
+
+            if (insertPhotosError) {
+              console.error("Error transferring photos:", insertPhotosError);
+              // Continue even if photos fail - we'll still group the lots
+            }
+          }
+        }
+
+        // Delete the original lots (this will cascade delete their photos via foreign key)
+        const { error: deleteError } = await supabase
+          .from("inventory_lots")
+          .delete()
+          .in("id", body.lotIds);
+
+        if (deleteError) {
+          // If deletion fails, try to delete the new lot we created
+          await supabase.from("inventory_lots").delete().eq("id", newLot.id);
+          throw new Error(deleteError.message || "Failed to delete original lots");
+        }
+
+        result.affected = body.lotIds.length;
+        result.message = `Grouped ${body.lotIds.length} lot(s) into 1 lot with quantity ${totalQuantity}`;
+        result.newLotId = newLot.id;
         break;
       }
 

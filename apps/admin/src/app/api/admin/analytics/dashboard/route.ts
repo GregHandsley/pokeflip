@@ -1,0 +1,170 @@
+import { NextResponse } from "next/server";
+import { supabaseServer } from "@/lib/supabase/server";
+
+type LotRow = {
+  id: string;
+  created_at: string;
+  status: string;
+  quantity: number;
+  card_id: string;
+};
+
+type SalesItemRow = {
+  qty: number;
+  lot_id: string;
+  sales_orders?: { sold_at: string | null } | null;
+};
+
+const dateKey = (date: string | null | undefined) => {
+  if (!date) return "";
+  return new Date(date).toISOString().split("T")[0];
+};
+
+const sumByDate = (
+  dates: string[],
+  rangeDays: number
+): { date: string; value: number }[] => {
+  const start = new Date();
+  start.setDate(start.getDate() - (rangeDays - 1));
+  const counts = new Map<string, number>();
+  for (const d of dates) {
+    if (!d) continue;
+    const key = dateKey(d);
+    const dt = new Date(key);
+    if (dt >= start) {
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([date, value]) => ({ date, value }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+};
+
+export async function GET() {
+  try {
+    const rangeDays = 90; // default lookback
+    const supabase = supabaseServer();
+
+    const [lotsRes, salesItemsRes, profitRes, cardsRes, setsRes] =
+      await Promise.all([
+        supabase
+          .from("inventory_lots")
+          .select("id, created_at, status, quantity, card_id"),
+        supabase
+          .from("sales_items")
+          .select("qty, lot_id, sales_orders!inner(sold_at)"),
+        supabase
+          .from("v_sales_order_profit")
+          .select("sales_order_id, revenue_pence, net_profit_pence, sold_at"),
+        supabase.from("cards").select("id, set_id"),
+        supabase.from("sets").select("id, name"),
+      ]);
+
+    if (lotsRes.error || salesItemsRes.error || profitRes.error) {
+      console.error("Dashboard load error:", {
+        lots: lotsRes.error,
+        sales: salesItemsRes.error,
+        profit: profitRes.error,
+      });
+      return NextResponse.json(
+        { error: "Failed to load dashboard analytics" },
+        { status: 500 }
+      );
+    }
+
+    const lots = (lotsRes.data || []) as LotRow[];
+    const salesItems = (salesItemsRes.data || []) as SalesItemRow[];
+    const profits = profitRes.data || [];
+    const cardSetMap = new Map<string, string | null>(
+      (cardsRes.data || []).map((c) => [c.id, c.set_id || null])
+    );
+    const setNameMap = new Map<string, string>(
+      (setsRes.data || []).map((s) => [s.id, s.name])
+    );
+
+    // Items added / listed / sold
+    const itemsAdded = sumByDate(
+      lots.map((l) => l.created_at),
+      rangeDays
+    );
+    const itemsListed = sumByDate(
+      lots.filter((l) => l.status === "listed").map((l) => l.created_at),
+      rangeDays
+    );
+    const itemsSold = sumByDate(
+      salesItems.map((s) => s.sales_orders?.sold_at || ""),
+      rangeDays
+    ).map((d) => ({ date: d.date, value: d.value })); // value = count of sale records
+
+    // Sell-through by set
+    const soldQtyByLot = new Map<string, number>();
+    salesItems.forEach((s) => {
+      soldQtyByLot.set(s.lot_id, (soldQtyByLot.get(s.lot_id) || 0) + (s.qty || 0));
+    });
+
+    const setTotals = new Map<
+      string,
+      { sold: number; total: number; setName: string }
+    >();
+
+    for (const lot of lots) {
+      const setId = cardSetMap.get(lot.card_id || "") || "unknown";
+      const setName = setNameMap.get(setId || "") || "Unknown Set";
+      const entry = setTotals.get(setId) || { sold: 0, total: 0, setName };
+      entry.total += lot.quantity || 0;
+      entry.sold += soldQtyByLot.get(lot.id) || 0;
+      setTotals.set(setId, entry);
+    }
+
+    const sellThroughBySet = Array.from(setTotals.entries())
+      .map(([setId, v]) => ({
+        set_id: setId,
+        set_name: v.setName,
+        sold: v.sold,
+        total: v.total,
+        sell_through_rate: v.total > 0 ? v.sold / v.total : 0,
+      }))
+      .sort((a, b) => b.sell_through_rate - a.sell_through_rate)
+      .slice(0, 10); // top sets
+
+    // Profit trend (group by day)
+    const profitTrendMap = new Map<
+      string,
+      { revenue: number; profit: number }
+    >();
+    profits.forEach((p) => {
+      const key = dateKey(p.sold_at as string);
+      if (!profitTrendMap.has(key))
+        profitTrendMap.set(key, { revenue: 0, profit: 0 });
+      const entry = profitTrendMap.get(key)!;
+      entry.revenue += p.revenue_pence || 0;
+      entry.profit += p.net_profit_pence || 0;
+    });
+
+    const profitTrend = Array.from(profitTrendMap.entries())
+      .map(([date, v]) => ({
+        date,
+        revenue_pence: v.revenue,
+        net_profit_pence: v.profit,
+        margin_percent: v.revenue > 0 ? (v.profit / v.revenue) * 100 : 0,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return NextResponse.json({
+      ok: true,
+      period: `last_${rangeDays}_days`,
+      itemsAdded,
+      itemsListed,
+      itemsSold,
+      sellThroughBySet,
+      profitTrend,
+    });
+  } catch (error: unknown) {
+    console.error("Dashboard analytics error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+

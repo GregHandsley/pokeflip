@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { CONDITIONS, Condition } from "../types";
 import { poundsToPence, penceToPounds } from "@pokeflip/shared";
 import type { DraftLine } from "./types";
+import SplitModal from "@/components/ui/SplitModal";
 
 type Props = {
   line: DraftLine;
@@ -15,6 +17,37 @@ type Props = {
 };
 
 export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove, onHoverImage, onLeaveImage }: Props) {
+  const [showSplitModal, setShowSplitModal] = useState(false);
+
+  const handleSplit = async (splitQty: number, forSale: boolean, price: string | null, condition?: Condition) => {
+    try {
+      const res = await fetch(`/api/admin/intake-lines/${line.id}/split`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          split_qty: splitQty,
+          for_sale: forSale,
+          list_price_pence: price,
+          condition: condition,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to split line");
+      }
+
+      // Update the current line's quantity
+      await onUpdate(line.id, { quantity: line.quantity - splitQty });
+      
+      // Trigger a page refresh to show the new split line
+      window.location.reload();
+    } catch (e: any) {
+      alert(e.message || "Failed to split line");
+      throw e;
+    }
+  };
+
   return (
     <div className="border-b border-black/5 last:border-b-0">
       <div className="grid grid-cols-12 gap-2 px-4 py-2.5 items-center hover:bg-black/5 transition-colors">
@@ -99,18 +132,40 @@ export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove,
           />
         </div>
 
-        {/* Remove */}
-        <div className="col-span-1">
+        {/* Actions */}
+        <div className="col-span-1 flex items-center gap-1">
+          {line.quantity > 1 && (
+            <button
+              type="button"
+              onClick={() => setShowSplitModal(true)}
+              className="px-2 py-1.5 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded border border-blue-200 transition-colors"
+              title="Split quantity"
+            >
+              Split
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onRemove(line.id)}
-            className="w-full rounded border border-black/10 px-2 py-1.5 text-xs hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
+            className="px-2 py-1.5 text-xs hover:bg-red-50 hover:border-red-300 hover:text-red-600 rounded border border-black/10 transition-colors"
             title="Remove"
           >
             ×
           </button>
         </div>
       </div>
+
+      {/* Split Modal */}
+      <SplitModal
+        isOpen={showSplitModal}
+        onClose={() => setShowSplitModal(false)}
+        onSplit={handleSplit}
+        currentQuantity={line.quantity}
+        currentForSale={line.for_sale}
+        currentPrice={line.list_price_pence}
+        currentCondition={line.condition}
+        title={`Split ${cardDisplay}`}
+      />
     </div>
   );
 }

@@ -13,10 +13,12 @@
     "@hookform/resolvers": "^3.9.1",
     "@pokeflip/shared": "workspace:*",
     "@supabase/supabase-js": "2.89.0",
+    "json2csv": "6.0.0-alpha.2",
     "next": "16.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.54.2",
+    "recharts": "^3.6.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -56,14 +56,18 @@ export async function GET(
       ebayMap.set(listing.lot_id, listing.status);
     });
 
-    // Get publish queue status
+    // Get publish queue status from jobs table
     const { data: publishJobs } = await supabase
-      .from("ebay_publish_jobs")
-      .select("lot_id, status")
-      .in("lot_id", lotIds)
+      .from("jobs")
+      .select("payload, status")
+      .eq("type", "ebay_publish")
       .in("status", ["queued", "running"]);
 
-    const queuedLotIds = new Set((publishJobs || []).map((job: any) => job.lot_id));
+    const queuedLotIds = new Set(
+      (publishJobs || [])
+        .map((job: any) => job.payload?.lotId)
+        .filter((id: any) => id != null && lotIds.includes(id))
+    );
 
     // Get photo counts
     const { data: photoCounts } = await supabase
