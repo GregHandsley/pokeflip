@@ -29,7 +29,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { href: "/admin/inventory", label: "Inventory" },
     { href: "/admin/inbox", label: "Inbox" },
     { href: "/admin/sales", label: "Sales & Profit" },
-    { href: "/admin/catalog-sync", label: "Catalog Sync" },
   ];
 
   const settingsItems = [
