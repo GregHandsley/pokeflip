@@ -6,6 +6,7 @@ import type { DraftLine } from "./types";
 import IntakeLinePhotoUpload from "@/components/intake/IntakeLinePhotoUpload";
 import SplitModal from "@/components/ui/SplitModal";
 import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
+import { useEffect } from "react";
 
 type Props = {
   line: DraftLine;
@@ -30,6 +31,8 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showSplitModal, setShowSplitModal] = useState(false);
+  const [allowedVariations, setAllowedVariations] = useState<string[]>(CARD_VARIATIONS as string[]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
 
   const handleChange = async (field: string, value: any) => {
     // Update the line directly - no splitting
@@ -111,6 +114,44 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
     }
   };
 
+  // Load allowed variants from TCGdex and snap if invalid
+  useEffect(() => {
+    let active = true;
+    const loadVariants = async () => {
+      setLoadingVariants(true);
+      try {
+        const res = await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(line.card_id)}`);
+        const json = await res.json();
+        const variants = json?.variants;
+        if (!variants || typeof variants !== "object") throw new Error("No variants");
+        const map: Array<{ key: string; value: string }> = [
+          { key: "normal", value: "standard" },
+          { key: "holo", value: "holo" },
+          { key: "reverse", value: "reverse_holo" },
+          { key: "firstEdition", value: "first_edition" },
+          { key: "wPromo", value: "promo" },
+        ];
+        const next = map.filter((m) => variants[m.key] === true).map((m) => m.value);
+        const nextAllowed = next.length ? next : ["standard"];
+        if (active) {
+          setAllowedVariations(nextAllowed);
+          if (!nextAllowed.includes(line.variation || "standard")) {
+            await onUpdate(line.id, { variation: nextAllowed[0] });
+          }
+        }
+      } catch (e) {
+        console.warn("Variant load failed, using defaults", e);
+        if (active) setAllowedVariations(CARD_VARIATIONS as string[]);
+      } finally {
+        if (active) setLoadingVariants(false);
+      }
+    };
+    void loadVariants();
+    return () => {
+      active = false;
+    };
+  }, [line.card_id, line.variation, onUpdate, line.id]);
+
   return (
     <>
     <div className="grid grid-cols-12 gap-2 px-4 py-2.5 items-center hover:bg-black/5 transition-colors">
@@ -165,8 +206,9 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
           className="w-full rounded border border-black/10 px-2 py-1.5 text-xs bg-white font-medium text-black"
           value={line.variation || "standard"}
           onChange={(e) => handleChange('variation', e.target.value)}
+          disabled={loadingVariants}
         >
-          {CARD_VARIATIONS.map(v => (
+          {allowedVariations.map(v => (
             <option key={v} value={v}>{variationLabel(v)}</option>
           ))}
         </select>
