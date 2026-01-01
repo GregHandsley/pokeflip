@@ -23,6 +23,8 @@ export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCar
     DMG: 0,
   });
   const [variation, setVariation] = useState<CardVariation>("standard");
+  const [allowedVariations, setAllowedVariations] = useState<CardVariation[]>(CARD_VARIATIONS as CardVariation[]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
 
   // Inject animation styles
   useEffect(() => {
@@ -78,6 +80,47 @@ export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCar
 
   const totalQty = Object.values(quantities).reduce((sum, qty) => sum + qty, 0);
 
+  // Load allowed variants for this card from TCGdex (variants flags)
+  useEffect(() => {
+    let active = true;
+    const loadVariants = async () => {
+      setLoadingVariants(true);
+      try {
+        const res = await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(card.id)}`);
+        const json = await res.json();
+        const variants = json?.variants;
+        if (!variants || typeof variants !== "object") {
+          throw new Error("No variants field");
+        }
+        const map: Array<{ key: string; value: CardVariation }> = [
+          { key: "normal", value: "standard" },
+          { key: "holo", value: "holo" },
+          { key: "reverse", value: "reverse_holo" },
+          { key: "firstEdition", value: "first_edition" },
+          { key: "wPromo", value: "promo" },
+        ];
+        const next = map.filter((m) => variants[m.key] === true).map((m) => m.value) as CardVariation[];
+        const nextAllowed = next.length > 0 ? next : (["standard"] as CardVariation[]);
+        if (active) {
+          setAllowedVariations(nextAllowed);
+          setVariation(nextAllowed[0]);
+        }
+      } catch (e) {
+        console.warn("Failed to load variants; using defaults", e);
+        if (active) {
+          setAllowedVariations(CARD_VARIATIONS as CardVariation[]);
+          setVariation("standard");
+        }
+      } finally {
+        if (active) setLoadingVariants(false);
+      }
+    };
+    void loadVariants();
+    return () => {
+      active = false;
+    };
+  }, [card.id]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -127,8 +170,9 @@ export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCar
               value={variation}
               onChange={(e) => setVariation(e.target.value as CardVariation)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/70 focus:border-black/70 mb-3"
+              disabled={loadingVariants}
             >
-              {CARD_VARIATIONS.map((v) => (
+              {allowedVariations.map((v) => (
                 <option key={v} value={v}>
                   {variationLabel(v)}
                 </option>
