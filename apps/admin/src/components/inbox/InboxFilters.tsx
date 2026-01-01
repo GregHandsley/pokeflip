@@ -11,6 +11,8 @@ interface Props {
   onMinPriceChange: (value: string) => void;
   rarity: string;
   onRarityChange: (value: string) => void;
+  minPriceInputId?: string;
+  minPriceRef?: React.RefObject<HTMLInputElement>;
 }
 
 export default function InboxFilters({
@@ -22,9 +24,11 @@ export default function InboxFilters({
   onMinPriceChange,
   rarity,
   onRarityChange,
+  minPriceInputId,
+  minPriceRef,
 }: Props) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+    <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 sticky top-0 z-20">
       <div className="flex flex-wrap items-center gap-4">
         {/* Include Draft Toggle */}
         <label className="flex items-center gap-2 text-sm">
@@ -62,7 +66,10 @@ export default function InboxFilters({
             value={minPrice}
             onChange={(e) => onMinPriceChange(e.target.value)}
             placeholder="0.00"
+            id={minPriceInputId}
+            ref={minPriceRef}
             className="w-24 rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Minimum price"
           />
         </div>
 

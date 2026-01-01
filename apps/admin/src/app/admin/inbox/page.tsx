@@ -7,6 +7,7 @@ import InboxTable from "@/components/inbox/InboxTable";
 import InboxFilters from "@/components/inbox/InboxFilters";
 import InboxBulkActions from "@/components/inbox/InboxBulkActions";
 import SalesFlowModal from "@/components/inbox/sales-flow/SalesFlowModal";
+import { useRef } from "react";
 
 type InboxLot = {
   lot_id: string;
@@ -35,6 +36,7 @@ type InboxLot = {
 type SortOption = "price_desc" | "qty_desc" | "rarity_desc" | "updated_desc";
 
 export default function InboxPage() {
+  const minPriceRef = useRef<HTMLInputElement>(null);
   const [lots, setLots] = useState<InboxLot[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLotIds, setSelectedLotIds] = useState<Set<string>>(new Set());
@@ -42,6 +44,7 @@ export default function InboxPage() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [selectedLot, setSelectedLot] = useState<InboxLot | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Filters
   const [includeDraft, setIncludeDraft] = useState(false);
@@ -80,6 +83,44 @@ export default function InboxPage() {
   useEffect(() => {
     void loadLots();
   }, [loadLots]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        minPriceRef.current?.focus();
+      }
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShowShortcuts((prev) => !prev);
+      }
+      if (e.key === "Escape") {
+        if (showShortcuts) {
+          setShowShortcuts(false);
+          return;
+        }
+        if (selectedLot) {
+          setSelectedLot(null);
+        }
+      }
+      if (e.key === "e" || e.key === "m") {
+        const firstSelected = lots.find((l) => selectedLotIds.has(l.lot_id)) || lots[0];
+        if (firstSelected) {
+          e.preventDefault();
+          setSelectedLot(firstSelected);
+        }
+      }
+      if (e.key === "c") {
+        if (selectedLot) {
+          e.preventDefault();
+          setSelectedLot(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [lots, selectedLotIds, selectedLot, showShortcuts]);
 
   const handleBulkAction = async (action: string, payload?: any) => {
     if (selectedLotIds.size === 0) {
@@ -134,6 +175,8 @@ export default function InboxPage() {
         onMinPriceChange={setMinPrice}
         rarity={rarity}
         onRarityChange={setRarity}
+        minPriceInputId="inbox-min-price"
+        minPriceRef={minPriceRef}
       />
 
       {hasSelection && (
@@ -164,6 +207,34 @@ export default function InboxPage() {
           onClose={() => setSelectedLot(null)}
           onUpdated={loadLots}
         />
+      )}
+
+      {showShortcuts && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowShortcuts(false)}>
+          <div
+            className="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Keyboard shortcuts</h2>
+              <button
+                className="text-sm text-gray-500 hover:text-gray-700"
+                onClick={() => setShowShortcuts(false)}
+                aria-label="Close shortcuts"
+              >
+                ×
+              </button>
+            </div>
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li><span className="font-semibold">/</span> Focus min price filter</li>
+              <li><span className="font-semibold">e</span> Expand first selected lot</li>
+              <li><span className="font-semibold">m</span> Quick open selected lot (mark/list)</li>
+              <li><span className="font-semibold">c</span> Close open modal</li>
+              <li><span className="font-semibold">Esc</span> Close modal or shortcuts</li>
+              <li><span className="font-semibold">?</span> Toggle this help</li>
+            </ul>
+          </div>
+        </div>
       )}
     </div>
   );

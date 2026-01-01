@@ -176,6 +176,7 @@ export default function InboxTable({
                       checked={selected}
                       onChange={() => toggleSelection(lot.lot_id)}
                       className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      aria-label={`Select lot ${lot.card_name} #${lot.card_number}`}
                     />
                   </td>
                   <td className="px-4 py-3">
