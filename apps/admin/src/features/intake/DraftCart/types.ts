@@ -8,7 +8,7 @@ export type DraftLine = {
   variation?: string | null;
   quantity: number;
   for_sale: boolean;
-  list_price_pence: number | null;
+  list_price_pence?: number | null;
   note: string | null;
   cards: { number: string; name: string; api_image_url: string | null; api_payload?: any } | null;
   sets: { name: string } | null;

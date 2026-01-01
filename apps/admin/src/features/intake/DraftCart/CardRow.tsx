@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { CONDITIONS, Condition } from "../types";
-import { poundsToPence, penceToPounds } from "@pokeflip/shared";
 import type { DraftLine } from "./types";
 import IntakeLinePhotoUpload from "@/components/intake/IntakeLinePhotoUpload";
 import SplitModal from "@/components/ui/SplitModal";
@@ -35,10 +34,7 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
   const handleChange = async (field: string, value: any) => {
     // Update the line directly - no splitting
     if (field === 'for_sale') {
-      await onUpdate(line.id, {
-        for_sale: value,
-        list_price_pence: value ? (line.list_price_pence ?? poundsToPence("0.99")) : null
-      });
+      await onUpdate(line.id, { for_sale: value });
     } else {
       await onUpdate(line.id, { [field]: value });
     }
@@ -197,20 +193,8 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
         />
       </div>
 
-      {/* Price */}
-      <div className="col-span-2">
-        <input
-          className="w-full rounded border border-black/10 px-2 py-1.5 text-xs disabled:opacity-50"
-          disabled={!line.for_sale}
-          value={line.for_sale ? (line.list_price_pence != null ? penceToPounds(line.list_price_pence) : "") : ""}
-          onChange={(e) => handleChange('list_price_pence', poundsToPence(e.target.value))}
-          inputMode="decimal"
-          placeholder="0.00"
-        />
-      </div>
-
       {/* Actions */}
-      <div className="col-span-1 flex items-center gap-1">
+      <div className="col-span-3 flex items-center gap-1">
         {line.quantity > 1 && (
           <button
             type="button"

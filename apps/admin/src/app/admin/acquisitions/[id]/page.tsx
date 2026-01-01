@@ -12,7 +12,7 @@ export default function IntakeWorkspacePage() {
   const acquisitionId = id;
 
   const [defaultForSale, setDefaultForSale] = useState(true);
-  const [defaultListPrice, setDefaultListPrice] = useState("0.99");
+  const [defaultListPrice, setDefaultListPrice] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [cartKey, setCartKey] = useState(0); // Force cart refresh
   const [newlyAddedSetId, setNewlyAddedSetId] = useState<string | null>(null);

@@ -114,7 +114,7 @@ export default function PurchaseLotsPage() {
         condition,
         variation,
         forSale: true,
-        listPricePounds: "0.99",
+        listPricePounds: "",
       },
     });
 

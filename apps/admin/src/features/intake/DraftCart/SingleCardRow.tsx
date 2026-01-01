@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { CONDITIONS, Condition } from "../types";
-import { poundsToPence, penceToPounds } from "@pokeflip/shared";
 import type { DraftLine } from "./types";
 import SplitModal from "@/components/ui/SplitModal";
 import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
@@ -127,27 +126,14 @@ export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove,
             onChange={(e) =>
               onUpdate(line.id, {
                 for_sale: e.target.checked,
-                list_price_pence: e.target.checked ? (line.list_price_pence ?? poundsToPence("0.99")) : null
               })
             }
             className="w-4 h-4"
           />
         </div>
 
-        {/* Price */}
-        <div className="col-span-2">
-          <input
-            className="w-full rounded border border-black/10 px-2 py-1.5 text-xs disabled:opacity-50"
-            disabled={!line.for_sale}
-            value={line.for_sale ? (line.list_price_pence != null ? penceToPounds(line.list_price_pence) : "") : ""}
-            onChange={(e) => onUpdate(line.id, { list_price_pence: poundsToPence(e.target.value) })}
-            inputMode="decimal"
-            placeholder="0.00"
-          />
-        </div>
-
         {/* Actions */}
-        <div className="col-span-1 flex items-center gap-1">
+        <div className="col-span-3 flex items-center gap-1">
           {line.quantity > 1 && (
             <button
               type="button"

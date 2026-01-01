@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { penceToPounds } from "@pokeflip/shared";
 import { InboxLot, SalesData } from "./types";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
@@ -25,6 +25,87 @@ export default function PricingStep({
   publishQuantity,
   onPublishQuantityChange,
 }: Props) {
+  const [marketPricePence, setMarketPricePence] = useState<number | null>(null);
+  const [marketStatus, setMarketStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [marketDetail, setMarketDetail] = useState<any>(null);
+  const [aboveFloor, setAboveFloor] = useState(false);
+  const [floorGbp, setFloorGbp] = useState<number | null>(null);
+  const [priceInput, setPriceInput] = useState(
+    lot.list_price_pence != null ? penceToPounds(lot.list_price_pence) : ""
+  );
+  const [savingPrice, setSavingPrice] = useState<"idle" | "saving" | "error" | "success">("idle");
+
+  // Fetch live market snapshot (GBP) for this card
+  useEffect(() => {
+    let active = true;
+    const loadMarket = async () => {
+      setMarketStatus("loading");
+      try {
+        const res = await fetch(`/api/admin/market/prices/${lot.card_id}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Failed to fetch market price");
+        if (active) {
+          const chosen = json?.chosen;
+          setMarketPricePence(typeof chosen?.price_pence === "number" ? chosen.price_pence : null);
+          setMarketDetail(json);
+          setAboveFloor(Boolean(chosen?.above_floor));
+          setFloorGbp(typeof chosen?.floor_gbp === "number" ? chosen.floor_gbp : null);
+          setMarketStatus("idle");
+        }
+      } catch (e) {
+        console.warn("Market price fetch failed", e);
+        if (active) {
+          setMarketPricePence(null);
+          setMarketDetail(null);
+          setAboveFloor(false);
+          setFloorGbp(null);
+          setMarketStatus("error");
+        }
+      }
+    };
+    void loadMarket();
+    return () => {
+      active = false;
+    };
+  }, [lot.card_id]);
+
+  const savePrice = async () => {
+    setSavingPrice("saving");
+    try {
+      const value = priceInput.trim();
+      const body: any = { for_sale: true };
+      if (value === "") {
+        body.list_price_pence = null;
+      } else {
+        const num = Number(value);
+        if (Number.isNaN(num) || num < 0) {
+          throw new Error("Enter a valid price in GBP (e.g., 1.25)");
+        }
+        body.list_price_pence = num;
+      }
+
+      const res = await fetch(`/api/admin/lots/${lot.lot_id}/for-sale`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Failed to update price");
+      setSavingPrice("success");
+      // Reflect locally
+      if (body.list_price_pence == null) {
+        setPriceInput("");
+      } else {
+        setPriceInput(value);
+      }
+    } catch (e) {
+      console.warn(e);
+      setSavingPrice("error");
+    } finally {
+      setTimeout(() => setSavingPrice("idle"), 1200);
+    }
+  };
+
   if (loadingSalesData) {
     return (
       <div className="text-center py-8">
@@ -79,12 +160,40 @@ export default function PricingStep({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Current List Price
         </label>
-        <div className="bg-white border border-gray-300 rounded-lg p-4">
+        <div className="bg-white border border-gray-300 rounded-lg p-4 space-y-2">
           <div className="text-2xl font-bold text-green-600">
             {lot.list_price_pence != null
               ? `£${penceToPounds(lot.list_price_pence)}`
               : "Not set"}
           </div>
+          <div className="flex items-center gap-3">
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              placeholder="Set list price (£)"
+              value={priceInput}
+              onChange={(e) => setPriceInput(e.target.value)}
+              className="w-40"
+            />
+            <button
+              type="button"
+              onClick={savePrice}
+              disabled={savingPrice === "saving"}
+              className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
+            >
+              {savingPrice === "saving" ? "Saving…" : "Save price"}
+            </button>
+            {savingPrice === "error" && (
+              <span className="text-xs text-red-600">Failed to save</span>
+            )}
+            {savingPrice === "success" && (
+              <span className="text-xs text-green-600">Saved</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">
+            Leave blank to keep price unset. Set a GBP list price before publishing.
+          </p>
         </div>
       </div>
 
@@ -94,22 +203,63 @@ export default function PricingStep({
           Pricing Suggestions
         </label>
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="text-sm">
-            {salesData.suggestedPrice != null ? (
-              <div>
-                <span className="text-gray-600">Suggested Price:</span>{" "}
-                <span className="font-medium text-lg text-blue-700">
-                  £{penceToPounds(salesData.suggestedPrice)}
+          <div className="text-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Market snapshot (GBP):</span>
+              <span className="font-semibold text-blue-700">
+                {marketStatus === "loading" && "Loading…"}
+                {marketStatus === "error" && "Unavailable"}
+                {marketStatus === "idle" && marketPricePence != null
+                  ? `£${penceToPounds(marketPricePence)}`
+                  : marketStatus === "idle" && "Not available"}
+              </span>
+            </div>
+
+            {marketStatus === "idle" && marketPricePence != null && (
+              <div className="flex items-center gap-2">
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                    aboveFloor ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {aboveFloor ? "Above floor" : "At/below floor"}
                 </span>
-              </div>
-            ) : (
-              <div className="text-gray-600">
-                No pricing suggestions available at this time.
+                {floorGbp != null && (
+                  <span className="text-xs text-gray-600">Floor: £{floorGbp.toFixed(2)}</span>
+                )}
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-2">
-              Pricing suggestions will be available in a future update. This will include market analysis and competitive pricing data.
-            </p>
+
+            {/* Show only one provider: prefer Cardmarket, else TCGplayer */}
+            {marketDetail?.cardmarket?.gbp ? (
+              <div className="text-xs text-gray-700 space-y-1">
+                <div className="font-semibold text-gray-800">Cardmarket (GBP)</div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {marketDetail.cardmarket.gbp.avg7 != null && (
+                    <span>7-day average: £{penceToPounds(marketDetail.cardmarket.gbp.avg7)}</span>
+                  )}
+                  {marketDetail.cardmarket.gbp.avg30 != null && (
+                    <span>30-day average: £{penceToPounds(marketDetail.cardmarket.gbp.avg30)}</span>
+                  )}
+                </div>
+              </div>
+            ) : marketDetail?.tcgplayer?.gbp ? (
+              <div className="text-xs text-gray-700 space-y-1">
+                <div className="font-semibold text-gray-800">TCGplayer (GBP)</div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {marketDetail.tcgplayer.gbp.normal?.market != null && (
+                    <span>Normal: £{penceToPounds(marketDetail.tcgplayer.gbp.normal.market)}</span>
+                  )}
+                  {marketDetail.tcgplayer.gbp.reverse_holofoil?.market != null && (
+                    <span>Reverse: £{penceToPounds(marketDetail.tcgplayer.gbp.reverse_holofoil.market)}</span>
+                  )}
+                  {marketDetail.tcgplayer.gbp.holofoil?.market != null && (
+                    <span>Holo: £{penceToPounds(marketDetail.tcgplayer.gbp.holofoil.market)}</span>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
           </div>
         </div>
       </div>

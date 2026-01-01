@@ -149,8 +149,7 @@ export function CardAccordion({
             <div className="col-span-2">Variation</div>
             <div className="col-span-1">Qty</div>
             <div className="col-span-1">Sale</div>
-            <div className="col-span-2">Price</div>
-            <div className="col-span-1">Actions</div>
+            <div className="col-span-3">Actions</div>
           </div>
 
           {/* Show lines directly - no flattening */}

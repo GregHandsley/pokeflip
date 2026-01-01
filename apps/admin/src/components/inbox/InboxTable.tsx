@@ -26,6 +26,8 @@ type InboxLot = {
   has_front_photo?: boolean;
   has_back_photo?: boolean;
   has_required_photos?: boolean;
+  market_price_pence?: number | null;
+  above_floor?: boolean;
 };
 
 interface Props {
@@ -138,6 +140,9 @@ export default function InboxTable({
                 Price
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                Market
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
                 Rarity
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
@@ -192,6 +197,11 @@ export default function InboxTable({
                   <td className="px-4 py-3 text-sm font-medium text-green-600">
                     {lot.list_price_pence != null
                       ? `£${penceToPounds(lot.list_price_pence)}`
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-medium text-blue-700">
+                    {lot.market_price_pence != null
+                      ? `£${penceToPounds(lot.market_price_pence)}`
                       : "—"}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{lot.rarity || "—"}</td>
@@ -319,6 +329,11 @@ export default function InboxTable({
                       {rare && (
                         <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
                           Rare
+                        </span>
+                      )}
+                      {lot.above_floor && (
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                          Above floor
                         </span>
                       )}
                       {valuable && rare && (

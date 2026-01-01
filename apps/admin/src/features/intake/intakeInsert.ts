@@ -11,7 +11,7 @@ type Args = {
     condition: Condition;
     variation?: string;
     forSale: boolean;
-    listPricePounds: string; // e.g. "0.99"
+    listPricePounds?: string | null; // optional; if blank/null, do not set
   };
 };
 
@@ -20,6 +20,7 @@ type Args = {
  * The API route ensures the card and set exist in the database first.
  */
 export async function insertDraftLine({ acquisitionId, setId, cardId, locale, quantity, defaults }: Args) {
+  const hasPrice = defaults.forSale && defaults.listPricePounds && defaults.listPricePounds.trim() !== "";
   const res = await fetch("/api/intake/add-line", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -31,7 +32,7 @@ export async function insertDraftLine({ acquisitionId, setId, cardId, locale, qu
       variation: defaults.variation || "standard",
       quantity,
       for_sale: defaults.forSale,
-      list_price_pence: defaults.forSale ? poundsToPence(defaults.listPricePounds) : null,
+      list_price_pence: hasPrice ? poundsToPence(defaults.listPricePounds!) : null,
       locale,
     }),
   });

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 
 type SortOption = "price_desc" | "qty_desc" | "rarity_desc" | "updated_desc";
+const FLOOR_GBP = Number(process.env.PRICE_FLOOR_GBP || "0.99");
+const ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "http://127.0.0.1:3000";
 
 export async function GET(req: Request) {
   try {
@@ -100,13 +102,60 @@ export async function GET(req: Request) {
       photoKindsMap.get(photo.lot_id)!.add(photo.kind);
     });
 
-    // Enrich inbox lots with metadata
+    // Latest market snapshots per card (prefer most recent regardless of source; pricing step picks provider)
+    let snapshotsMap = new Map<string, any>();
+    if (cardIds.length > 0) {
+      const { data: snaps } = await supabase
+        .from("market_snapshots")
+        .select("card_id, source, price_pence, captured_at, raw")
+        .in("card_id", cardIds)
+        .order("captured_at", { ascending: false });
+
+      (snaps || []).forEach((s: any) => {
+        if (!snapshotsMap.has(s.card_id)) {
+          snapshotsMap.set(s.card_id, s);
+        }
+      });
+
+      // For any cards without a snapshot, fetch one via our pricing endpoint (TCGdex) to prime the grid.
+      const missingCardIds = cardIds.filter((cid) => !snapshotsMap.has(cid));
+      if (missingCardIds.length > 0) {
+        await Promise.all(
+          missingCardIds.map(async (cid) => {
+            try {
+              const res = await fetch(`${ORIGIN}/api/admin/market/prices/${cid}`, {
+                method: "GET",
+              });
+              const json = await res.json();
+              if (res.ok && json?.chosen?.price_pence != null) {
+                snapshotsMap.set(cid, {
+                  card_id: cid,
+                  price_pence: json.chosen.price_pence,
+                  source: json.chosen.source,
+                  captured_at: json.captured_at,
+                  raw: json,
+                });
+              }
+            } catch (e) {
+              console.warn("Failed to prime market snapshot for card", cid, e);
+            }
+          })
+        );
+      }
+    }
+
+    // Enrich inbox lots with metadata + snapshot
     const enrichedData = (data || []).map((lot: any) => {
       const metadata = lotMetadataMap.get(lot.lot_id) || { use_api_image: false, api_image_url: null };
       const photoKinds = photoKindsMap.get(lot.lot_id) || new Set();
       const hasFront = photoKinds.has("front");
       const hasBack = photoKinds.has("back");
       const hasRequiredPhotos = hasFront && hasBack;
+
+      const snap = snapshotsMap.get(lot.card_id);
+      const market_price_pence = snap?.price_pence ?? null;
+      const above_floor =
+        typeof market_price_pence === "number" ? market_price_pence / 100 > FLOOR_GBP : false;
 
       return {
         ...lot,
@@ -116,6 +165,8 @@ export async function GET(req: Request) {
         has_back_photo: hasBack,
         has_required_photos: hasRequiredPhotos || metadata.use_api_image,
         variation: metadata.variation,
+        market_price_pence,
+        above_floor,
       };
     });
 
