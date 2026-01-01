@@ -62,9 +62,10 @@ export async function GET(
     };
     const conditionLabel = conditionLabels[lot.condition] || lot.condition;
 
-    // Generate title (configurable template - placeholder for settings)
-    // Default template: "{Card Name} #{Card Number} - {Set Name} - {Condition}"
-    const title = `${card?.name || "Card"} #${card?.number || ""} - ${set?.name || "Set"} - ${conditionLabel}`;
+    // Generate title with eBay best-practice lean format (<80 chars, must contain "Pokemon card")
+    // Template: "{Card Name} #{Number} {Set} Pokemon card {Condition}"
+    const rawTitle = `${card?.name || "Card"} #${card?.number || ""} ${set?.name || "Set"} Pokemon card ${conditionLabel}`;
+    const title = rawTitle.length > 80 ? rawTitle.slice(0, 80) : rawTitle;
 
     // Generate description (configurable template - placeholder for settings)
     // Default template includes card info, condition, and quantity
