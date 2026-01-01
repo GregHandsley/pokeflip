@@ -64,7 +64,7 @@ function getDisplayStatus(lot: Lot): { label: string; color: string } {
 
   // Fallback: Show lot status
   return {
-    label: lot.status.charAt(0).toUpperCase() + lot.status.slice(1),
+    label: lot.status === "ready" ? "Ready to list" : lot.status.charAt(0).toUpperCase() + lot.status.slice(1),
     color: STATUS_COLORS[lot.status] || STATUS_COLORS.draft,
   };
 }
@@ -472,6 +472,17 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                               {(() => {
+                                const missingPhotos = !lot.use_api_image && (!lot.photo_count || lot.photo_count < 2);
+                                if (missingPhotos) {
+                                  return (
+                                    <span
+                                      className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700"
+                                      title="Add front and back photos"
+                                    >
+                                      Missing photos
+                                    </span>
+                                  );
+                                }
                                 const displayStatus = getDisplayStatus(lot);
                                 return (
                                   <span

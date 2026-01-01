@@ -149,9 +149,6 @@ export default function InboxTable({
                 Photos
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
-                Status
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
                 Highlights
               </th>
             </tr>
@@ -262,63 +259,9 @@ export default function InboxTable({
                             d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                           />
                         </svg>
-                        Missing
+                        Missing photos
                       </span>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {lot.status === "draft" && (
-                        <span
-                          className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 flex items-center gap-1"
-                          title="Draft - Saved as draft"
-                        >
-                          <svg
-                            className="w-3 h-3"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                          </svg>
-                          Draft
-                        </span>
-                      )}
-                      {lot.status === "listed" && (
-                        <span
-                          className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 flex items-center gap-1"
-                          title="Listed - Uploaded to eBay"
-                        >
-                          <svg
-                            className="w-3 h-3"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                          Listed
-                        </span>
-                      )}
-                      {lot.status === "ready" && (
-                        <span
-                          className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700"
-                          title="Ready to list"
-                        >
-                          Ready
-                        </span>
-                      )}
-                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 flex-wrap">
