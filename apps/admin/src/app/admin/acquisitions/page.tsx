@@ -89,7 +89,7 @@ export default function AcquisitionsPage() {
       </div>
 
       <div className="mt-5 flex gap-2">
-        {(["open","closed","all"] as const).map(v => (
+        {(["Open","Closed","All"] as const).map(v => (
           <button
             key={v}
             onClick={() => setFilter(v)}
