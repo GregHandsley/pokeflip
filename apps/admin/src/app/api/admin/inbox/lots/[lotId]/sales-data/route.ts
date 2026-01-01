@@ -43,6 +43,17 @@ export async function GET(
     const card = lot.cards as any;
     const set = card?.sets as any;
 
+    // Enrich with TCGdex data for number/total/rarity where possible
+    let tcgdexCard: any = null;
+    try {
+      const tcgRes = await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(card?.id || "")}`);
+      if (tcgRes.ok) {
+        tcgdexCard = await tcgRes.json();
+      }
+    } catch (e) {
+      console.warn("TCGdex fetch failed, using DB fields only", e);
+    }
+
     // Calculate available quantity (quantity minus sold)
     const { data: salesItems } = await supabase
       .from("sales_items")
@@ -62,9 +73,25 @@ export async function GET(
     };
     const conditionLabel = conditionLabels[lot.condition] || lot.condition;
 
-    // Generate title with eBay best-practice lean format (<80 chars, must contain "Pokemon card")
-    // Template: "{Card Name} #{Number} {Set} Pokemon card {Condition}"
-    const rawTitle = `${card?.name || "Card"} #${card?.number || ""} ${set?.name || "Set"} Pokemon card ${conditionLabel}`;
+    // Build better title: "{Name} - {Num}/{Total} {Rarity} - {Set} - Pokemon TCG {Condition}"
+    const name = tcgdexCard?.name || card?.name || "Pokemon TCG Card";
+    const rawNumber = tcgdexCard?.localId || card?.number || "";
+    const setTotal = tcgdexCard?.set?.cardCount?.total;
+    const number = rawNumber ? String(rawNumber).padStart(3, "0") : "";
+    const rarity = tcgdexCard?.rarity || card?.rarity || "";
+    const setName = tcgdexCard?.set?.name || set?.name || "Set";
+
+    let titleParts = [name];
+    if (number) {
+      titleParts.push(setTotal ? `${number}/${setTotal}` : number);
+    }
+    if (rarity) {
+      titleParts.push(rarity);
+    }
+    titleParts.push(setName);
+    titleParts.push(`Pokemon TCG ${conditionLabel}`);
+
+    const rawTitle = titleParts.join(" - ");
     const title = rawTitle.length > 80 ? rawTitle.slice(0, 80) : rawTitle;
 
     // Generate description (configurable template - placeholder for settings)
