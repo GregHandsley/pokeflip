@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useState } from "react";
 import { InboxLot, SalesData } from "./types";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
