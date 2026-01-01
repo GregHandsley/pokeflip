@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { InboxLot, SalesData } from "./types";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
@@ -21,6 +22,53 @@ export default function ListingDetailsStep({
   onUpdateDescription,
   onUpdateVariation,
 }: Props) {
+  const [allowedVariations, setAllowedVariations] = useState<string[]>(CARD_VARIATIONS as string[]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
+  const [editingVariation, setEditingVariation] = useState(false);
+
+  // Fetch allowed variations from TCGdex for this card
+  useEffect(() => {
+    let active = true;
+    const loadVariants = async () => {
+      setLoadingVariants(true);
+      try {
+        const res = await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(lot.card_id)}`);
+        const json = await res.json();
+        const variants = json?.variants;
+        if (!variants || typeof variants !== "object") {
+          throw new Error("No variants field");
+        }
+        const map: Array<{ key: string; value: string }> = [
+          { key: "normal", value: "standard" },
+          { key: "holo", value: "holo" },
+          { key: "reverse", value: "reverse_holo" },
+          { key: "firstEdition", value: "first_edition" },
+          { key: "wPromo", value: "promo" },
+        ];
+        const next = map.filter((m) => variants[m.key] === true).map((m) => m.value);
+        const nextAllowed = next.length > 0 ? next : ["standard"];
+        if (active) {
+          setAllowedVariations(nextAllowed);
+          // If current variation not in allowed, snap to first allowed
+          if (!nextAllowed.includes(lot.variation || "standard")) {
+            onUpdateVariation(nextAllowed[0]);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to load variants; using defaults", e);
+        if (active) {
+          setAllowedVariations(CARD_VARIATIONS as string[]);
+        }
+      } finally {
+        if (active) setLoadingVariants(false);
+      }
+    };
+    void loadVariants();
+    return () => {
+      active = false;
+    };
+  }, [lot.card_id, lot.variation, onUpdateVariation]);
+
   if (loadingSalesData) {
     return (
       <div className="text-center py-8">
@@ -79,22 +127,37 @@ export default function ListingDetailsStep({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Variation
         </label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {CARD_VARIATIONS.map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => onUpdateVariation(v)}
-              className={`px-3 py-2 rounded border text-sm transition ${
-                lot.variation === v
-                  ? "border-black bg-black text-white"
-                  : "border-gray-300 hover:border-gray-400 text-gray-700"
-              }`}
-            >
-              {variationLabel(v)}
-            </button>
-          ))}
+        <div className="flex items-center gap-3 mb-2">
+          <span className="px-3 py-2 rounded border text-sm bg-gray-50 text-gray-800">
+            {variationLabel(lot.variation)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setEditingVariation((p) => !p)}
+            className="text-sm text-blue-600 hover:text-blue-700"
+          >
+            {editingVariation ? "Cancel" : "Edit variant"}
+          </button>
+          {loadingVariants && <span className="text-xs text-gray-500">Loading…</span>}
         </div>
+        {editingVariation && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {allowedVariations.map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => onUpdateVariation(v)}
+                className={`px-3 py-2 rounded border text-sm transition ${
+                  lot.variation === v
+                    ? "border-black bg-black text-white"
+                    : "border-gray-300 hover:border-gray-400 text-gray-700"
+                }`}
+              >
+                {variationLabel(v)}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Title */}
