@@ -193,9 +193,6 @@ export default function ListingDetailsStep({
             </button>
           </div>
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          This title will be used for your eBay listing. You can customize it in settings.
-        </p>
       </div>
 
       {/* Description */}
@@ -203,16 +200,32 @@ export default function ListingDetailsStep({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Listing Description
         </label>
-        <textarea
-          value={salesData.description}
-          onChange={(e) => onUpdateDescription(e.target.value)}
-          rows={8}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent font-mono text-sm"
-          placeholder="Enter listing description..."
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          This description will be used for your eBay listing. You can customize the template in settings.
-        </p>
+        <div className="flex items-start gap-2">
+          <textarea
+            value={salesData.description}
+            onChange={(e) => onUpdateDescription(e.target.value)}
+            rows={8}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent font-mono text-sm"
+            placeholder="Enter listing description..."
+          />
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(salesData.description);
+                setCopyStatus("copied");
+                setTimeout(() => setCopyStatus("idle"), 1500);
+              } catch (e) {
+                setCopyStatus("error");
+                setTimeout(() => setCopyStatus("idle"), 1500);
+              }
+            }}
+            className="self-stretch px-3 py-2 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-100 transition min-w-[70px]"
+            aria-label="Copy listing description"
+          >
+            {copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Failed" : "Copy"}
+          </button>
+        </div>
       </div>
     </div>
   );

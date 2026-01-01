@@ -102,7 +102,7 @@ Condition: ${conditionLabel} (${lot.condition})
 
 - Authentic Pokemon TCG card, handled with care
 - More photos available on request
-- Multi-card discounts available—ask for a bundle
+- Multi-card discounts available (applied at checkout)
 
 Thanks for looking and happy collecting!`;
 
