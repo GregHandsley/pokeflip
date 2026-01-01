@@ -10,6 +10,7 @@ import ErrorModal from "@/components/ui/ErrorModal";
 type Lot = {
   id: string;
   condition: string;
+  variation?: string | null;
   quantity: number;
   available_qty: number;
   sold_qty: number;
@@ -419,7 +420,8 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
               </div>
             )}
             <div className="text-gray-600 text-xs mb-2">
-              Condition: {lot.condition} | Total Quantity: {lot.quantity} | Sold: {lot.sold_qty}
+              Condition: {lot.condition}{" "}
+              {lot.variation && `| Variation: ${lot.variation}`} | Total Quantity: {lot.quantity} | Sold: {lot.sold_qty}
             </div>
             <div className="bg-blue-100 border border-blue-300 rounded px-3 py-2 text-sm font-semibold text-blue-900">
               Available to Sell: {lot.available_qty} {lot.available_qty !== 1 ? "copies" : "copy"}

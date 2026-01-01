@@ -25,6 +25,7 @@ export async function GET() {
             lot_id,
             inventory_lots!inner (
               condition,
+              variation,
               cards!inner (
                 number,
                 name,
@@ -71,6 +72,7 @@ export async function GET() {
       sold_price_pence: number;
       inventory_lots?: {
         condition: string | null;
+        variation?: string | null;
         cards?: { number: string | null; name: string | null; sets?: { name: string | null } | null } | null;
       } | null;
     };
@@ -97,6 +99,7 @@ export async function GET() {
           card_name: item.inventory_lots?.cards?.name || "",
           set_name: item.inventory_lots?.cards?.sets?.name || "",
           condition: item.inventory_lots?.condition || "",
+          variation: item.inventory_lots?.variation || "standard",
           qty: item.qty || 0,
           sold_price_each_gbp: penceToPounds(item.sold_price_pence || 0),
           revenue_gbp: penceToPounds(revenue),

@@ -97,6 +97,7 @@ export default function AddCardsModal({
             set_id: selectedSet?.id,
             card_id: cardId,
             condition: "LP",
+            variation: "standard",
             quantity: 1,
             for_sale: true,
             list_price_pence: 99,

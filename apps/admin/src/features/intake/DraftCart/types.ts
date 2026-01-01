@@ -5,6 +5,7 @@ export type DraftLine = {
   card_id: string;
   set_id: string;
   condition: Condition;
+  variation?: string | null;
   quantity: number;
   for_sale: boolean;
   list_price_pence: number | null;

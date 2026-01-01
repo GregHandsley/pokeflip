@@ -47,7 +47,8 @@ export async function POST(req: Request) {
     const allMatch = lotsToMerge.every(
       (lot: any) =>
         lot.card_id === targetLot.card_id &&
-        lot.condition === targetLot.condition
+        lot.condition === targetLot.condition &&
+        (lot.variation || "standard") === (targetLot.variation || "standard")
     );
 
     if (!allMatch) {
@@ -96,6 +97,7 @@ export async function POST(req: Request) {
       list_price_pence: targetLot.list_price_pence, // Use target lot's price
       note: targetLot.note || lotsToMerge.find((l: any) => l.note)?.note || null, // Use first available note
       use_api_image: targetLot.use_api_image || lotsToMerge.some((l: any) => l.use_api_image), // If any use API image, keep it
+      variation: targetLot.variation || "standard",
     };
 
     // Update target lot with merged values

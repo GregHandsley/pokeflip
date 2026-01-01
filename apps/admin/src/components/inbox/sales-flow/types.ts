@@ -6,6 +6,7 @@ export type InboxLot = {
   set_name: string;
   rarity: string | null;
   condition: string;
+  variation?: string | null;
   status: string;
   for_sale: boolean;
   list_price_pence: number | null;

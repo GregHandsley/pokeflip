@@ -8,6 +8,7 @@ import MarkSoldModal from "./MarkSoldModal";
 import SplitModal from "@/components/ui/SplitModal";
 import MergeLotsModal from "./MergeLotsModal";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
+import { variationLabel } from "./variations";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import CardAnalyticsPanel from "../analytics/CardAnalyticsPanel";
 
@@ -22,6 +23,7 @@ type Purchase = {
 type Lot = {
   id: string;
   condition: string;
+  variation?: string | null;
   quantity: number;
   available_qty: number;
   sold_qty: number;
@@ -457,6 +459,11 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                                   ({lot.sold_qty} sold)
                                 </span>
                               )}
+                              {lot.variation && lot.variation !== "standard" && (
+                                <span className="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700">
+                                  {variationLabel(lot.variation)}
+                                </span>
+                              )}
                               {lot.for_sale && lot.list_price_pence != null && (
                                 <span className="text-green-600 font-medium text-xs">
                                   £{penceToPounds(lot.list_price_pence)}
@@ -780,6 +787,11 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                                     {lot.sold_qty > 0 && (
                                       <span className="text-gray-400 text-xs">
                                         ({lot.sold_qty} sold)
+                                      </span>
+                                    )}
+                                    {lot.variation && lot.variation !== "standard" && (
+                                      <span className="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700">
+                                        {variationLabel(lot.variation)}
                                       </span>
                                     )}
                                   </div>

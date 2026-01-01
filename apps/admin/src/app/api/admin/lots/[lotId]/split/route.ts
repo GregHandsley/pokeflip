@@ -77,6 +77,7 @@ export async function POST(
     const newLot: any = {
       card_id: originalLot.card_id,
       condition: condition || originalLot.condition,
+      variation: originalLot.variation || "standard",
       quantity: split_qty,
       for_sale: for_sale ?? originalLot.for_sale,
       list_price_pence: finalListPricePence,

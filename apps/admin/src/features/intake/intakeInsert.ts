@@ -9,6 +9,7 @@ type Args = {
   quantity: number;
   defaults: {
     condition: Condition;
+    variation?: string;
     forSale: boolean;
     listPricePounds: string; // e.g. "0.99"
   };
@@ -27,6 +28,7 @@ export async function insertDraftLine({ acquisitionId, setId, cardId, locale, qu
       set_id: setId,
       card_id: cardId,
       condition: defaults.condition,
+      variation: defaults.variation || "standard",
       quantity,
       for_sale: defaults.forSale,
       list_price_pence: defaults.forSale ? poundsToPence(defaults.listPricePounds) : null,

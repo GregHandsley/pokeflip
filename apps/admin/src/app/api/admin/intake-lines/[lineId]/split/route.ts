@@ -56,7 +56,10 @@ export async function POST(
 
     const { data: createdLine, error: insertError } = await supabase
       .from("intake_lines")
-      .insert(newLine)
+      .insert({
+        ...newLine,
+        variation: originalLine.variation || "standard",
+      })
       .select()
       .single();
 

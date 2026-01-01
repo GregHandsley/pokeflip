@@ -6,6 +6,7 @@ import { poundsToPence, penceToPounds } from "@pokeflip/shared";
 import type { DraftLine } from "./types";
 import IntakeLinePhotoUpload from "@/components/intake/IntakeLinePhotoUpload";
 import SplitModal from "@/components/ui/SplitModal";
+import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
 
 type Props = {
   line: DraftLine;
@@ -145,7 +146,7 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
       </div>
 
       {/* Card name */}
-      <div className="col-span-3">
+      <div className="col-span-2">
         <div className="font-medium text-sm truncate">
           {cardDisplay}
         </div>
@@ -159,6 +160,19 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
           onChange={(e) => handleChange('condition', e.target.value as Condition)}
         >
           {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+
+      {/* Variation */}
+      <div className="col-span-2">
+        <select
+          className="w-full rounded border border-black/10 px-2 py-1.5 text-xs bg-white font-medium text-black"
+          value={line.variation || "standard"}
+          onChange={(e) => handleChange('variation', e.target.value)}
+        >
+          {CARD_VARIATIONS.map(v => (
+            <option key={v} value={v}>{variationLabel(v)}</option>
+          ))}
         </select>
       </div>
 

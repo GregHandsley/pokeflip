@@ -18,7 +18,7 @@ export default function IntakeWorkspacePage() {
   const [newlyAddedSetId, setNewlyAddedSetId] = useState<string | null>(null);
   const [newlyAddedCardId, setNewlyAddedCardId] = useState<string | null>(null);
 
-  const onPickCard = async ({ setId, cardId, locale: cardLocale, condition, quantity }: { setId: string; cardId: string; locale: string; condition: Condition; quantity: number }) => {
+  const onPickCard = async ({ setId, cardId, locale: cardLocale, condition, quantity, variation }: { setId: string; cardId: string; locale: string; condition: Condition; quantity: number; variation: string }) => {
     setToast(null);
     const { error } = await insertDraftLine({
       acquisitionId,
@@ -28,6 +28,7 @@ export default function IntakeWorkspacePage() {
       quantity,
       defaults: {
         condition,
+        variation,
         forSale: defaultForSale,
         listPricePounds: defaultListPrice
       }

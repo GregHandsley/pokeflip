@@ -10,6 +10,7 @@ export async function POST(req: Request) {
       set_id,
       card_id,
       condition,
+      variation = "standard",
       quantity,
       for_sale,
       list_price_pence,
@@ -224,6 +225,7 @@ export async function POST(req: Request) {
       .eq("acquisition_id", acquisition_id)
       .eq("card_id", card_id)
       .eq("condition", condition)
+      .eq("variation", variation || "standard")
       .eq("status", "draft")
       .single();
 
@@ -241,12 +243,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, updated: true });
     }
 
-    // No existing line with same card + condition, create a new one
+    // No existing line with same card + condition (+ variation), create a new one
     const { error } = await supabase.from("intake_lines").insert({
       acquisition_id,
       set_id,
       card_id,
       condition,
+      variation,
       quantity,
       for_sale,
       list_price_pence,

@@ -1,18 +1,32 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 
-type SalesItemRow = {
-  id: string;
-  qty: number;
-  sold_price_pence: number;
-  sales_order_id: string;
-  sales_orders?: { id: string; sold_at: string | null } | null;
-  inventory_lots?: { card_id: string; condition: string | null } | null;
-};
-
 const dateKey = (date: string | null | undefined) => {
   if (!date) return "";
   return new Date(date).toISOString().split("T")[0];
+};
+
+const variationLabel = (v?: string | null) => {
+  switch (v) {
+    case "holo":
+      return "Holo";
+    case "reverse_holo":
+      return "Reverse Holo";
+    case "first_edition":
+      return "First Edition";
+    case "master_ball":
+      return "Master Ball";
+    case "stamped":
+      return "Stamped";
+    case "promo":
+      return "Promo";
+    case "shadowless":
+      return "Shadowless";
+    case "non_holo":
+      return "Non-Holo";
+    default:
+      return "Standard";
+  }
 };
 
 export async function GET(
@@ -25,7 +39,7 @@ export async function GET(
     let resolvedCardId = cardId; // cards.id is text (API id), not necessarily UUID
 
     const fetchLotsForCard = async (cid: string) =>
-      supabase.from("inventory_lots").select("id, condition").eq("card_id", cid);
+      supabase.from("inventory_lots").select("id, condition, variation").eq("card_id", cid);
 
     // Fetch lot ids for this card
     let { data: lots, error: lotError } = await fetchLotsForCard(resolvedCardId);
@@ -104,10 +118,20 @@ export async function GET(
       );
     }
 
-    type LotLite = { id: string; condition: string | null };
-    const lotConditionMap = new Map<string, string | null>(
-      ((lots || []) as LotLite[]).map((l) => [l.id, l.condition || null])
-    );
+    type LotLite = { id: string; condition: string | null; variation: string | null };
+    const lotInfoMap = new Map<
+      string,
+      { condition: string | null; variation: string | null }
+    >(((lots || []) as LotLite[]).map((l) => [l.id, { condition: l.condition, variation: l.variation || null }]));
+
+    type SalesItemRow = {
+      id: string;
+      qty: number;
+      sold_price_pence: number;
+      sales_order_id: string;
+      sales_orders?: { id: string; sold_at: string | null } | null;
+      lot_id: string;
+    };
 
     const items = (salesItems || []) as SalesItemRow[];
     if (items.length === 0) {
@@ -145,7 +169,10 @@ export async function GET(
       const date = dateKey(item.sales_orders?.sold_at) || "";
       const qty = item.qty || 0;
       const revenue = (item.sold_price_pence || 0) * qty;
-      const condition = lotConditionMap.get(item.lot_id) || "Unknown";
+      const info = lotInfoMap.get(item.lot_id);
+      const condition = info?.condition || "Unknown";
+      const variation = info?.variation || "standard";
+      const conditionKey = `${condition} • ${variationLabel(variation)}`;
 
       // Per-date aggregates
       if (!priceByDate.has(date)) priceByDate.set(date, { revenue: 0, qty: 0 });
@@ -154,9 +181,9 @@ export async function GET(
       byDate.qty += qty;
 
       // Condition aggregates
-      if (!priceByCondition.has(condition))
-        priceByCondition.set(condition, { revenue: 0, qty: 0 });
-      const byCond = priceByCondition.get(condition)!;
+      if (!priceByCondition.has(conditionKey))
+        priceByCondition.set(conditionKey, { revenue: 0, qty: 0 });
+      const byCond = priceByCondition.get(conditionKey)!;
       byCond.revenue += revenue;
       byCond.qty += qty;
 

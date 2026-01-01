@@ -2,6 +2,7 @@
 
 import { InboxLot, SalesData } from "./types";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
+import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
 
 interface Props {
   lot: InboxLot;
@@ -9,6 +10,7 @@ interface Props {
   loadingSalesData: boolean;
   onUpdateTitle: (title: string) => void;
   onUpdateDescription: (description: string) => void;
+  onUpdateVariation: (variation: string) => void;
 }
 
 export default function ListingDetailsStep({
@@ -17,6 +19,7 @@ export default function ListingDetailsStep({
   loadingSalesData,
   onUpdateTitle,
   onUpdateDescription,
+  onUpdateVariation,
 }: Props) {
   if (loadingSalesData) {
     return (
@@ -55,6 +58,10 @@ export default function ListingDetailsStep({
             </span>
           </div>
           <div>
+            <span className="text-gray-600">Variation:</span>{" "}
+            <span className="font-medium">{variationLabel(lot.variation)}</span>
+          </div>
+          <div>
             <span className="text-gray-600">Quantity:</span>{" "}
             <span className="font-medium">{lot.available_qty}</span>
           </div>
@@ -64,6 +71,29 @@ export default function ListingDetailsStep({
               <span className="font-medium">{lot.rarity}</span>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Title */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Variation
+        </label>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {CARD_VARIATIONS.map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onUpdateVariation(v)}
+              className={`px-3 py-2 rounded border text-sm transition ${
+                lot.variation === v
+                  ? "border-black bg-black text-white"
+                  : "border-gray-300 hover:border-gray-400 text-gray-700"
+              }`}
+            >
+              {variationLabel(v)}
+            </button>
+          ))}
         </div>
       </div>
 

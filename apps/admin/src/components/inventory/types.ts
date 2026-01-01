@@ -17,6 +17,7 @@ export type LotRow = {
   id: string;
   card_id: string;
   condition: string;
+  variation?: string | null;
   qty_total: number;
   qty_available: number;
   for_sale: boolean;

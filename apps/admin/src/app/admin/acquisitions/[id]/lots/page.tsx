@@ -95,12 +95,13 @@ export default function PurchaseLotsPage() {
     }
   };
 
-  const handleAddCard = async ({ setId, cardId, locale, condition, quantity }: {
+  const handleAddCard = async ({ setId, cardId, locale, condition, quantity, variation }: {
     setId: string;
     cardId: string;
     locale: string;
     condition: Condition;
     quantity: number;
+    variation: string;
   }) => {
     setToast(null);
     const { error } = await insertDraftLine({
@@ -111,6 +112,7 @@ export default function PurchaseLotsPage() {
       quantity,
       defaults: {
         condition,
+        variation,
         forSale: true,
         listPricePounds: "0.99",
       },

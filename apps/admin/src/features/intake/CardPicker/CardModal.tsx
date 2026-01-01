@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { TcgdxCard, Condition } from "./types";
+import type { TcgdxCard, Condition, CardVariation } from "./types";
 import { CONDITIONS, CONDITION_LABELS } from "./types";
+import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
 
 type Props = {
   card: TcgdxCard;
   imageUrl: string;
   selectedSetId: string;
-  onAdd: (args: { setId: string; cardId: string; locale: string; condition: Condition; quantity: number }) => Promise<void>;
+  onAdd: (args: { setId: string; cardId: string; locale: string; condition: Condition; quantity: number; variation: CardVariation }) => Promise<void>;
   onClose: () => void;
   onCardAdded: (cardId: string) => void;
 };
@@ -21,6 +22,7 @@ export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCar
     HP: 0,
     DMG: 0,
   });
+  const [variation, setVariation] = useState<CardVariation>("standard");
 
   // Inject animation styles
   useEffect(() => {
@@ -65,6 +67,7 @@ export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCar
           locale: "en",
           condition,
           quantity: qty,
+          variation,
         });
       }
     });
@@ -117,6 +120,21 @@ export function CardModal({ card, imageUrl, selectedSetId, onAdd, onClose, onCar
 
         <div className="flex-1 overflow-y-auto px-3 pb-3">
           <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Variation
+            </label>
+            <select
+              value={variation}
+              onChange={(e) => setVariation(e.target.value as CardVariation)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/70 focus:border-black/70 mb-3"
+            >
+              {CARD_VARIATIONS.map((v) => (
+                <option key={v} value={v}>
+                  {variationLabel(v)}
+                </option>
+              ))}
+            </select>
+
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Set quantities for each condition
             </label>

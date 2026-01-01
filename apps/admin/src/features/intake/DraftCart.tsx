@@ -28,7 +28,7 @@ export function DraftCart({ acquisitionId, newlyAddedSetId, newlyAddedCardId, on
   const load = async () => {
     const { data, error } = await supabase
       .from("intake_lines")
-      .select("id, card_id, set_id, condition, quantity, for_sale, list_price_pence, note, cards(number, name, api_image_url, api_payload), sets(name)")
+      .select("id, card_id, set_id, condition, variation, quantity, for_sale, list_price_pence, note, cards(number, name, api_image_url, api_payload), sets(name)")
       .eq("acquisition_id", acquisitionId)
       .eq("status", "draft")
       .order("created_at", { ascending: true });

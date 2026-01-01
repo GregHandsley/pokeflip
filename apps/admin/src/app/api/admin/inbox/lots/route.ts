@@ -73,7 +73,7 @@ export async function GET(req: Request) {
     // Get use_api_image flags and card API image URLs
     const { data: lotsData } = await supabase
       .from("inventory_lots")
-      .select("id, use_api_image, card_id, cards!inner(api_image_url)")
+      .select("id, use_api_image, variation, card_id, cards!inner(api_image_url)")
       .in("id", lotIds);
 
     const lotMetadataMap = new Map();
@@ -81,6 +81,7 @@ export async function GET(req: Request) {
       lotMetadataMap.set(lot.id, {
         use_api_image: lot.use_api_image || false,
         api_image_url: lot.cards?.api_image_url || null,
+        variation: lot.variation || "standard",
       });
     });
 
@@ -114,6 +115,7 @@ export async function GET(req: Request) {
         has_front_photo: hasFront,
         has_back_photo: hasBack,
         has_required_photos: hasRequiredPhotos || metadata.use_api_image,
+        variation: metadata.variation,
       };
     });
 

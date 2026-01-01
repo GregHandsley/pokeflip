@@ -18,6 +18,7 @@ export async function GET() {
         list_price_pence,
         created_at,
         updated_at,
+        variation,
         cards:card_id (
           number,
           name,
@@ -53,6 +54,7 @@ export async function GET() {
         card_number: row.cards?.number || "",
         card_name: row.cards?.name || "",
         set_name: row.cards?.sets?.name || "",
+        variation: row.variation || "standard",
         source_name: row.acquisitions?.source_name || "",
         source_type: row.acquisitions?.source_type || "",
         purchased_at: row.acquisitions?.purchased_at || "",

@@ -9,6 +9,7 @@ import type { TcgSet, TcgCard } from "@/lib/tcgdx/types";
 import { CARD_CONDITIONS } from "@/lib/tcgdx/constants";
 import { useCatalogSets } from "./hooks/useCatalogSets";
 import { useTcgdxCards } from "./hooks/useTcgdxCards";
+import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
 
 interface IntakeLineFormProps {
   acquisitionId: string;
@@ -19,6 +20,7 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
   const [setId, setSetId] = useState("");
   const [cardId, setCardId] = useState("");
   const [condition, setCondition] = useState("LP");
+  const [variation, setVariation] = useState<string>("standard");
   const [qty, setQty] = useState(1);
   const [forSale, setForSale] = useState(true);
   const [listPrice, setListPrice] = useState("0.99");
@@ -78,6 +80,7 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
           set_id: setId,
           card_id: cardId,
           condition,
+          variation,
           quantity: qty,
           for_sale: forSale,
           list_price_pence: forSale ? poundsToPence(listPrice) : null,
@@ -153,12 +156,18 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Select
           label="Condition"
           value={condition}
           onChange={(e) => setCondition(e.target.value)}
           options={conditionOptions}
+        />
+        <Select
+          label="Variation"
+          value={variation}
+          onChange={(e) => setVariation(e.target.value)}
+          options={CARD_VARIATIONS.map((v) => ({ value: v, label: variationLabel(v) }))}
         />
 
         <Input

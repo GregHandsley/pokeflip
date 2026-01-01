@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { fetchAllSets, fetchCardsForSet } from "@/lib/tcgdx/tcgdxClient";
-import type { TcgdxSet, TcgdxCard, Condition } from "./CardPicker/types";
+import type { TcgdxSet, TcgdxCard, Condition, CardVariation } from "./CardPicker/types";
 import { SetGrid } from "./CardPicker/SetGrid";
 import { CardGrid } from "./CardPicker/CardGrid";
 import { CardModal } from "./CardPicker/CardModal";
 
 type Props = {
-  onPickCard: (args: { setId: string; cardId: string; locale: string; condition: Condition; quantity: number }) => void;
+  onPickCard: (args: { setId: string; cardId: string; locale: string; condition: Condition; quantity: number; variation: CardVariation }) => void;
 };
 
 type View = "set" | "cards";

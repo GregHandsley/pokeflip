@@ -32,11 +32,13 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
   const [uploadingKind, setUploadingKind] = useState<"front" | "back" | "extra" | null>(null);
   const [itemNumber, setItemNumber] = useState<string>("");
   const [publishQuantity, setPublishQuantity] = useState<number | null>(null);
+  const [variation, setVariation] = useState<string>("standard");
 
   useEffect(() => {
     if (lot) {
       setUseApiImage(lot.use_api_image || false);
       setPublishQuantity(lot.available_qty); // Default to all available
+      setVariation(lot.variation || "standard");
       loadPhotos();
       loadSalesData();
     }
@@ -197,6 +199,25 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       await loadPhotos();
     } finally {
       setDeletingPhotoId(null);
+    }
+  };
+
+  const handleVariationChange = async (value: string) => {
+    if (!lot) return;
+    setVariation(value);
+    try {
+      const res = await fetch(`/api/admin/lots/${lot.lot_id}/variation`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variation: value }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to update variation");
+      }
+      onUpdated();
+    } catch (e: any) {
+      alert(e.message || "Failed to update variation");
     }
   };
 
@@ -469,7 +490,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
 
           {currentStep === "details" && (
             <ListingDetailsStep
-              lot={lot}
+              lot={lot ? { ...lot, variation } : (lot as any)}
               salesData={salesData}
               loadingSalesData={loadingSalesData}
               onUpdateTitle={(title) =>
@@ -478,6 +499,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
               onUpdateDescription={(description) =>
                 setSalesData((prev) => prev ? { ...prev, description } : null)
               }
+              onUpdateVariation={handleVariationChange}
             />
           )}
 

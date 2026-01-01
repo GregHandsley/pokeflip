@@ -113,6 +113,7 @@ export async function GET(
       return {
         id: lot.id,
         condition: lot.condition,
+        variation: lot.variation || "standard",
         quantity: lot.quantity,
         available_qty: availableQty,
         sold_qty: soldQty,
