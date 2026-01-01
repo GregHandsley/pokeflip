@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useState } from "react";
 import { InboxLot, SalesData } from "./types";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
@@ -22,6 +23,7 @@ export default function ListingDetailsStep({
   onUpdateDescription,
   onUpdateVariation,
 }: Props) {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
   const [allowedVariations, setAllowedVariations] = useState<string[]>(CARD_VARIATIONS as string[]);
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [editingVariation, setEditingVariation] = useState(false);
@@ -165,13 +167,32 @@ export default function ListingDetailsStep({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Listing Title
         </label>
-        <textarea
-          value={salesData.title}
-          onChange={(e) => onUpdateTitle(e.target.value)}
-          rows={2}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-          placeholder="Enter listing title..."
-        />
+        <div className="flex items-start gap-3">
+          <textarea
+            value={salesData.title}
+            onChange={(e) => onUpdateTitle(e.target.value)}
+            rows={2}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+            placeholder="Enter listing title..."
+          />
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(salesData.title);
+                setCopyStatus("copied");
+                setTimeout(() => setCopyStatus("idle"), 1500);
+              } catch (e) {
+                setCopyStatus("error");
+                setTimeout(() => setCopyStatus("idle"), 1500);
+              }
+            }}
+            className="px-3 py-2 rounded border border-gray-300 text-sm text-gray-700 hover:bg-gray-100 transition"
+            aria-label="Copy listing title"
+          >
+            {copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Failed" : "Copy"}
+          </button>
+        </div>
         <p className="text-xs text-gray-500 mt-1">
           This title will be used for your eBay listing. You can customize it in settings.
         </p>

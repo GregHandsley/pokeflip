@@ -77,7 +77,7 @@ export async function GET(
     const name = tcgdexCard?.name || card?.name || "Pokemon TCG Card";
     const rawNumber = tcgdexCard?.localId || card?.number || "";
     const setTotal = tcgdexCard?.set?.cardCount?.total;
-    const number = rawNumber ? String(rawNumber).padStart(3, "0") : "";
+    const number = rawNumber ? String(rawNumber) : "";
     const rarity = tcgdexCard?.rarity || card?.rarity || "";
     const setName = tcgdexCard?.set?.name || set?.name || "Set";
 
