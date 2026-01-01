@@ -49,7 +49,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <>
               <div>
           <h1 className="text-xl font-bold text-black">Pokeflip Admin</h1>
-          <p className="text-sm text-gray-600 mt-1">Sprint 1</p>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
