@@ -17,3 +17,4 @@ create index if not exists idx_sales_orders_order_group on public.sales_orders(o
 -- Create index on buyer_id for buyer stats
 create index if not exists idx_sales_orders_buyer on public.sales_orders(buyer_id);
 
+

@@ -53,3 +53,4 @@ from public.sales_orders so
 left join revenue_calc rc on rc.sales_order_id = so.id
 left join consumables_calc cc on cc.sales_order_id = so.id;
 
+

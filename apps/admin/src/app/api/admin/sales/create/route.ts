@@ -13,6 +13,7 @@ export async function POST(req: Request) {
       orderGroup,
       feesPence,
       shippingPence,
+      discountPence, // Discount amount in pence (from promotional deals)
       consumables, // Array of { consumable_id, qty }
     } = body;
 
@@ -35,9 +36,20 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!soldPricePence || !buyerHandle) {
+    // Validate: either soldPricePence (old format) or lots with prices (new format)
+    const hasNewFormat = lots && Array.isArray(lots) && lots.some((l: any) => l.pricePence != null);
+    const hasOldFormat = soldPricePence != null;
+    
+    if (!hasNewFormat && !hasOldFormat) {
       return NextResponse.json(
-        { error: "Missing required fields: soldPricePence, buyerHandle" },
+        { error: "Missing required fields: either soldPricePence or lots with pricePence" },
+        { status: 400 }
+      );
+    }
+
+    if (!buyerHandle) {
+      return NextResponse.json(
+        { error: "Missing required field: buyerHandle" },
         { status: 400 }
       );
     }
@@ -140,6 +152,9 @@ export async function POST(req: Request) {
     if (shippingPence != null && shippingPence > 0) {
       orderData.shipping_pence = shippingPence;
     }
+    if (discountPence != null && discountPence > 0) {
+      orderData.discount_pence = discountPence;
+    }
 
     let { data: salesOrder, error: orderError } = await supabase
       .from("sales_orders")
@@ -189,23 +204,52 @@ export async function POST(req: Request) {
       );
     }
 
-    // Calculate total quantity across all lots
-    const totalQty = lotsToSell.reduce((sum, lot) => sum + lot.qty, 0);
+    // Support both old format (single soldPricePence for all) and new format (price per lot)
+    // New format: lots array with { lotId, qty, pricePence, purchaseAllocations? }
+    // Old format: soldPricePence is total, calculate per unit
+    let salesItems: Array<{ sales_order_id: string; lot_id: string; qty: number; sold_price_pence: number; purchase_id?: string | null }>;
+    const purchaseAllocationsMap = new Map<string, Array<{ purchaseId: string; qty: number }>>();
     
-    // soldPricePence is the total price for all items, so we need to calculate price per unit
-    const pricePerUnitPence = Math.round(soldPricePence / totalQty);
-    
-    // Create sales items for all lots
-    const salesItems = lotsToSell.map((lotToSell) => ({
-      sales_order_id: salesOrder.id,
-      lot_id: lotToSell.lotId,
-      qty: lotToSell.qty,
-      sold_price_pence: pricePerUnitPence, // Store price per unit, not total
-    }));
+    if (lots && Array.isArray(lots) && lots.some((l: any) => l.pricePence != null)) {
+      // New format: individual prices per lot
+      salesItems = lotsToSell.map((lotToSell, index) => {
+        const lotData = lots[index];
+        const pricePence = lotData?.pricePence ?? soldPricePence ?? 0;
+        const purchaseId = lotData?.purchaseId || null; // Legacy single purchase
+        const purchaseAllocations = lotData?.purchaseAllocations || null;
+        
+        // Store allocations for later insertion
+        if (purchaseAllocations && purchaseAllocations.length > 0) {
+          // We'll insert these after creating the sales_item
+          purchaseAllocationsMap.set(lotToSell.lotId, purchaseAllocations);
+        }
+        
+        return {
+          sales_order_id: salesOrder.id,
+          lot_id: lotToSell.lotId,
+          qty: lotToSell.qty,
+          sold_price_pence: pricePence, // Price per unit for this lot
+          purchase_id: purchaseId || null, // Legacy: single purchase attribution
+        };
+      });
+    } else {
+      // Old format: single price for all items
+      const totalQty = lotsToSell.reduce((sum, lot) => sum + lot.qty, 0);
+      const pricePerUnitPence = totalQty > 0 ? Math.round(soldPricePence / totalQty) : 0;
+      
+      salesItems = lotsToSell.map((lotToSell) => ({
+        sales_order_id: salesOrder.id,
+        lot_id: lotToSell.lotId,
+        qty: lotToSell.qty,
+        sold_price_pence: pricePerUnitPence,
+        purchase_id: null, // No purchase attribution in old format
+      }));
+    }
 
-    const { error: itemError } = await supabase
+    const { data: insertedSalesItems, error: itemError } = await supabase
       .from("sales_items")
-      .insert(salesItems);
+      .insert(salesItems)
+      .select("id, lot_id");
 
     if (itemError) {
       console.error("Error creating sales items:", itemError);
@@ -213,6 +257,35 @@ export async function POST(req: Request) {
         { error: "Failed to create sales items" },
         { status: 500 }
       );
+    }
+
+    // Create purchase allocations if provided
+    if (purchaseAllocationsMap.size > 0 && insertedSalesItems) {
+      const allocationsToInsert: Array<{ sales_item_id: string; acquisition_id: string; qty: number }> = [];
+      
+      for (const salesItem of insertedSalesItems) {
+        const allocations = purchaseAllocationsMap.get(salesItem.lot_id);
+        if (allocations && allocations.length > 0) {
+          for (const alloc of allocations) {
+            allocationsToInsert.push({
+              sales_item_id: salesItem.id,
+              acquisition_id: alloc.purchaseId,
+              qty: alloc.qty,
+            });
+          }
+        }
+      }
+      
+      if (allocationsToInsert.length > 0) {
+        const { error: allocError } = await supabase
+          .from("sales_item_purchase_allocations")
+          .insert(allocationsToInsert);
+        
+        if (allocError) {
+          console.error("Error creating purchase allocations:", allocError);
+          // Don't fail the sale if allocations fail, but log it
+        }
+      }
     }
 
     // Create sales consumables if provided

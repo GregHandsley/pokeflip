@@ -90,8 +90,15 @@ export async function POST(req: Request) {
       0
     );
 
+    // Check if lots come from different purchases
+    const uniqueAcquisitionIds = new Set(
+      lotsToMerge
+        .map((l: any) => l.acquisition_id)
+        .filter((id: any) => id !== null && id !== undefined)
+    );
+
     // Determine merged values (use target lot's values, or merge logic for some fields)
-    const mergedLot = {
+    const mergedLot: any = {
       quantity: totalQuantity,
       for_sale: targetLot.for_sale, // Use target lot's for_sale setting
       list_price_pence: targetLot.list_price_pence, // Use target lot's price
@@ -99,6 +106,16 @@ export async function POST(req: Request) {
       use_api_image: targetLot.use_api_image || lotsToMerge.some((l: any) => l.use_api_image), // If any use API image, keep it
       variation: targetLot.variation || "standard",
     };
+
+    // If merging lots from different purchases, set acquisition_id to null
+    // The purchase history will be tracked in lot_purchase_history instead
+    if (uniqueAcquisitionIds.size > 1) {
+      mergedLot.acquisition_id = null;
+    } else if (uniqueAcquisitionIds.size === 1) {
+      // All lots from same purchase - keep that acquisition_id
+      mergedLot.acquisition_id = Array.from(uniqueAcquisitionIds)[0];
+    }
+    // If size is 0, leave acquisition_id as is (null)
 
     // Update target lot with merged values
     const { error: updateError } = await supabase
@@ -114,8 +131,85 @@ export async function POST(req: Request) {
       );
     }
 
-    // Copy photos from other lots to target lot
+    // Get other lot IDs (excluding target) for later operations
     const otherLotIds = lot_ids.filter((id: string) => id !== target_lot_id);
+
+    // Merge purchase history from all lots into target lot
+    // This preserves the original committed quantities from each purchase
+    // Get purchase history from all lots being merged (including target)
+    const { data: allPurchaseHistory, error: historyError } = await supabase
+      .from("lot_purchase_history")
+      .select("lot_id, acquisition_id, quantity")
+      .in("lot_id", lot_ids);
+
+    if (historyError) {
+      console.error("Error fetching purchase history:", historyError);
+      return NextResponse.json(
+        { error: "Failed to fetch purchase history for merge" },
+        { status: 500 }
+      );
+    }
+
+    // Build a map of lot_id -> acquisition_id for lots that have acquisition_id
+    const lotAcquisitionMap = new Map<string, string>();
+    lotsToMerge.forEach((lot: any) => {
+      if (lot.acquisition_id) {
+        lotAcquisitionMap.set(lot.id, lot.acquisition_id);
+      }
+    });
+
+    // Group by acquisition_id and sum quantities from purchase history
+    // This preserves the original committed quantities from each purchase
+    const historyMap = new Map<string, number>();
+    
+    // Add quantities from lot_purchase_history (this is the source of truth)
+    (allPurchaseHistory || []).forEach((entry: any) => {
+      const current = historyMap.get(entry.acquisition_id) || 0;
+      historyMap.set(entry.acquisition_id, current + (entry.quantity || 0));
+    });
+
+    // For lots that have acquisition_id but no history entry (legacy lots),
+    // add their quantity to preserve the original committed amount
+    lotsToMerge.forEach((lot: any) => {
+      if (lot.acquisition_id) {
+        // Check if this lot has any history entries
+        const lotHasHistory = allPurchaseHistory?.some((h: any) => h.lot_id === lot.id);
+        if (!lotHasHistory) {
+          // This lot has acquisition_id but no history entry - add its quantity
+          const current = historyMap.get(lot.acquisition_id) || 0;
+          historyMap.set(lot.acquisition_id, current + lot.quantity);
+        }
+      }
+    });
+
+    // Delete existing history for target lot (will recreate with merged data)
+    await supabase
+      .from("lot_purchase_history")
+      .delete()
+      .eq("lot_id", target_lot_id);
+
+    // Insert merged purchase history preserving original quantities from each purchase
+    const historyInserts = Array.from(historyMap.entries()).map(([acquisitionId, qty]) => ({
+      lot_id: target_lot_id,
+      acquisition_id: acquisitionId,
+      quantity: qty,
+    }));
+
+    if (historyInserts.length > 0) {
+      const { error: insertHistoryError } = await supabase
+        .from("lot_purchase_history")
+        .insert(historyInserts);
+
+      if (insertHistoryError) {
+        console.error("Error inserting merged purchase history:", insertHistoryError);
+        return NextResponse.json(
+          { error: "Failed to preserve purchase history during merge" },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Copy photos from other lots to target lot
     if (otherLotIds.length > 0) {
       const { data: photosToCopy } = await supabase
         .from("lot_photos")

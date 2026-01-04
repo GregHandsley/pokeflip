@@ -3,12 +3,16 @@
 import { useState, useEffect } from "react";
 import { penceToPounds } from "@pokeflip/shared";
 import Modal from "@/components/ui/Modal";
+import Button from "@/components/ui/Button";
 import OperationalDashboard from "@/components/analytics/OperationalDashboard";
+import RecordSaleModal from "@/components/sales/RecordSaleModal";
 
 type ProfitData = {
   sales_order_id: string;
   sold_at: string;
   revenue_pence: number;
+  revenue_after_discount_pence?: number;
+  discount_pence?: number;
   fees_pence: number | null;
   shipping_pence: number | null;
   consumables_cost_pence: number;
@@ -49,6 +53,7 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [orderProfit, setOrderProfit] = useState<ProfitData | null>(null);
+  const [showRecordSaleModal, setShowRecordSaleModal] = useState(false);
 
   useEffect(() => {
     loadSales();
@@ -129,7 +134,7 @@ export default function SalesPage() {
     }
   };
 
-  const totalRevenue = profitData.reduce((sum, p) => sum + (p.revenue_pence || 0), 0);
+  const totalRevenue = profitData.reduce((sum, p) => sum + ((p.revenue_after_discount_pence ?? p.revenue_pence) || 0), 0);
   const totalCosts = profitData.reduce((sum, p) => sum + (p.total_costs_pence || 0), 0);
   const totalProfit = profitData.reduce((sum, p) => sum + (p.net_profit_pence || 0), 0);
   const avgMargin = profitData.length > 0
@@ -144,6 +149,9 @@ export default function SalesPage() {
           <p className="text-sm text-gray-600 mt-1">Track revenue, costs, and profit margins</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="primary" onClick={() => setShowRecordSaleModal(true)}>
+            Record Sale
+          </Button>
           <a
             href="/api/admin/analytics/export/inventory"
             className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-50"
@@ -286,7 +294,7 @@ export default function SalesPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm font-medium">
-                        £{penceToPounds(profit.revenue_pence)}
+                        £{penceToPounds(profit.revenue_after_discount_pence ?? profit.revenue_pence)}
                       </td>
                       <td className="px-4 py-3 text-sm text-red-600">
                         £{penceToPounds(profit.total_costs_pence)}
@@ -332,7 +340,7 @@ export default function SalesPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-gray-50 rounded-lg p-4">
-                <div className="text-sm text-gray-600">Revenue</div>
+                <div className="text-sm text-gray-600">Subtotal</div>
                 <div className="text-2xl font-bold text-green-600 mt-1">
                   £{penceToPounds(orderProfit.revenue_pence)}
                 </div>
@@ -343,6 +351,26 @@ export default function SalesPage() {
                   orderProfit.net_profit_pence >= 0 ? "text-green-600" : "text-red-600"
                 }`}>
                   £{penceToPounds(orderProfit.net_profit_pence)}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-sm mb-2">Revenue Breakdown</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Subtotal:</span>
+                  <span>£{penceToPounds(orderProfit.revenue_pence)}</span>
+                </div>
+                {(orderProfit.discount_pence || 0) > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Discount:</span>
+                    <span className="font-medium">-£{penceToPounds(orderProfit.discount_pence || 0)}</span>
+                  </div>
+                )}
+                <div className="border-t border-gray-200 pt-2 flex justify-between font-medium">
+                  <span>Total Revenue:</span>
+                  <span className="text-green-600">£{penceToPounds(orderProfit.revenue_after_discount_pence ?? orderProfit.revenue_pence)}</span>
                 </div>
               </div>
             </div>
@@ -429,6 +457,16 @@ export default function SalesPage() {
           </div>
         </Modal>
       )}
+
+      {/* Record Sale Modal */}
+      <RecordSaleModal
+        isOpen={showRecordSaleModal}
+        onClose={() => setShowRecordSaleModal(false)}
+        onSaleCreated={() => {
+          setShowRecordSaleModal(false);
+          loadSales();
+        }}
+      />
     </div>
   );
 }

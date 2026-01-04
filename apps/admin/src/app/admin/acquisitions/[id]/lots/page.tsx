@@ -1,13 +1,17 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { penceToPounds } from "@pokeflip/shared";
+import { useState, useEffect, useCallback } from "react";
+import { penceToPounds, poundsToPence } from "@pokeflip/shared";
 import PageHeader from "@/components/ui/PageHeader";
 import { CardPicker } from "@/features/intake/CardPicker";
 import { insertDraftLine } from "@/features/intake/intakeInsert";
 import type { Condition } from "@/features/intake/types";
+import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
+import { variationLabel } from "@/components/inventory/variations";
 import LotDetailModal from "@/components/inventory/LotDetailModal";
+import SplitModal from "@/components/ui/SplitModal";
+import MergeLotsModal from "@/components/inventory/MergeLotsModal";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -27,6 +31,7 @@ type Lot = {
   id: string;
   card_id: string;
   condition: string;
+  variation: string | null;
   quantity: number;
   available_qty: number;
   sold_qty: number;
@@ -38,6 +43,7 @@ type Lot = {
   updated_at: string;
   ebay_status: string;
   photo_count: number;
+  is_draft?: boolean; // Flag to indicate this is a draft intake line
   card: {
     id: string;
     number: string;
@@ -78,6 +84,7 @@ export default function PurchaseLotsPage() {
   const [profitData, setProfitData] = useState<{
     purchase_cost_pence: number;
     revenue_pence: number;
+    revenue_after_discount_pence?: number;
     consumables_cost_pence: number;
     total_costs_pence: number;
     net_profit_pence: number;
@@ -87,11 +94,18 @@ export default function PurchaseLotsPage() {
     cards_total: number;
   } | null>(null);
   const [loadingProfit, setLoadingProfit] = useState(false);
+  const [draftCount, setDraftCount] = useState(0);
+  const [committing, setCommitting] = useState(false);
+  const [selectedLots, setSelectedLots] = useState<Set<string>>(new Set());
+  const [lotToSplit, setLotToSplit] = useState<Lot | null>(null);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [removingDraftId, setRemovingDraftId] = useState<string | null>(null);
 
   useEffect(() => {
     if (purchaseId) {
       loadPurchaseLots();
       loadProfitData();
+      loadDraftCount();
     }
   }, [purchaseId]);
 
@@ -130,6 +144,73 @@ export default function PurchaseLotsPage() {
     }
   };
 
+  const loadDraftCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from("intake_lines")
+        .select("*", { count: "exact", head: true })
+        .eq("acquisition_id", purchaseId)
+        .eq("status", "draft");
+      
+      if (!error && count !== null) {
+        setDraftCount(count);
+      }
+    } catch (e: any) {
+      console.error("Failed to load draft count:", e);
+    }
+  };
+
+  const handleCommit = async () => {
+    setCommitting(true);
+    setToast(null);
+    try {
+      const { data, error } = await supabase.rpc("commit_acquisition", { 
+        p_acquisition_id: purchaseId 
+      } as any);
+      
+      if (error) {
+        throw error;
+      }
+      
+      setToast((data as any)?.message ?? "Cards committed to inventory");
+      await loadPurchaseLots();
+      await loadProfitData();
+      await loadDraftCount();
+    } catch (e: any) {
+      setToast(e?.message ?? "Failed to commit cards");
+    } finally {
+      setCommitting(false);
+    }
+  };
+
+  const handleRemoveDraft = async (lotId: string) => {
+    // Extract the actual intake line ID from the draft lot ID
+    const intakeLineId = lotId.replace("draft-", "");
+    
+    setRemovingDraftId(lotId);
+    setToast(null);
+    try {
+      const { error } = await supabase
+        .from("intake_lines")
+        .delete()
+        .eq("id", intakeLineId)
+        .eq("acquisition_id", purchaseId)
+        .eq("status", "draft");
+      
+      if (error) {
+        throw error;
+      }
+      
+      setToast("Uncommitted card removed");
+      await loadPurchaseLots();
+      await loadDraftCount();
+    } catch (e: any) {
+      setToast(e?.message ?? "Failed to remove card");
+    } finally {
+      setRemovingDraftId(null);
+    }
+  };
+
   const handleAddCard = async ({ setId, cardId, locale, condition, quantity, variation }: {
     setId: string;
     cardId: string;
@@ -156,8 +237,10 @@ export default function PurchaseLotsPage() {
     if (error) {
       setToast(error.message || "Failed to add card");
     } else {
-      setToast("Card added to draft cart. Commit to add to inventory.");
+      setToast("Card added to draft cart. Click 'Commit to Inventory' to save.");
       setShowAddModal(false);
+      await loadDraftCount();
+      await loadPurchaseLots(); // Reload to show the new draft card
     }
   };
 
@@ -175,6 +258,7 @@ export default function PurchaseLotsPage() {
     } else {
       await loadPurchaseLots();
       await loadProfitData();
+      await loadDraftCount();
       setToast("Purchase reopened");
     }
   };
@@ -191,6 +275,7 @@ export default function PurchaseLotsPage() {
       setClosing(false);
       await loadPurchaseLots();
       await loadProfitData();
+      await loadDraftCount();
       setToast("Purchase closed");
     }
   };
@@ -215,7 +300,7 @@ export default function PurchaseLotsPage() {
     );
   }
 
-  // Group lots by set
+  // Group lots by set and sort by card number
   const lotsBySet = lots.reduce((acc, lot) => {
     const setId = lot.card?.set?.id || "unknown";
     if (!acc[setId]) {
@@ -224,6 +309,114 @@ export default function PurchaseLotsPage() {
     acc[setId].push(lot);
     return acc;
   }, {} as Record<string, Lot[]>);
+
+  // Sort cards within each set by card number
+  Object.keys(lotsBySet).forEach((setId) => {
+    lotsBySet[setId].sort((a, b) => {
+      const numA = parseInt(a.card?.number || "0", 10) || 0;
+      const numB = parseInt(b.card?.number || "0", 10) || 0;
+      if (numA !== numB) {
+        return numA - numB;
+      }
+      // If numbers are equal, sort by card name
+      return (a.card?.name || "").localeCompare(b.card?.name || "");
+    });
+  });
+
+  // Check if selected lots can be merged
+  const canMergeSelected = (() => {
+    if (selectedLots.size < 2) return false;
+    const selectedLotsArray = lots.filter((lot) => selectedLots.has(lot.id));
+    if (selectedLotsArray.length < 2) return false;
+
+    // All must have same card_id, condition, and variation
+    const first = selectedLotsArray[0];
+    const allSameCard = selectedLotsArray.every(
+      (lot) =>
+        lot.card_id === first.card_id &&
+        lot.condition === first.condition &&
+        (lot.variation || "standard") === (first.variation || "standard")
+    );
+
+    // All must be active (not sold or archived)
+    const allActive = selectedLotsArray.every(
+      (lot) => lot.status !== "sold" && lot.status !== "archived"
+    );
+
+    // None can have sold items
+    const noneHaveSales = selectedLotsArray.every((lot) => lot.sold_qty === 0);
+
+    return allSameCard && allActive && noneHaveSales;
+  })();
+
+  const toggleLotSelection = (lotId: string) => {
+    setSelectedLots((prev) => {
+      const next = new Set(prev);
+      if (next.has(lotId)) {
+        next.delete(lotId);
+      } else {
+        next.add(lotId);
+      }
+      return next;
+    });
+  };
+
+  const handleSplit = async (splitQty: number, forSale: boolean, price: string | null, condition?: string) => {
+    if (!lotToSplit) return;
+    try {
+      const res = await fetch(`/api/admin/lots/${lotToSplit.id}/split`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          split_qty: splitQty,
+          for_sale: forSale,
+          list_price_pence: price ? poundsToPence(price) : null,
+          condition: condition,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to split lot");
+      }
+
+      setLotToSplit(null);
+      await loadPurchaseLots();
+      await loadProfitData();
+      setToast("Lot split successfully");
+    } catch (e: any) {
+      setToast(e.message || "Failed to split lot");
+      throw e;
+    }
+  };
+
+  const handleMerge = async (targetLotId: string) => {
+    const lotIds = Array.from(selectedLots);
+    try {
+      const res = await fetch("/api/admin/lots/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lot_ids: lotIds,
+          target_lot_id: targetLotId,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to merge lots");
+      }
+
+      setSelectedLots(new Set());
+      setShowMergeModal(false);
+      await loadPurchaseLots();
+      await loadProfitData();
+      setToast("Lots merged successfully");
+    } catch (e: any) {
+      setToast(e.message || "Failed to merge lots");
+      throw e;
+    }
+  };
 
   return (
     <div>
@@ -327,7 +520,7 @@ export default function PurchaseLotsPage() {
                 <div>
                   <div className="text-xs text-gray-600 mb-1">Revenue</div>
                   <div className="text-lg font-semibold text-green-600">
-                    £{penceToPounds(profitData.revenue_pence)}
+                    £{penceToPounds(profitData.revenue_after_discount_pence ?? profitData.revenue_pence)}
                   </div>
                 </div>
                 <div>
@@ -344,21 +537,21 @@ export default function PurchaseLotsPage() {
                     £{penceToPounds(profitData.net_profit_pence)}
                   </div>
                   <div className={`text-xs mt-1 ${
-                    profitData.margin_percent >= 0 ? "text-green-600" : "text-red-600"
+                    (profitData.margin_percent || 0) >= 0 ? "text-green-600" : "text-red-600"
                   }`}>
-                    {profitData.margin_percent >= 0 ? "+" : ""}{profitData.margin_percent.toFixed(1)}% margin
+                    {(profitData.margin_percent || 0) >= 0 ? "+" : ""}{(profitData.margin_percent || 0).toFixed(1)}% margin
                   </div>
                   <div className={`text-xs mt-0.5 ${
-                    profitData.roi_percent >= 0 ? "text-green-600" : "text-red-600"
+                    (profitData.roi_percent || 0) >= 0 ? "text-green-600" : "text-red-600"
                   }`}>
-                    {profitData.roi_percent >= 0 ? "+" : ""}{profitData.roi_percent.toFixed(1)}% ROI
+                    {(profitData.roi_percent || 0) >= 0 ? "+" : ""}{(profitData.roi_percent || 0).toFixed(1)}% ROI
                   </div>
                 </div>
               </div>
               <div className="pt-3 border-t border-gray-200">
                 <div className="text-sm text-gray-600">
                   Cards sold: <span className="font-medium">{profitData.cards_sold}</span> of{" "}
-                  <span className="font-medium">{profitData.cards_total}</span> total
+                  <span className="font-medium">{profitData.cards_total}</span> 
                 </div>
               </div>
             </div>
@@ -367,15 +560,50 @@ export default function PurchaseLotsPage() {
       )}
 
       {/* Actions */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-3 mb-6 flex-wrap items-center">
         <button
           onClick={() => setShowAddModal(true)}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
         >
           Add New Card
         </button>
+        {draftCount > 0 && (
+          <button
+            onClick={handleCommit}
+            disabled={committing}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {committing ? "Committing..." : `Commit to Inventory (${draftCount})`}
+          </button>
+        )}
+        {selectedLots.size >= 2 && canMergeSelected && (
+          <button
+            onClick={() => setShowMergeModal(true)}
+            className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+          >
+            Merge Selected ({selectedLots.size})
+          </button>
+        )}
+        {selectedLots.size > 0 && (
+          <button
+            onClick={() => setSelectedLots(new Set())}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+          >
+            Clear Selection
+          </button>
+        )}
         <button
-          onClick={() => router.push("/admin/inventory")}
+          onClick={() => {
+            if (draftCount > 0) {
+              const confirmed = window.confirm(
+                `You have ${draftCount} uncommitted card${draftCount !== 1 ? "s" : ""} in this purchase. If you navigate away, these cards will not be added to inventory. Do you want to continue?`
+              );
+              if (!confirmed) {
+                return;
+              }
+            }
+            router.push("/admin/inventory");
+          }}
           className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
         >
           Back to Inventory
@@ -406,45 +634,153 @@ export default function PurchaseLotsPage() {
                     </div>
                   </div>
                   <div className="divide-y divide-gray-200">
-                    {setLots.map((lot) => (
-                      <div
-                        key={lot.id}
-                        className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                        onClick={() => setSelectedLot(lot)}
-                      >
-                        <div className="flex items-center gap-4">
-                          {lot.card?.image_url && (
-                            <img
-                              src={`${lot.card.image_url}/low.webp`}
-                              alt={`${lot.card.name} card`}
-                              className="h-16 w-auto rounded border border-gray-200"
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm">
-                              <span className="text-gray-500 font-normal">#{lot.card?.number}</span>{" "}
-                              {lot.card?.name}
-                            </div>
-                            {lot.card?.rarity && (
-                              <div className="text-xs text-gray-500">{lot.card.rarity}</div>
+                    {setLots.map((lot) => {
+                      const isDraft = lot.is_draft || lot.id.startsWith("draft-");
+                      const isSelected = selectedLots.has(lot.id);
+                      const canSplit = !isDraft && lot.status !== "sold" && lot.status !== "archived" && lot.available_qty > 1;
+                      return (
+                        <div
+                          key={lot.id}
+                          className={`px-4 py-3 transition-colors ${
+                            isDraft 
+                              ? "bg-yellow-50 border-l-4 border-l-yellow-400" 
+                              : isSelected 
+                                ? "bg-blue-50 border-l-4 border-l-blue-500" 
+                                : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            {!isDraft && (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  toggleLotSelection(lot.id);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                              />
                             )}
-                          </div>
-                          <div className="text-right text-sm space-y-1">
-                            <div>
-                              <span className="text-gray-600">Qty:</span>{" "}
-                              <span className="font-medium">{lot.available_qty} / {lot.quantity}</span>
+                            {isDraft && (
+                              <div className="w-4 h-4 flex items-center justify-center">
+                                <span className="text-yellow-600 text-xs">⚠</span>
+                              </div>
+                            )}
+                            {lot.card?.image_url && (
+                              <img
+                                src={`${lot.card.image_url}/low.webp`}
+                                alt={`${lot.card.name} card`}
+                                className={`h-16 w-auto rounded border border-gray-200 ${isDraft ? "" : "cursor-pointer"}`}
+                                onClick={() => {
+                                  if (!isDraft) {
+                                    setSelectedLot(lot);
+                                  }
+                                }}
+                              />
+                            )}
+                            <div
+                              className={`flex-1 min-w-0 ${isDraft ? "" : "cursor-pointer"}`}
+                              onClick={() => {
+                                if (!isDraft) {
+                                  setSelectedLot(lot);
+                                }
+                              }}
+                            >
+                              <div className="font-medium text-sm">
+                                <span className="text-gray-500 font-normal">#{lot.card?.number}</span>{" "}
+                                {lot.card?.name}
+                                {isDraft && (
+                                  <span className="ml-2 text-xs text-yellow-700 font-normal">
+                                    (Not in inventory yet)
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                {lot.card?.rarity && (
+                                  <span className="text-xs text-gray-500">{lot.card.rarity}</span>
+                                )}
+                                <span className="text-xs text-gray-600">
+                                  {CONDITION_LABELS[lot.condition as keyof typeof CONDITION_LABELS] || lot.condition}
+                                </span>
+                                {lot.variation && lot.variation !== "standard" && (
+                                  <span className="text-xs text-gray-600">
+                                    • {variationLabel(lot.variation)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div>
-                              <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${
-                                STATUS_COLORS[lot.status] || STATUS_COLORS.draft
-                              }`}>
-                                {lot.status}
-                              </span>
+                            <div className="text-right text-sm space-y-1">
+                              <div>
+                                <span className="text-gray-600">Qty:</span>{" "}
+                                <span className="font-medium">{lot.available_qty} / {lot.quantity}</span>
+                              </div>
+                              <div className="flex items-center justify-end gap-2">
+                                {isDraft ? (
+                                  <>
+                                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">
+                                      Uncommitted
+                                    </span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm("Are you sure you want to remove this uncommitted card?")) {
+                                          handleRemoveDraft(lot.id);
+                                        }
+                                      }}
+                                      disabled={removingDraftId === lot.id}
+                                      className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                                      title="Remove uncommitted card"
+                                    >
+                                      {removingDraftId === lot.id ? (
+                                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                        </svg>
+                                      ) : (
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${
+                                    STATUS_COLORS[lot.status] || STATUS_COLORS.draft
+                                  }`}>
+                                    {lot.status}
+                                  </span>
+                                )}
+                                {canSplit && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setLotToSplit(lot);
+                                    }}
+                                    className="p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                                    title="Split quantity"
+                                  >
+                                    <svg
+                                      className="w-4 h-4"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                      />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -480,6 +816,7 @@ export default function PurchaseLotsPage() {
           onLotUpdated={() => {
             loadPurchaseLots();
             loadProfitData();
+            loadDraftCount();
           }}
           onPhotoCountChanged={(lotId, newCount) => {
             // Update the photo count for the specific lot in the local state
@@ -489,6 +826,31 @@ export default function PurchaseLotsPage() {
               )
             );
           }}
+        />
+      )}
+
+      {/* Split Modal */}
+      {lotToSplit && (
+        <SplitModal
+          isOpen={!!lotToSplit}
+          onClose={() => setLotToSplit(null)}
+          onSplit={handleSplit}
+          currentQuantity={lotToSplit.available_qty}
+          currentForSale={lotToSplit.for_sale}
+          currentPrice={lotToSplit.list_price_pence}
+          currentCondition={lotToSplit.condition as any}
+          title="Split Lot"
+        />
+      )}
+
+      {/* Merge Modal */}
+      {showMergeModal && (
+        <MergeLotsModal
+          isOpen={showMergeModal}
+          onClose={() => setShowMergeModal(false)}
+          onMerge={handleMerge}
+          lots={lots.filter((lot) => selectedLots.has(lot.id))}
+          cardName={lots.find((lot) => selectedLots.has(lot.id))?.card?.name || "Card"}
         />
       )}
 

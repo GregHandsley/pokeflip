@@ -12,3 +12,4 @@ create index if not exists idx_lots_item_number on public.inventory_lots(item_nu
 -- Add comment explaining the field
 comment on column public.inventory_lots.item_number is 'Item number for grouping lots together when marking as sold. Lots with the same item_number will be grouped together.';
 
+

@@ -41,3 +41,4 @@
 4. Add profit calculation and warnings
 5. Create profit reports page
 
+

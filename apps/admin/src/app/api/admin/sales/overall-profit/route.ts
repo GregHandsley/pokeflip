@@ -23,38 +23,30 @@ export async function GET(req: Request) {
       0
     );
 
-    // Get all sales orders and calculate revenue
-    const { data: salesOrders, error: ordersError } = await supabase
-      .from("sales_orders")
-      .select("id");
+    // Get all sales orders and calculate revenue (using view to account for discounts)
+    const { data: profitData, error: profitError } = await supabase
+      .from("v_sales_order_profit")
+      .select("revenue_after_discount_pence");
 
-    if (ordersError) {
-      console.error("Error fetching sales orders:", ordersError);
+    if (profitError) {
+      console.error("Error fetching profit data:", profitError);
       return NextResponse.json(
-        { error: ordersError.message || "Failed to fetch sales orders" },
+        { error: profitError.message || "Failed to fetch profit data" },
         { status: 500 }
       );
     }
 
-    const salesOrderIds = (salesOrders || []).map((o: any) => o.id);
-
-    // Get all sales items (regardless of sales order count)
-    const { data: salesItems, error: itemsError } = await supabase
-      .from("sales_items")
-      .select("qty, sold_price_pence");
-
-    if (itemsError) {
-      console.error("Error fetching sales items:", itemsError);
-      return NextResponse.json(
-        { error: itemsError.message || "Failed to fetch sales items" },
-        { status: 500 }
-      );
-    }
-
-    const total_revenue_pence = (salesItems || []).reduce(
-      (sum, item) => sum + (item.qty || 0) * (item.sold_price_pence || 0),
+    const total_revenue_pence = (profitData || []).reduce(
+      (sum, p) => sum + (p.revenue_after_discount_pence || 0),
       0
     );
+
+    // Get sales order IDs for consumables lookup
+    const { data: salesOrders } = await supabase
+      .from("sales_orders")
+      .select("id");
+    
+    const salesOrderIds = (salesOrders || []).map((o: any) => o.id);
 
     // Get all consumables costs from sales
     let total_consumables_cost_pence = 0;

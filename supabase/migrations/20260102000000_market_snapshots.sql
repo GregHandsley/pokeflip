@@ -33,3 +33,4 @@ create table if not exists public.price_alerts (
 
 create index if not exists idx_price_alerts_card on public.price_alerts(card_id, triggered_at desc);
 
+

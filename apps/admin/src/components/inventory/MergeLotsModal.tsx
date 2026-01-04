@@ -5,6 +5,14 @@ import Modal from "@/components/ui/Modal";
 import { penceToPounds } from "@pokeflip/shared";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 
+const STATUS_COLORS: Record<string, string> = {
+  draft: "bg-gray-100 text-gray-700",
+  ready: "bg-blue-100 text-blue-700",
+  listed: "bg-green-100 text-green-700",
+  sold: "bg-purple-100 text-purple-700",
+  archived: "bg-gray-100 text-gray-500",
+};
+
 type Lot = {
   id: string;
   condition: string;
@@ -110,8 +118,15 @@ export default function MergeLotsModal({
                     className="w-4 h-4 text-blue-600"
                   />
                   <div className="flex-1">
-                    <div className="text-sm font-medium">
-                      {CONDITION_LABELS[lot.condition as keyof typeof CONDITION_LABELS] || lot.condition}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium">
+                        {CONDITION_LABELS[lot.condition as keyof typeof CONDITION_LABELS] || lot.condition}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${
+                        STATUS_COLORS[lot.status] || STATUS_COLORS.draft
+                      }`}>
+                        {lot.status}
+                      </span>
                     </div>
                     <div className="text-xs text-gray-600">
                       Quantity: {lot.quantity} ({lot.available_qty} available)

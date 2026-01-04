@@ -432,7 +432,7 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
         {/* Quantity */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Quantity to Sell
+            Quantity Sold
           </label>
           <div className="flex items-center gap-2">
             <Input

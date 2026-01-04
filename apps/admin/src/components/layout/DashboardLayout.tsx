@@ -66,6 +66,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { href: "/admin", label: "Command Center", exact: true },
     { href: "/admin/acquisitions", label: "Purchases" },
     { href: "/admin/inventory", label: "Inventory" },
+    { href: "/admin/bundles", label: "Bundles" },
     { href: "/admin/inbox", label: "Inbox" },
     { href: "/admin/sales", label: "Sales & Profit" },
   ];
@@ -73,6 +74,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const settingsItems = [
     { href: "/admin/settings/consumables", label: "Consumables" },
     { href: "/admin/settings/packaging-rules", label: "Packaging Rules" },
+    { href: "/admin/settings/promotional-deals", label: "Promotional Deals" },
     { href: "/admin/settings/set-translations", label: "Set Translations" },
   ];
 

@@ -55,7 +55,7 @@ export async function GET() {
           .select("qty, lot_id, sales_orders!inner(sold_at)"),
         supabase
           .from("v_sales_order_profit")
-          .select("sales_order_id, revenue_pence, net_profit_pence, sold_at"),
+          .select("sales_order_id, revenue_after_discount_pence, revenue_pence, net_profit_pence, sold_at"),
         supabase.from("cards").select("id, set_id"),
         supabase.from("sets").select("id, name"),
       ]);
@@ -132,12 +132,13 @@ export async function GET() {
       string,
       { revenue: number; profit: number }
     >();
-    profits.forEach((p) => {
+    profits.forEach((p: any) => {
       const key = dateKey(p.sold_at as string);
       if (!profitTrendMap.has(key))
         profitTrendMap.set(key, { revenue: 0, profit: 0 });
       const entry = profitTrendMap.get(key)!;
-      entry.revenue += p.revenue_pence || 0;
+      // Use revenue_after_discount_pence if available, fallback to revenue_pence
+      entry.revenue += (p.revenue_after_discount_pence ?? p.revenue_pence) || 0;
       entry.profit += p.net_profit_pence || 0;
     });
 

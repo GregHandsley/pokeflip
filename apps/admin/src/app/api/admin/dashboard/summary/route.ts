@@ -83,47 +83,37 @@ export async function GET(req: Request) {
 
     const salesOrderIds = (salesOrders || []).map((o: any) => o.id);
 
-    // Get all sales items
-    const { data: salesItems, error: itemsError } = await supabase
-      .from("sales_items")
-      .select("qty, sold_price_pence");
-
-    // Get recent sales (last 7 days)
+    // Get recent sales (last 7 days) - use profit view to account for discounts
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const { data: recentSales, error: salesError } = await supabase
-      .from("sales_orders")
-      .select(`
-        id,
-        sold_at,
-        sales_items (
-          qty,
-          sold_price_pence
-        )
-      `)
+    const { data: recentSalesProfit, error: salesError } = await supabase
+      .from("v_sales_order_profit")
+      .select("revenue_after_discount_pence, sales_order_id")
       .gte("sold_at", sevenDaysAgo.toISOString())
       .order("sold_at", { ascending: false })
       .limit(10);
 
-    const recentSalesRevenue = (recentSales || []).reduce((sum: number, order: any) => {
-      const orderTotal = (order.sales_items || []).reduce(
-        (orderSum: number, item: any) => orderSum + (item.qty || 0) * (item.sold_price_pence || 0),
-        0
-      );
-      return sum + orderTotal;
-    }, 0);
+    const recentSalesRevenue = (recentSalesProfit || []).reduce(
+      (sum: number, p: any) => sum + (p.revenue_after_discount_pence || 0),
+      0
+    );
 
-    const recentSalesCount = recentSales?.length || 0;
+    const recentSalesCount = recentSalesProfit?.length || 0;
 
-    // Get overall profit data
+    // Get overall profit data - use profit view to account for discounts
     const total_purchase_cost_pence = (acquisitions || []).reduce(
       (sum, acq) => sum + (acq.purchase_total_pence || 0),
       0
     );
 
-    const total_revenue_pence = (salesItems || []).reduce(
-      (sum, item) => sum + (item.qty || 0) * (item.sold_price_pence || 0),
+    // Get all profit data to calculate total revenue (after discounts)
+    const { data: allProfitData } = await supabase
+      .from("v_sales_order_profit")
+      .select("revenue_after_discount_pence");
+
+    const total_revenue_pence = (allProfitData || []).reduce(
+      (sum, p) => sum + (p.revenue_after_discount_pence || 0),
       0
     );
 

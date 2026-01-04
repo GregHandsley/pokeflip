@@ -18,6 +18,7 @@ type Series = { date: string; value: number };
 type ProfitPoint = {
   date: string;
   revenue_pence: number;
+  revenue_after_discount_pence?: number;
   net_profit_pence: number;
   margin_percent: number;
 };
@@ -150,7 +151,10 @@ export default function OperationalDashboard() {
           <h3 className="font-semibold text-sm mb-2">Profit Trend</h3>
           <div className="h-64 min-h-[260px] min-w-0">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data.profitTrend}>
+              <LineChart data={data.profitTrend.map((p) => ({
+                ...p,
+                display_revenue_pence: p.revenue_after_discount_pence ?? p.revenue_pence,
+              }))}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis
@@ -173,7 +177,7 @@ export default function OperationalDashboard() {
                 />
                 <Line
                   type="monotone"
-                  dataKey="revenue_pence"
+                  dataKey="display_revenue_pence"
                   name="Revenue"
                   stroke="#2563eb"
                   dot={false}

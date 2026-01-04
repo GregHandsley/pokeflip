@@ -35,7 +35,8 @@ type Lot = {
   updated_at: string;
   photo_count: number;
   use_api_image?: boolean;
-  purchase: Purchase | null;
+  purchase: Purchase | null; // Backwards compatibility
+  purchases?: Array<Purchase & { quantity: number }>; // New: multiple purchases
 };
 
 interface Props {
@@ -611,7 +612,30 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                           </div>
                         </div>
                         <div className="mt-1.5 ml-6 space-y-1">
-                          {lot.purchase && (
+                          {/* Show purchase history if available, otherwise fallback to single purchase */}
+                          {lot.purchases && lot.purchases.length > 0 ? (
+                            <div className="text-xs text-gray-600">
+                              <span className="font-medium">From purchase{lot.purchases.length > 1 ? "s" : ""}:</span>{" "}
+                              {lot.purchases.map((p, idx) => (
+                                <span key={p.id}>
+                                  {idx > 0 && ", "}
+                                  <a
+                                    href={`/admin/acquisitions/${p.id}/lots`}
+                                    className="text-blue-600 hover:text-blue-800 hover:underline"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {p.source_name}
+                                  </a>
+                                  {p.quantity > 1 && (
+                                    <span className="text-gray-500"> ({p.quantity})</span>
+                                  )}
+                                  {p.status === "closed" && (
+                                    <span className="ml-1 text-gray-400">(closed)</span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          ) : lot.purchase ? (
                             <div className="text-xs text-gray-600">
                               <span className="font-medium">From purchase:</span>{" "}
                               <a
@@ -625,7 +649,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                                 <span className="ml-1 text-gray-400">(closed)</span>
                               )}
                             </div>
-                          )}
+                          ) : null}
                           {lot.note && (
                             <div className="text-gray-500 italic text-xs">
                               {lot.note}

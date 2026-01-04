@@ -86,12 +86,24 @@ export async function GET(
       .map((l: any) => l.acquisition_id)
       .filter((id: any) => id != null) as string[];
     
+    // Also get acquisition IDs from purchase history
+    const { data: purchaseHistory } = await supabase
+      .from("lot_purchase_history")
+      .select("acquisition_id")
+      .in("lot_id", lotIds);
+    
+    const historyAcquisitionIds = [
+      ...new Set((purchaseHistory || []).map((ph: any) => ph.acquisition_id).filter(Boolean)),
+    ];
+    
+    const allAcquisitionIds = [...new Set([...acquisitionIds, ...historyAcquisitionIds])];
+    
     const purchaseMap = new Map<string, any>();
-    if (acquisitionIds.length > 0) {
+    if (allAcquisitionIds.length > 0) {
       const { data: acquisitions } = await supabase
         .from("acquisitions")
         .select("id, source_name, source_type, purchased_at, status")
-        .in("id", acquisitionIds);
+        .in("id", allAcquisitionIds);
       
       (acquisitions || []).forEach((acq: any) => {
         purchaseMap.set(acq.id, {
@@ -104,11 +116,40 @@ export async function GET(
       });
     }
 
+    // Get purchase history for all lots
+    const { data: allPurchaseHistory } = await supabase
+      .from("lot_purchase_history")
+      .select("lot_id, acquisition_id, quantity")
+      .in("lot_id", lotIds);
+
+    const purchaseHistoryMap = new Map<string, Array<{ acquisition_id: string; quantity: number }>>();
+    (allPurchaseHistory || []).forEach((ph: any) => {
+      if (!purchaseHistoryMap.has(ph.lot_id)) {
+        purchaseHistoryMap.set(ph.lot_id, []);
+      }
+      purchaseHistoryMap.get(ph.lot_id)!.push({
+        acquisition_id: ph.acquisition_id,
+        quantity: ph.quantity,
+      });
+    });
+
     // Format lots with available qty and related data
     const formattedLots = lots.map((lot: any) => {
       const soldQty = soldItemsMap.get(lot.id) || 0;
       const availableQty = Math.max(0, lot.quantity - soldQty);
+      
+      // Get purchase history for this lot
+      const history = purchaseHistoryMap.get(lot.id) || [];
+      const purchases = history
+        .map((h) => {
+          const purchase = purchaseMap.get(h.acquisition_id);
+          return purchase ? { ...purchase, quantity: h.quantity } : null;
+        })
+        .filter(Boolean) as Array<Purchase & { quantity: number }>;
+      
+      // Fallback to single purchase if no history (for backwards compatibility)
       const purchase = lot.acquisition_id ? purchaseMap.get(lot.acquisition_id) : null;
+      const singlePurchase = purchase && purchases.length === 0 ? purchase : null;
 
       return {
         id: lot.id,
@@ -128,7 +169,8 @@ export async function GET(
         is_queued: queuedLotIds.has(lot.id),
         photo_count: photoCountsMap.get(lot.id) || 0,
         use_api_image: lot.use_api_image || false,
-        purchase: purchase || null,
+        purchase: singlePurchase, // Keep for backwards compatibility
+        purchases: purchases.length > 0 ? purchases : (singlePurchase ? [{ ...singlePurchase, quantity: lot.quantity }] : []), // New field with all purchases
       };
     });
 
