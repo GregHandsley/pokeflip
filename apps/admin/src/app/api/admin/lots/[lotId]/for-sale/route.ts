@@ -8,7 +8,7 @@ export async function PATCH(
   try {
     const { lotId } = await params;
     const body = await req.json();
-    const { for_sale, list_price_pence, item_number } = body;
+    const { for_sale, list_price_pence } = body;
 
     if (for_sale === undefined) {
       return NextResponse.json(
@@ -23,7 +23,6 @@ export async function PATCH(
     const updateData: { 
       for_sale: boolean; 
       list_price_pence?: number | null;
-      item_number?: string | null;
     } = {
       for_sale,
     };
@@ -34,14 +33,6 @@ export async function PATCH(
     } else if (!for_sale) {
       // If marking as not for sale, optionally clear the price
       // For now, keep the price but you can clear it if needed
-    }
-
-    // Handle item_number - only set when marking as for sale
-    if (for_sale && item_number !== undefined) {
-      updateData.item_number = item_number && item_number.trim() ? item_number.trim() : null;
-    } else if (!for_sale) {
-      // Optionally clear item_number when marking as not for sale
-      // For now, keep it but you can clear it if needed
     }
 
     // Update the lot

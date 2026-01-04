@@ -139,6 +139,112 @@ export async function POST(
       );
     }
 
+    // Split purchase history between original and new lot
+    // Get purchase history for the original lot
+    const { data: purchaseHistory, error: historyError } = await supabase
+      .from("lot_purchase_history")
+      .select("acquisition_id, quantity")
+      .eq("lot_id", lotId);
+
+    if (historyError) {
+      console.error("Error fetching purchase history:", historyError);
+      // Don't fail the split if history fetch fails, but log it
+    } else if (purchaseHistory && purchaseHistory.length > 0) {
+      // Calculate the proportion to split based on quantities
+      const originalQuantity = originalLot.quantity;
+      const proportionForNewLot = split_qty / originalQuantity;
+
+      // Split each purchase history entry proportionally
+      for (const historyEntry of purchaseHistory) {
+        // Calculate how much of this purchase history goes to the new lot
+        const splitHistoryQty = Math.floor(historyEntry.quantity * proportionForNewLot);
+        const remainingHistoryQty = historyEntry.quantity - splitHistoryQty;
+
+        // Update original lot's history entry (reduce quantity)
+        if (remainingHistoryQty > 0) {
+          const { error: updateHistoryError } = await supabase
+            .from("lot_purchase_history")
+            .update({ quantity: remainingHistoryQty })
+            .eq("lot_id", lotId)
+            .eq("acquisition_id", historyEntry.acquisition_id);
+
+          if (updateHistoryError) {
+            console.error("Error updating purchase history:", updateHistoryError);
+          }
+        } else {
+          // If quantity becomes 0, delete the history entry
+          await supabase
+            .from("lot_purchase_history")
+            .delete()
+            .eq("lot_id", lotId)
+            .eq("acquisition_id", historyEntry.acquisition_id);
+        }
+
+        // Create purchase history entry for new split lot
+        if (splitHistoryQty > 0) {
+          const { error: insertHistoryError } = await supabase
+            .from("lot_purchase_history")
+            .insert({
+              lot_id: createdLot.id,
+              acquisition_id: historyEntry.acquisition_id,
+              quantity: splitHistoryQty,
+            });
+
+          if (insertHistoryError) {
+            console.error("Error creating purchase history for split lot:", insertHistoryError);
+          }
+        }
+      }
+    } else if (originalLot.acquisition_id) {
+      // No purchase history but lot has acquisition_id (legacy lot or trigger hasn't created history yet)
+      // Calculate proportional quantities
+      const proportionForNewLot = split_qty / originalLot.quantity;
+      const splitHistoryQty = Math.floor(originalLot.quantity * proportionForNewLot);
+      const remainingHistoryQty = originalLot.quantity - splitHistoryQty;
+
+      // Create history entry for new split lot
+      if (splitHistoryQty > 0) {
+        const { error: insertNewHistoryError } = await supabase
+          .from("lot_purchase_history")
+          .insert({
+            lot_id: createdLot.id,
+            acquisition_id: originalLot.acquisition_id,
+            quantity: splitHistoryQty,
+          });
+
+        if (insertNewHistoryError) {
+          console.error("Error creating purchase history for split lot:", insertNewHistoryError);
+        }
+      }
+
+      // Create/update history entry for original lot with remaining quantity
+      if (remainingHistoryQty > 0) {
+        const { error: upsertHistoryError } = await supabase
+          .from("lot_purchase_history")
+          .upsert(
+            {
+              lot_id: lotId,
+              acquisition_id: originalLot.acquisition_id,
+              quantity: remainingHistoryQty,
+            },
+            {
+              onConflict: "lot_id,acquisition_id",
+            }
+          );
+
+        if (upsertHistoryError) {
+          console.error("Error updating purchase history for original lot:", upsertHistoryError);
+        }
+      } else {
+        // If remaining quantity is 0, delete the history entry if it exists
+        await supabase
+          .from("lot_purchase_history")
+          .delete()
+          .eq("lot_id", lotId)
+          .eq("acquisition_id", originalLot.acquisition_id);
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       original_lot: { id: lotId, quantity: newQuantity },

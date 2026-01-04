@@ -51,27 +51,23 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 // Function to determine the display status for a lot
+// This should match the logic in CardLotsView.tsx for consistency
 function getDisplayStatus(lot: {
   status: string;
   for_sale: boolean;
 }): { label: string; color: string } {
   // Priority 1: Sold/Archived status
   if (lot.status === "sold") {
-    return { label: "Sold", color: "bg-purple-100 text-purple-700" };
+    return { label: "Sold", color: STATUS_COLORS.sold };
   }
   if (lot.status === "archived") {
-    return { label: "Archived", color: "bg-gray-100 text-gray-500" };
+    return { label: "Archived", color: STATUS_COLORS.archived };
   }
 
   // Fallback: Show lot status
-  const statusColors: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-700",
-    ready: "bg-blue-100 text-blue-700",
-    listed: "bg-green-100 text-green-700",
-  };
   return {
-    label: lot.status.charAt(0).toUpperCase() + lot.status.slice(1),
-    color: statusColors[lot.status] || "bg-gray-100 text-gray-700",
+    label: lot.status === "ready" ? "Ready to list" : lot.status.charAt(0).toUpperCase() + lot.status.slice(1),
+    color: STATUS_COLORS[lot.status] || STATUS_COLORS.draft,
   };
 }
 
@@ -84,8 +80,6 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
   const [showDeletePhotoConfirm, setShowDeletePhotoConfirm] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<{ id: string; kind: string } | null>(null);
   const [updatingForSale, setUpdatingForSale] = useState(false);
-  const [itemNumber, setItemNumber] = useState<string>("");
-  const [showItemNumberInput, setShowItemNumberInput] = useState(false);
   const [useApiImage, setUseApiImage] = useState(false);
   const [updatingApiImage, setUpdatingApiImage] = useState(false);
   const [dragOverKind, setDragOverKind] = useState<"front" | "back" | "extra" | null>(null);
@@ -328,23 +322,10 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
   };
 
   const handleToggleForSale = async () => {
-    // If marking as for sale, show input for item_number first
-    if (!currentLot.for_sale) {
-      setShowItemNumberInput(true);
-      return;
-    }
-
-    // If marking as not for sale, proceed directly
-    await updateForSaleStatus(false, null);
+    await updateForSaleStatus(!currentLot.for_sale);
   };
 
-  const handleConfirmForSale = async () => {
-    await updateForSaleStatus(true, itemNumber.trim() || null);
-    setShowItemNumberInput(false);
-    setItemNumber("");
-  };
-
-  const updateForSaleStatus = async (newForSale: boolean, itemNumberValue: string | null) => {
+  const updateForSaleStatus = async (newForSale: boolean) => {
     setUpdatingForSale(true);
     try {
       const res = await fetch(`/api/admin/lots/${currentLot.id}/for-sale`, {
@@ -353,7 +334,6 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
         body: JSON.stringify({
           for_sale: newForSale,
           list_price_pence: newForSale && !currentLot.list_price_pence ? 0.99 : undefined,
-          item_number: itemNumberValue,
         }),
       });
 
@@ -362,12 +342,32 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
         throw new Error(json.error || "Failed to update for_sale status");
       }
 
-      // Update local state
-      setCurrentLot((prev) => ({
-        ...prev,
-        for_sale: newForSale,
-        list_price_pence: newForSale && !prev.list_price_pence ? 99 : prev.list_price_pence,
-      }));
+      // Fetch updated lot data from server to ensure status is in sync
+      try {
+        const lotRes = await fetch(`/api/admin/lots/${currentLot.id}`);
+        const lotJson = await lotRes.json();
+        if (lotJson.ok && lotJson.lot) {
+          setCurrentLot({
+            ...currentLot,
+            ...lotJson.lot,
+            card: currentLot.card, // Preserve card data
+          });
+        } else {
+          // Fallback to optimistic update if fetch fails
+          setCurrentLot((prev) => ({
+            ...prev,
+            for_sale: newForSale,
+            list_price_pence: newForSale && !prev.list_price_pence ? 99 : prev.list_price_pence,
+          }));
+        }
+      } catch (fetchError) {
+        // Fallback to optimistic update if fetch fails
+        setCurrentLot((prev) => ({
+          ...prev,
+          for_sale: newForSale,
+          list_price_pence: newForSale && !prev.list_price_pence ? 99 : prev.list_price_pence,
+        }));
+      }
       onLotUpdated?.();
     } catch (e: any) {
       alert(e.message || "Failed to update for sale status");
@@ -411,17 +411,30 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="Lot Details"
+      title="Card Details"
       maxWidth="2xl"
       footer={
         <div className="flex items-center justify-end gap-3 w-full">
-          {canMarkAsSold && (
-            <button
-              onClick={handleMarkAsSold}
-              className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Mark as Sold
-            </button>
+          {canToggleForSale && (
+            <>
+              {!currentLot.for_sale ? (
+                <button
+                  onClick={handleToggleForSale}
+                  disabled={updatingForSale}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {updatingForSale ? "Saving..." : "Mark For Sale"}
+                </button>
+              ) : (
+                <button
+                  onClick={handleToggleForSale}
+                  disabled={updatingForSale}
+                  className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {updatingForSale ? "Saving..." : "Mark Not For Sale"}
+                </button>
+              )}
+            </>
           )}
           <button
             onClick={onClose}
@@ -434,13 +447,15 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
     >
       <div className="space-y-4">
         {currentLot.card && (
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-6">
             {currentLot.card.image_url && (
-              <img
-                src={`${currentLot.card.image_url}/low.webp`}
-                alt={`${currentLot.card.name} card`}
-                className="h-32 w-auto rounded border border-gray-200"
-              />
+              <div className="flex-shrink-0">
+                <img
+                  src={`${currentLot.card.image_url}/high.webp`}
+                  alt={`${currentLot.card.name} card`}
+                  className="h-64 w-auto rounded-lg border-2 border-gray-300 shadow-md"
+                />
+              </div>
             )}
             <div className="flex-1">
               <div className="font-medium text-lg">
@@ -448,7 +463,7 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
                 {currentLot.card.name}
               </div>
               {currentLot.card.set && (
-                <div className="text-sm text-gray-600">{currentLot.card.set.name}</div>
+                <div className="text-sm text-gray-600 mt-1">{currentLot.card.set.name}</div>
               )}
               {currentLot.card.rarity && (
                 <div className="text-xs text-gray-500 mt-1">{currentLot.card.rarity}</div>
@@ -481,6 +496,18 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
           <div className="flex justify-between">
             <span className="text-gray-600">Status:</span>
             {(() => {
+              // Match the inventory view logic: show "Missing photos" if photos are missing
+              const missingPhotos = !currentLot.use_api_image && (!currentLot.photo_count || currentLot.photo_count < 2);
+              if (missingPhotos) {
+                return (
+                  <span
+                    className="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700"
+                    title="Add front and back photos"
+                  >
+                    Missing photos
+                  </span>
+                );
+              }
               const displayStatus = getDisplayStatus({
                 status: currentLot.status,
                 for_sale: currentLot.for_sale,
@@ -488,7 +515,7 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
               return (
                 <span
                   className={`px-2 py-1 rounded text-xs font-medium ${displayStatus.color}`}
-                  title={`Sale Status: ${displayStatus.label}`}
+                  title={`Status: ${displayStatus.label}`}
                 >
                   {displayStatus.label}
                 </span>
@@ -499,74 +526,16 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">For Sale:</span>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium ${
-                      currentLot.for_sale
-                        ? "bg-green-100 text-green-700"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
-                    {currentLot.for_sale ? "Yes" : "No"}
-                  </span>
-                  <button
-                    onClick={handleToggleForSale}
-                    disabled={updatingForSale}
-                    className="px-3 py-1 text-xs font-medium rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {updatingForSale
-                      ? "..."
-                      : currentLot.for_sale
-                      ? "Mark Not For Sale"
-                      : "Mark For Sale"}
-                  </button>
-                </div>
+                <span
+                  className={`px-2 py-1 rounded text-xs font-medium ${
+                    currentLot.for_sale
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-700"
+                  }`}
+                >
+                  {currentLot.for_sale ? "Yes" : "No"}
+                </span>
               </div>
-              {showItemNumberInput && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Item Number <span className="text-gray-500 text-xs">(optional - for grouping)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={itemNumber}
-                    onChange={(e) => setItemNumber(e.target.value)}
-                    placeholder="e.g., EBAY-001"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleConfirmForSale();
-                      } else if (e.key === "Escape") {
-                        setShowItemNumberInput(false);
-                        setItemNumber("");
-                      }
-                    }}
-                    autoFocus
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleConfirmForSale}
-                      disabled={updatingForSale}
-                      className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {updatingForSale ? "Saving..." : "Confirm"}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowItemNumberInput(false);
-                        setItemNumber("");
-                      }}
-                      disabled={updatingForSale}
-                      className="px-3 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-600">
-                    Cards with the same item number will be grouped together when marking as sold.
-                  </p>
-                </div>
-              )}
             </div>
           )}
           {currentLot.for_sale && currentLot.list_price_pence != null && (

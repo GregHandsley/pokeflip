@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { penceToPounds, poundsToPence } from "@pokeflip/shared";
 import PageHeader from "@/components/ui/PageHeader";
@@ -10,8 +10,11 @@ import type { Condition } from "@/features/intake/types";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 import { variationLabel } from "@/components/inventory/variations";
 import LotDetailModal from "@/components/inventory/LotDetailModal";
+import MarkSoldModal from "@/components/inventory/MarkSoldModal";
 import SplitModal from "@/components/ui/SplitModal";
 import MergeLotsModal from "@/components/inventory/MergeLotsModal";
+import SalesFlowModal from "@/components/inbox/sales-flow/SalesFlowModal";
+import { InboxLot } from "@/components/inbox/sales-flow/types";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -67,7 +70,6 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function PurchaseLotsPage() {
   const params = useParams();
-  const router = useRouter();
   const purchaseId = params?.id as string;
   const supabase = supabaseBrowser();
 
@@ -100,6 +102,9 @@ export default function PurchaseLotsPage() {
   const [lotToSplit, setLotToSplit] = useState<Lot | null>(null);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [removingDraftId, setRemovingDraftId] = useState<string | null>(null);
+  const [updatingForSale, setUpdatingForSale] = useState(false);
+  const [lotForSalesFlow, setLotForSalesFlow] = useState<InboxLot | null>(null);
+  const [lotToMarkSold, setLotToMarkSold] = useState<Lot | null>(null);
 
   useEffect(() => {
     if (purchaseId) {
@@ -418,53 +423,197 @@ export default function PurchaseLotsPage() {
     }
   };
 
+  const handleBulkUpdateForSale = async (forSale: boolean) => {
+    if (selectedLots.size === 0) return;
+
+    setUpdatingForSale(true);
+    try {
+      const lotIds = Array.from(selectedLots);
+      
+      // Update each lot individually using the existing API endpoint
+      const results = await Promise.allSettled(
+        lotIds.map((lotId) =>
+          fetch(`/api/admin/lots/${lotId}/for-sale`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ for_sale: forSale }),
+          })
+        )
+      );
+
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        setToast(`Failed to update ${failed} card(s). Please try again.`);
+      } else {
+        setToast(`Successfully updated ${lotIds.length} card(s)`);
+      }
+
+      setSelectedLots(new Set());
+      await loadPurchaseLots();
+      await loadProfitData();
+    } catch (e: any) {
+      setToast(e?.message ?? "Failed to update for sale status");
+    } finally {
+      setUpdatingForSale(false);
+    }
+  };
+
+  // Convert Lot to InboxLot format for SalesFlowModal
+  const convertLotToInboxLot = async (lot: Lot): Promise<InboxLot | null> => {
+    try {
+      // Fetch card data with set information
+      const { data: card, error: cardError } = await supabase
+        .from("cards")
+        .select(`
+          id,
+          number,
+          name,
+          rarity,
+          api_image_url,
+          set_id,
+          sets (
+            id,
+            name
+          )
+        `)
+        .eq("id", lot.card_id)
+        .single();
+
+      if (cardError || !card) {
+        console.error("Error fetching card:", cardError);
+        return null;
+      }
+
+      const set = (card as any).sets;
+
+      // Get photos for this lot
+      const { data: photos } = await supabase
+        .from("lot_photos")
+        .select("kind")
+        .eq("lot_id", lot.id);
+
+      const photoKinds = new Set((photos || []).map((p: any) => p.kind));
+      const hasFrontPhoto = photoKinds.has("front");
+      const hasBackPhoto = photoKinds.has("back");
+      const hasRequiredPhotos = hasFrontPhoto && hasBackPhoto;
+
+      // Get API image URL from card
+      const apiImageUrl = (card as any).api_image_url || null;
+
+      const inboxLot: InboxLot = {
+        lot_id: lot.id,
+        card_id: lot.card_id,
+        card_number: card.number || "",
+        card_name: card.name || "",
+        set_name: set?.name || "",
+        rarity: card.rarity || null,
+        condition: lot.condition,
+        variation: lot.variation || "standard",
+        status: lot.status,
+        for_sale: lot.for_sale,
+        list_price_pence: lot.list_price_pence,
+        quantity: lot.quantity,
+        available_qty: lot.available_qty,
+        photo_count: lot.photo_count,
+        use_api_image: lot.use_api_image || false,
+        api_image_url: apiImageUrl,
+        has_front_photo: hasFrontPhoto,
+        has_back_photo: hasBackPhoto,
+        has_required_photos: hasRequiredPhotos,
+      };
+
+      return inboxLot;
+    } catch (e) {
+      console.error("Error converting lot to InboxLot:", e);
+      return null;
+    }
+  };
+
+  // Handle lot click - determine which modal to open based on lot status
+  const handleLotClick = async (lot: Lot) => {
+    // If marked as "not for sale", open Lot Detail modal to allow marking as for sale
+    if (!lot.for_sale) {
+      setSelectedLot(lot);
+      return;
+    }
+
+    // If status is "listed", open Mark as Sold modal
+    if (lot.status === "listed") {
+      setLotToMarkSold(lot);
+      return;
+    }
+
+    // If status is "ready" (in inbox), open Sales Flow modal
+    if (lot.status === "ready") {
+      const inboxLot = await convertLotToInboxLot(lot);
+      if (inboxLot) {
+        setLotForSalesFlow(inboxLot);
+      } else {
+        // Fallback to detail modal if conversion fails
+        setSelectedLot(lot);
+      }
+      return;
+    }
+
+    // Otherwise, open detail modal (default behavior)
+    setSelectedLot(lot);
+  };
+
   return (
     <div>
       <PageHeader 
         title={`Purchase: ${purchase.source_name}`}
         action={
-          <div className="relative">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="p-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
-              aria-label="More options"
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-              </svg>
+              Add New Card
             </button>
-            {showMenu && (
-              <>
-                <div 
-                  className="fixed inset-0 z-10" 
-                  onClick={() => setShowMenu(false)}
-                />
-                <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
-                  {purchase.status === "open" ? (
-                    <button
-                      onClick={handleCloseClick}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                    >
-                      Close Purchase
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleReopenClick}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      Reopen Purchase
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
+            <div className="relative">
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+                aria-label="More options"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                </svg>
+              </button>
+              {showMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setShowMenu(false)}
+                  />
+                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
+                    {purchase.status === "open" ? (
+                      <button
+                        onClick={handleCloseClick}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        Close Purchase
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleReopenClick}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Reopen Purchase
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         }
       />
       
       {/* Toast */}
       {toast && (
-        <div className={`mb-4 rounded-lg px-4 py-2.5 text-sm font-medium ${
+        <div className={`mb-6 rounded-lg px-4 py-2.5 text-sm font-medium ${
           toast.includes("Error") 
             ? "bg-red-50 text-red-700 border border-red-200" 
             : "bg-green-50 text-green-700 border border-green-200"
@@ -559,14 +708,8 @@ export default function PurchaseLotsPage() {
         </div>
       )}
 
-      {/* Actions */}
+      {/* Primary Actions */}
       <div className="flex gap-3 mb-6 flex-wrap items-center">
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-        >
-          Add New Card
-        </button>
         {draftCount > 0 && (
           <button
             onClick={handleCommit}
@@ -584,31 +727,33 @@ export default function PurchaseLotsPage() {
             Merge Selected ({selectedLots.size})
           </button>
         )}
-        {selectedLots.size > 0 && (
+      </div>
+
+      {/* Bulk Actions (when cards are selected) */}
+      {selectedLots.size > 0 && (
+        <div className="flex items-center gap-2 mb-6">
+          <button
+            onClick={() => handleBulkUpdateForSale(true)}
+            disabled={updatingForSale}
+            className="px-3 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded border border-green-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {updatingForSale ? "Updating..." : "Mark For Sale"}
+          </button>
+          <button
+            onClick={() => handleBulkUpdateForSale(false)}
+            disabled={updatingForSale}
+            className="px-3 py-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded border border-orange-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {updatingForSale ? "Updating..." : "Mark Not For Sale"}
+          </button>
           <button
             onClick={() => setSelectedLots(new Set())}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-700 hover:bg-gray-50 rounded border border-gray-200 transition-colors"
           >
             Clear Selection
           </button>
-        )}
-        <button
-          onClick={() => {
-            if (draftCount > 0) {
-              const confirmed = window.confirm(
-                `You have ${draftCount} uncommitted card${draftCount !== 1 ? "s" : ""} in this purchase. If you navigate away, these cards will not be added to inventory. Do you want to continue?`
-              );
-              if (!confirmed) {
-                return;
-              }
-            }
-            router.push("/admin/inventory");
-          }}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
-        >
-          Back to Inventory
-        </button>
-      </div>
+        </div>
+      )}
 
       {/* Cards grouped by set */}
       {Object.keys(lotsBySet).length === 0 ? (
@@ -674,7 +819,7 @@ export default function PurchaseLotsPage() {
                                 className={`h-16 w-auto rounded border border-gray-200 ${isDraft ? "" : "cursor-pointer"}`}
                                 onClick={() => {
                                   if (!isDraft) {
-                                    setSelectedLot(lot);
+                                    handleLotClick(lot);
                                   }
                                 }}
                               />
@@ -683,7 +828,7 @@ export default function PurchaseLotsPage() {
                               className={`flex-1 min-w-0 ${isDraft ? "" : "cursor-pointer"}`}
                               onClick={() => {
                                 if (!isDraft) {
-                                  setSelectedLot(lot);
+                                  handleLotClick(lot);
                                 }
                               }}
                             >
@@ -745,11 +890,21 @@ export default function PurchaseLotsPage() {
                                     </button>
                                   </>
                                 ) : (
-                                  <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${
-                                    STATUS_COLORS[lot.status] || STATUS_COLORS.draft
-                                  }`}>
-                                    {lot.status}
-                                  </span>
+                                  <>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${
+                                      STATUS_COLORS[lot.status] || STATUS_COLORS.draft
+                                    }`}>
+                                      {lot.status === "ready" ? "Ready to list" : lot.status.charAt(0).toUpperCase() + lot.status.slice(1)}
+                                    </span>
+                                    {!lot.for_sale && (
+                                      <span
+                                        className="px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700"
+                                        title="Not for sale - will not appear in inbox"
+                                      >
+                                        Not For Sale
+                                      </span>
+                                    )}
+                                  </>
                                 )}
                                 {canSplit && (
                                   <button
@@ -813,9 +968,10 @@ export default function PurchaseLotsPage() {
         <LotDetailModal
           lot={selectedLot}
           onClose={() => setSelectedLot(null)}
-          onLotUpdated={() => {
-            loadPurchaseLots();
-            loadProfitData();
+          onLotUpdated={async () => {
+            setSelectedLot(null);
+            await loadPurchaseLots();
+            await loadProfitData();
             loadDraftCount();
           }}
           onPhotoCountChanged={(lotId, newCount) => {
@@ -851,6 +1007,34 @@ export default function PurchaseLotsPage() {
           onMerge={handleMerge}
           lots={lots.filter((lot) => selectedLots.has(lot.id))}
           cardName={lots.find((lot) => selectedLots.has(lot.id))?.card?.name || "Card"}
+        />
+      )}
+
+      {/* Sales Flow Modal */}
+      {lotForSalesFlow && (
+        <SalesFlowModal
+          lot={lotForSalesFlow}
+          onClose={() => setLotForSalesFlow(null)}
+          onUpdated={() => {
+            setLotForSalesFlow(null);
+            loadPurchaseLots();
+            loadProfitData();
+            loadDraftCount();
+          }}
+        />
+      )}
+
+      {/* Mark Sold Modal */}
+      {lotToMarkSold && (
+        <MarkSoldModal
+          lot={lotToMarkSold}
+          onClose={() => setLotToMarkSold(null)}
+          onSaleCreated={() => {
+            setLotToMarkSold(null);
+            loadPurchaseLots();
+            loadProfitData();
+            loadDraftCount();
+          }}
         />
       )}
 

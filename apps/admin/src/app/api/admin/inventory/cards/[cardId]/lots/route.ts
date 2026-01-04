@@ -9,6 +9,31 @@ export async function GET(
     const { cardId } = await params;
     const supabase = supabaseServer();
 
+    // Fetch card data first
+    const { data: card, error: cardError } = await supabase
+      .from("cards")
+      .select(`
+        id,
+        number,
+        name,
+        rarity,
+        api_image_url,
+        sets (
+          id,
+          name
+        )
+      `)
+      .eq("id", cardId)
+      .single();
+
+    if (cardError) {
+      console.error("Error fetching card:", cardError);
+      return NextResponse.json(
+        { error: cardError.message || "Failed to fetch card" },
+        { status: 500 }
+      );
+    }
+
     // Fetch all lots for this card
     const { data: lots, error } = await supabase
       .from("inventory_lots")
@@ -164,6 +189,7 @@ export async function GET(
         note: lot.note,
         created_at: lot.created_at,
         updated_at: lot.updated_at,
+        sku: lot.sku || null,
         ebay_status: ebayMap.get(lot.id) || "not_listed",
         ebay_publish_queued_at: lot.ebay_publish_queued_at || null,
         is_queued: queuedLotIds.has(lot.id),
@@ -177,6 +203,17 @@ export async function GET(
     return NextResponse.json({
       ok: true,
       lots: formattedLots,
+      card: card ? {
+        id: card.id,
+        number: card.number,
+        name: card.name,
+        rarity: card.rarity,
+        image_url: card.api_image_url, // Use api_image_url as image_url for compatibility
+        set: card.sets ? {
+          id: (card.sets as any).id,
+          name: (card.sets as any).name,
+        } : null,
+      } : null,
     });
   } catch (error: any) {
     console.error("Error in lots API:", error);

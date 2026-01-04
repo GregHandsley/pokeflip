@@ -10,8 +10,6 @@ interface Props {
   lot: InboxLot;
   salesData: SalesData | null;
   loadingSalesData: boolean;
-  itemNumber?: string;
-  onItemNumberChange?: (itemNumber: string) => void;
   publishQuantity?: number;
   onPublishQuantityChange?: (quantity: number) => void;
 }
@@ -20,8 +18,6 @@ export default function PricingStep({
   lot, 
   salesData, 
   loadingSalesData, 
-  itemNumber = "", 
-  onItemNumberChange,
   publishQuantity,
   onPublishQuantityChange,
 }: Props) {
@@ -289,23 +285,6 @@ export default function PricingStep({
           ) : (
             <>All <strong>{lot.available_qty}</strong> available card{lot.available_qty !== 1 ? "s" : ""} will be published.</>
           )}
-        </p>
-      </div>
-
-      {/* Item Number / eBay Number */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Item Number <span className="text-gray-500 text-xs font-normal">(eBay listing number - optional)</span>
-        </label>
-        <Input
-          type="text"
-          value={itemNumber}
-          onChange={(e) => onItemNumberChange?.(e.target.value)}
-          placeholder="e.g., 123456789012"
-          className="w-full"
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          Cards with the same item number will be grouped together when marking as sold.
         </p>
       </div>
     </div>

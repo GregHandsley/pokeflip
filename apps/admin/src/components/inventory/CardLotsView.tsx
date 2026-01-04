@@ -5,6 +5,8 @@ import { penceToPounds } from "@pokeflip/shared";
 import Modal from "@/components/ui/Modal";
 import LotDetailModal from "./LotDetailModal";
 import MarkSoldModal from "./MarkSoldModal";
+import SalesFlowModal from "@/components/inbox/sales-flow/SalesFlowModal";
+import { InboxLot } from "@/components/inbox/sales-flow/types";
 import SplitModal from "@/components/ui/SplitModal";
 import MergeLotsModal from "./MergeLotsModal";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
@@ -33,6 +35,7 @@ type Lot = {
   note: string | null;
   created_at: string;
   updated_at: string;
+  sku: string | null;
   photo_count: number;
   use_api_image?: boolean;
   purchase: Purchase | null; // Backwards compatibility
@@ -101,6 +104,17 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
   const [lotToSplit, setLotToSplit] = useState<Lot | null>(null);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [lotForSalesFlow, setLotForSalesFlow] = useState<InboxLot | null>(null);
+  const [updatingForSale, setUpdatingForSale] = useState(false);
+
+  const [cardData, setCardData] = useState<{
+    id: string;
+    number: string;
+    name: string;
+    rarity: string | null;
+    image_url: string | null;
+    set: { id: string; name: string } | null;
+  } | null>(null);
 
   const loadLots = async () => {
     setLoading(true);
@@ -109,23 +123,117 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
       const json = await res.json();
       if (json.ok) {
         setLots(json.lots || []);
-      }
-      
-      // Fetch card name
-      const { data: card, error: cardError } = await supabase
-        .from("cards")
-        .select("name")
-        .eq("id", cardId)
-        .single();
-      
-      if (!cardError && card) {
-        setCardName(card.name || "");
+        // Store card data for use in modals
+        if (json.card) {
+          setCardData(json.card);
+          setCardName(json.card.name || "");
+        }
       }
     } catch (e) {
       console.error("Failed to load cards:", e);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Convert Lot to InboxLot format for SalesFlowModal
+  const convertLotToInboxLot = async (lot: Lot): Promise<InboxLot | null> => {
+    try {
+      // Fetch card data with set information
+      const { data: card, error: cardError } = await supabase
+        .from("cards")
+        .select(`
+          id,
+          number,
+          name,
+          rarity,
+          api_image_url,
+          set_id,
+          sets (
+            id,
+            name
+          )
+        `)
+        .eq("id", cardId)
+        .single();
+
+      if (cardError || !card) {
+        console.error("Error fetching card:", cardError);
+        return null;
+      }
+
+      const set = (card.sets as any) || null;
+
+      // Get photo counts
+      const { data: photos } = await supabase
+        .from("lot_photos")
+        .select("kind")
+        .eq("lot_id", lot.id)
+        .in("kind", ["front", "back"]);
+
+      const hasFrontPhoto = photos?.some((p) => p.kind === "front") || false;
+      const hasBackPhoto = photos?.some((p) => p.kind === "back") || false;
+      const hasRequiredPhotos = hasFrontPhoto && hasBackPhoto;
+
+      // Get API image URL from card
+      const apiImageUrl = (card as any).api_image_url || null;
+
+      const inboxLot: InboxLot = {
+        lot_id: lot.id,
+        card_id: cardId,
+        card_number: card.number || "",
+        card_name: card.name || "",
+        set_name: set?.name || "",
+        rarity: card.rarity || null,
+        condition: lot.condition,
+        variation: lot.variation || "standard",
+        status: lot.status,
+        for_sale: lot.for_sale,
+        list_price_pence: lot.list_price_pence,
+        quantity: lot.quantity,
+        available_qty: lot.available_qty,
+        photo_count: lot.photo_count,
+        use_api_image: lot.use_api_image || false,
+        api_image_url: apiImageUrl,
+        has_front_photo: hasFrontPhoto,
+        has_back_photo: hasBackPhoto,
+        has_required_photos: hasRequiredPhotos,
+      };
+
+      return inboxLot;
+    } catch (e) {
+      console.error("Error converting lot to InboxLot:", e);
+      return null;
+    }
+  };
+
+  const handleLotClick = async (lot: Lot) => {
+    // If marked as "not for sale", open Lot Detail modal to allow marking as for sale
+    if (!lot.for_sale) {
+      setSelectedLot(lot);
+      return;
+    }
+
+    // If status is "listed", open Mark as Sold modal
+    if (lot.status === "listed") {
+      setLotToMarkSold(lot);
+      return;
+    }
+
+    // If status is "ready" (in inbox), open Sales Flow modal
+    if (lot.status === "ready") {
+      const inboxLot = await convertLotToInboxLot(lot);
+      if (inboxLot) {
+        setLotForSalesFlow(inboxLot);
+      } else {
+        // Fallback to detail modal if conversion fails
+        setSelectedLot(lot);
+      }
+      return;
+    }
+
+    // Otherwise, open detail modal (default behavior)
+    setSelectedLot(lot);
   };
 
   useEffect(() => {
@@ -297,15 +405,16 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
   const allSelected = selectedLots.size === lots.length && lots.length > 0;
   const someSelected = selectedLots.size > 0 && selectedLots.size < lots.length;
 
-  // Check if selected lots can be merged (same card, condition, no sold items, active status)
+  // Check if selected lots can be merged (same SKU, no sold items, active status)
+  // Using SKU ensures same card + condition + variation (as SKU is unique per combination)
   const canMergeSelected = (() => {
     if (selectedLots.size < 2) return false;
     const selectedLotsArray = lots.filter((lot) => selectedLots.has(lot.id));
     
-    // Check all have same card (already filtered by cardId in this view) and condition
+    // Check all have the same SKU (ensures same card, condition, and variation)
     const firstLot = selectedLotsArray[0];
-    const allSameCondition = selectedLotsArray.every(
-      (lot) => lot.condition === firstLot.condition
+    const allSameSku = selectedLotsArray.every(
+      (lot) => lot.sku && firstLot.sku && lot.sku === firstLot.sku
     );
     
     // Check all are active (not sold/archived)
@@ -316,7 +425,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
     // Check none have sold items
     const noneHaveSales = selectedLotsArray.every((lot) => lot.sold_qty === 0);
     
-    return allSameCondition && allActive && noneHaveSales;
+    return allSameSku && allActive && noneHaveSales;
   })();
 
   const handleMerge = async (targetLotId: string) => {
@@ -346,6 +455,39 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
       throw e;
     } finally {
       setMerging(false);
+    }
+  };
+
+  const handleBulkUpdateForSale = async (forSale: boolean) => {
+    if (selectedLots.size === 0) return;
+
+    setUpdatingForSale(true);
+    try {
+      const lotIds = Array.from(selectedLots);
+      
+      // Update each lot individually using the existing API endpoint
+      const results = await Promise.allSettled(
+        lotIds.map((lotId) =>
+          fetch(`/api/admin/lots/${lotId}/for-sale`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ for_sale: forSale }),
+          })
+        )
+      );
+
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        alert(`Failed to update ${failed} card(s). Please try again.`);
+      }
+
+      setSelectedLots(new Set());
+      loadLots();
+      onLotsChanged?.();
+    } catch (e: any) {
+      alert(e.message || "Failed to update for sale status");
+    } finally {
+      setUpdatingForSale(false);
     }
   };
 
@@ -391,10 +533,24 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
           </div>
           {selectedLots.size > 0 && (
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleBulkUpdateForSale(true)}
+                disabled={updatingForSale}
+                className="px-3 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded border border-green-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {updatingForSale ? "Updating..." : "Mark For Sale"}
+              </button>
+              <button
+                onClick={() => handleBulkUpdateForSale(false)}
+                disabled={updatingForSale}
+                className="px-3 py-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded border border-orange-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {updatingForSale ? "Updating..." : "Mark Not For Sale"}
+              </button>
               {canMergeSelected && (
                 <button
                   onClick={() => setShowMergeModal(true)}
-                  disabled={merging}
+                  disabled={merging || updatingForSale}
                   className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded border border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Merge
@@ -402,7 +558,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
               )}
               <button
                 onClick={() => setShowBulkDeleteConfirm(true)}
-                disabled={deletingLotId === "bulk"}
+                disabled={deletingLotId === "bulk" || updatingForSale}
                 className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {deletingLotId === "bulk" ? "Deleting..." : `Delete ${selectedLots.size} card${selectedLots.size !== 1 ? "s" : ""}`}
@@ -432,7 +588,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                             ? "border-blue-300 bg-blue-50"
                             : "border-gray-200 hover:border-gray-300"
                         } transition-colors cursor-pointer`}
-                        onClick={() => setSelectedLot(lot)}
+                        onClick={() => handleLotClick(lot)}
                       >
                         <div className="flex items-center gap-2">
                           {/* Checkbox */}
@@ -463,6 +619,11 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                               {lot.variation && lot.variation !== "standard" && (
                                 <span className="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700">
                                   {variationLabel(lot.variation)}
+                                </span>
+                              )}
+                              {lot.sku && (
+                                <span className="text-[10px] text-gray-400 font-mono">
+                                  {lot.sku}
                                 </span>
                               )}
                               {lot.for_sale && lot.list_price_pence != null && (
@@ -532,31 +693,6 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                                       strokeLinejoin="round"
                                       strokeWidth={2}
                                       d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                                    />
-                                  </svg>
-                                </button>
-                              )}
-                              {/* Mark Sold button - only show for active lots with available quantity */}
-                              {lot.status !== "sold" && lot.status !== "archived" && lot.available_qty > 0 && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setLotToMarkSold(lot);
-                                  }}
-                                  className="ml-1 p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-colors"
-                                  title="Mark as sold"
-                                >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                                     />
                                   </svg>
                                 </button>
@@ -829,6 +965,11 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                                         {variationLabel(lot.variation)}
                                       </span>
                                     )}
+                                    {lot.sku && (
+                                      <span className="text-[10px] text-gray-400 font-mono">
+                                        {lot.sku}
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-2 flex-shrink-0">
                                     <span
@@ -997,12 +1138,24 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
       </Modal>
 
       {/* Lot Detail Modal */}
-      {selectedLot && (
+      {selectedLot && cardData && (
         <LotDetailModal
-          lot={selectedLot}
+          lot={{
+            ...selectedLot,
+            card_id: cardId,
+            card: {
+              id: cardData.id,
+              number: cardData.number,
+              name: cardData.name,
+              rarity: cardData.rarity,
+              image_url: cardData.image_url,
+              set: cardData.set,
+            },
+          }}
           onClose={() => setSelectedLot(null)}
           onLotUpdated={() => {
             setSelectedLot(null);
+            loadLots();
             onLotsChanged?.();
           }}
           onPhotoCountChanged={(lotId, newCount) => {
@@ -1076,6 +1229,19 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
           onMerge={handleMerge}
           lots={lots.filter((lot) => selectedLots.has(lot.id))}
           cardName={cardName || "Card"}
+        />
+      )}
+
+      {/* Sales Flow Modal */}
+      {lotForSalesFlow && (
+        <SalesFlowModal
+          lot={lotForSalesFlow}
+          onClose={() => setLotForSalesFlow(null)}
+          onUpdated={() => {
+            setLotForSalesFlow(null);
+            loadLots();
+            onLotsChanged?.();
+          }}
         />
       )}
     </>

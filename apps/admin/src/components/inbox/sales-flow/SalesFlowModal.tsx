@@ -30,9 +30,10 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
   const [photoToDelete, setPhotoToDelete] = useState<{ id: string; kind: string } | null>(null);
   const [dragOverKind, setDragOverKind] = useState<"front" | "back" | "extra" | null>(null);
   const [uploadingKind, setUploadingKind] = useState<"front" | "back" | "extra" | null>(null);
-  const [itemNumber, setItemNumber] = useState<string>("");
   const [publishQuantity, setPublishQuantity] = useState<number | null>(null);
   const [variation, setVariation] = useState<string>("standard");
+  const [showMenu, setShowMenu] = useState(false);
+  const [markingNotForSale, setMarkingNotForSale] = useState(false);
 
   useEffect(() => {
     if (lot) {
@@ -313,13 +314,12 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
           throw new Error(statusJson.error || "Failed to update status");
         }
 
-        // Mark as for_sale and set item_number
+        // Mark as for_sale
         const forSaleRes = await fetch(`/api/admin/lots/${lot.lot_id}/for-sale`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             for_sale: true,
-            item_number: itemNumber.trim() || null,
           }),
         });
 
@@ -340,14 +340,13 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
           throw new Error(statusJson.error || "Failed to update status");
         }
 
-        // If marking as listed, also mark as for_sale and set item_number
+        // If marking as listed, also mark as for_sale
         if (status === "listed") {
           const forSaleRes = await fetch(`/api/admin/lots/${lot.lot_id}/for-sale`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               for_sale: true,
-              item_number: itemNumber.trim() || null,
             }),
           });
 
@@ -405,6 +404,32 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
     }
   };
 
+  const handleMarkNotForSale = async () => {
+    if (!lot) return;
+    
+    setMarkingNotForSale(true);
+    setShowMenu(false);
+    try {
+      const res = await fetch(`/api/admin/lots/${lot.lot_id}/for-sale`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ for_sale: false }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to mark as not for sale");
+      }
+
+      onUpdated();
+      onClose();
+    } catch (e: any) {
+      alert(e.message || "Failed to mark as not for sale");
+    } finally {
+      setMarkingNotForSale(false);
+    }
+  };
+
   if (!lot) return null;
 
   const hasFront = photos.some((p) => p.kind === "front");
@@ -420,6 +445,43 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
         title={`Sales Flow: #${lot.card_number} ${lot.card_name}`}
         subtitle={lot.set_name}
         maxWidth="6xl"
+        headerAction={
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMenu(!showMenu);
+              }}
+              className="p-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+              aria-label="More options"
+              disabled={markingNotForSale}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+              </svg>
+            </button>
+            {showMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setShowMenu(false)}
+                />
+                <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMarkNotForSale();
+                    }}
+                    disabled={markingNotForSale}
+                    className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {markingNotForSale ? "Marking..." : "Mark Not For Sale"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        }
         footer={
           <div className="flex justify-between items-center w-full">
             <div className="flex gap-2">
@@ -525,8 +587,6 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
               lot={lot}
               salesData={salesData}
               loadingSalesData={loadingSalesData}
-              itemNumber={itemNumber}
-              onItemNumberChange={setItemNumber}
               publishQuantity={publishQuantity ?? undefined}
               onPublishQuantityChange={(qty) => setPublishQuantity(qty)}
             />

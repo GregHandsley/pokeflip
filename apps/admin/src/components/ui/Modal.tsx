@@ -8,6 +8,7 @@ interface ModalProps {
   children: ReactNode;
   footer?: ReactNode;
   maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "6xl";
+  headerAction?: ReactNode;
 }
 
 export default function Modal({
@@ -18,6 +19,7 @@ export default function Modal({
   children,
   footer,
   maxWidth = "2xl",
+  headerAction,
 }: ModalProps) {
   if (!isOpen) return null;
 
@@ -41,17 +43,20 @@ export default function Modal({
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div>
+          <div className="flex-1">
             <h2 className="text-2xl font-bold">{title}</h2>
             {subtitle && <div className="text-sm text-gray-600 mt-1">{subtitle}</div>}
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl"
-            aria-label="Close modal"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-2">
+            {headerAction}
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+              aria-label="Close modal"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         {/* Content */}

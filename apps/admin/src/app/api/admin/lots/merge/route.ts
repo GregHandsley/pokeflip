@@ -44,6 +44,29 @@ export async function POST(req: Request) {
       );
     }
 
+    // Verify all lots have the same SKU (ensures same card, condition, and variation)
+    // This is the most reliable check since SKU is unique per card+condition+variation combination
+    const targetSku = targetLot.sku;
+    if (!targetSku) {
+      return NextResponse.json(
+        { error: "Target lot must have a SKU to merge" },
+        { status: 400 }
+      );
+    }
+
+    const allMatchSku = lotsToMerge.every(
+      (lot: any) => lot.sku && lot.sku === targetSku
+    );
+
+    if (!allMatchSku) {
+      return NextResponse.json(
+        { error: "All lots must have the same SKU to merge (same card, condition, and variation)" },
+        { status: 400 }
+      );
+    }
+
+    // Also verify card_id, condition, and variation match as a secondary check
+    // (this should always be true if SKUs match, but provides additional validation)
     const allMatch = lotsToMerge.every(
       (lot: any) =>
         lot.card_id === targetLot.card_id &&
@@ -53,7 +76,7 @@ export async function POST(req: Request) {
 
     if (!allMatch) {
       return NextResponse.json(
-        { error: "All lots must have the same card and condition to merge" },
+        { error: "All lots must have the same card, condition, and variation to merge" },
         { status: 400 }
       );
     }
