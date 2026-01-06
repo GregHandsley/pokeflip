@@ -6,6 +6,7 @@ import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import ErrorModal from "@/components/ui/ErrorModal";
+import BundleSelector from "./BundleSelector";
 
 type Lot = {
   id: string;
@@ -151,20 +152,25 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
       const res = await fetch("/api/admin/sales/order-groups");
       const json = await res.json();
       if (json.ok && json.orderGroups) {
-        const existingGroups = json.orderGroups.filter((g: string) => /^ORDER-\d+$/.test(g));
+        // Match both old format (ORDER-1) and new format (ORD-0001)
+        const existingGroups = json.orderGroups.filter((g: string) => /^(ORDER|ORD)-\d+$/.test(g));
         if (existingGroups.length > 0) {
-          const numbers = existingGroups.map((g: string) => parseInt(g.replace("ORDER-", ""), 10));
+          const numbers = existingGroups.map((g: string) => {
+            const match = g.match(/(?:ORDER|ORD)-(\d+)/);
+            return match ? parseInt(match[1], 10) : 0;
+          });
           const maxNum = Math.max(...numbers);
-          setOrderGroup(`ORDER-${maxNum + 1}`);
+          const nextNum = maxNum + 1;
+          setOrderGroup(`ORD-${nextNum.toString().padStart(4, '0')}`);
         } else {
-          setOrderGroup("ORDER-1");
+          setOrderGroup("ORD-0001");
         }
       } else {
-        setOrderGroup("ORDER-1");
+        setOrderGroup("ORD-0001");
       }
     } catch (e) {
       console.error("Failed to generate order number:", e);
-      setOrderGroup("ORDER-1");
+      setOrderGroup("ORD-0001");
     }
   };
 
@@ -534,11 +540,11 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
           )}
         </div>
 
-        {/* Order Group */}
+        {/* Order Number */}
         <div className="relative">
           <div className="flex items-center justify-between mb-2">
             <label className="block text-sm font-medium text-gray-700">
-              Order Group <span className="text-gray-500">(optional)</span>
+              Order Number <span className="text-gray-500">(optional)</span>
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -572,7 +578,7 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
                 setShowOrderGroupSuggestions(true);
               }
             }}
-            placeholder="Enter or select order group"
+            placeholder="Enter or select order number"
             className="w-full"
             list="order-groups"
           />
@@ -585,12 +591,14 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
           )}
         </div>
 
-        {/* Multi-Card Sale Placeholder */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <p className="text-sm text-blue-800">
-            <strong>Future Feature:</strong> Add multiple cards to a single sale order. This will allow grouping multiple lots into one order.
-          </p>
-        </div>
+        {/* Bundle Integration */}
+        <BundleSelector 
+          lotId={lot.id} 
+          onBundleAction={() => {
+            // Close the Mark as Sold modal when bundle action is taken
+            onClose();
+          }}
+        />
 
         {/* Fees */}
         <div>

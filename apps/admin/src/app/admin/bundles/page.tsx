@@ -98,7 +98,10 @@ export default function BundlesPage() {
 
   return (
     <div>
-      <PageHeader title="Bundles" />
+      <PageHeader 
+        title="Bundles" 
+        description="Create pre-made bundles with a fixed price. Different from multi-card sales - bundles are created in advance, while multi-card sales combine cards at sale time."
+      />
       
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -191,7 +194,7 @@ export default function BundlesPage() {
                       onClick={() => setBundleToSell(bundle)}
                       className="flex-1"
                     >
-                      Record Sale
+                      Sell Bundle
                     </Button>
                   )}
                   {bundle.status !== "sold" && (

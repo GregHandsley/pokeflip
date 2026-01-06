@@ -395,13 +395,13 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Order Group (optional)
+              Order Number <span className="text-gray-500">(optional)</span>
             </label>
             <Input
               type="text"
               value={orderGroup}
               onChange={(e) => setOrderGroup(e.target.value)}
-              placeholder="e.g., ORDER-123"
+              placeholder="e.g., ORD-0001"
               className="w-full"
             />
           </div>

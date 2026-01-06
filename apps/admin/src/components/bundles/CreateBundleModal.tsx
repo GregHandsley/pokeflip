@@ -22,6 +22,7 @@ type Lot = {
   variation: string | null;
   quantity: number;
   available_qty: number;
+  for_sale?: boolean; // Include for_sale field
   purchases?: Purchase[];
   card: {
     id: string;
@@ -39,9 +40,10 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   onBundleCreated: () => void;
+  initialLotId?: string; // Optional lot ID to pre-select when modal opens
 };
 
-export default function CreateBundleModal({ isOpen, onClose, onBundleCreated }: Props) {
+export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, initialLotId }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
@@ -78,7 +80,14 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated }: 
       const res = await fetch("/api/admin/sales/listed-lots");
       const json = await res.json();
       if (json.ok) {
-        const lots = json.lots || [];
+        // Filter to ensure only lots with available quantity and for_sale=true are shown
+        // The API already filters by for_sale=true and status in ['ready', 'listed'], but we add an extra check
+        // Also explicitly filter out any lots that might not be for sale (defensive programming)
+        const lots = (json.lots || []).filter((lot: Lot) => {
+          // Ensure available quantity > 0
+          // Explicitly check for_sale field if it exists (defensive programming)
+          return lot.available_qty > 0 && (lot.for_sale !== false);
+        });
         setAvailableLots(lots);
         setFilteredLots(lots);
       }
@@ -88,6 +97,20 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated }: 
       setLoading(false);
     }
   };
+
+  // Pre-select initial lot if provided
+  useEffect(() => {
+    if (isOpen && initialLotId && availableLots.length > 0) {
+      const lotToSelect = availableLots.find((lot) => lot.id === initialLotId);
+      if (lotToSelect && !selectedLots.has(initialLotId)) {
+        setSelectedLots((prev) => {
+          const newSelected = new Map(prev);
+          newSelected.set(initialLotId, { lot: lotToSelect, quantity: 1 });
+          return newSelected;
+        });
+      }
+    }
+  }, [isOpen, initialLotId, availableLots, selectedLots]);
 
   // Filter lots based on search query
   useEffect(() => {

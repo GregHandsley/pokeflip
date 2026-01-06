@@ -612,15 +612,6 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
                       </span>
                     </label>
                   </div>
-                  {useApiImage && (
-                    <div className="mt-3">
-                      <img
-                        src={`${currentLot.card.image_url}/low.webp`}
-                        alt="API card image"
-                        className="h-32 w-auto rounded border border-gray-200"
-                      />
-                    </div>
-                  )}
                 </div>
               )}
 

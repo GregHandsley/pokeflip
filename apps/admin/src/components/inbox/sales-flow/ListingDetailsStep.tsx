@@ -227,6 +227,261 @@ export default function ListingDetailsStep({
           </button>
         </div>
       </div>
+
+      {/* Bundle Integration - Placeholder for future bundle functionality */}
+      <div className="border-t border-gray-200 pt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Add to Bundle
+        </label>
+        <p className="text-xs text-gray-500 mb-3">
+          Add this card to an existing bundle or create a new bundle.
+        </p>
+        <BundleSelector lotId={lot.lot_id} />
+      </div>
+    </div>
+  );
+}
+
+// Bundle Selector Component
+function BundleSelector({ lotId }: { lotId: string }) {
+  const [bundles, setBundles] = useState<Array<{ id: string; name: string; status: string }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedBundleId, setSelectedBundleId] = useState<string>("");
+  const [adding, setAdding] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  useEffect(() => {
+    loadBundles();
+  }, []);
+
+  const loadBundles = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/bundles?status=active");
+      const json = await res.json();
+      if (json.ok) {
+        setBundles(json.bundles || []);
+      }
+    } catch (e) {
+      console.error("Failed to load bundles:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddToBundle = async () => {
+    if (!selectedBundleId) return;
+
+    setAdding(true);
+    try {
+      const res = await fetch(`/api/admin/bundles/${selectedBundleId}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lotId: lotId,
+          quantity: 1,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to add to bundle");
+      }
+
+      alert("Card added to bundle successfully!");
+      setSelectedBundleId("");
+      loadBundles();
+    } catch (e: any) {
+      alert(e.message || "Failed to add to bundle");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <select
+          value={selectedBundleId}
+          onChange={(e) => setSelectedBundleId(e.target.value)}
+          disabled={loading || adding}
+          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <option value="">Select a bundle...</option>
+          {bundles.map((bundle) => (
+            <option key={bundle.id} value={bundle.id}>
+              {bundle.name}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={handleAddToBundle}
+          disabled={!selectedBundleId || adding}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+        >
+          {adding ? "Adding..." : "Add to Bundle"}
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 border-t border-gray-200"></div>
+        <span className="text-xs text-gray-500">or</span>
+        <div className="flex-1 border-t border-gray-200"></div>
+      </div>
+      <button
+        onClick={() => setShowCreateModal(true)}
+        className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
+      >
+        Create New Bundle
+      </button>
+      {showCreateModal && (
+        <CreateBundleFromLotModal
+          lotId={lotId}
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onBundleCreated={() => {
+            setShowCreateModal(false);
+            loadBundles();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Create Bundle Modal for single lot
+function CreateBundleFromLotModal({
+  lotId,
+  isOpen,
+  onClose,
+  onBundleCreated,
+}: {
+  lotId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onBundleCreated: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    if (!name.trim()) {
+      setError("Please enter a bundle name");
+      return;
+    }
+
+    if (!price.trim() || parseFloat(price) <= 0) {
+      setError("Please enter a valid price");
+      return;
+    }
+
+    setCreating(true);
+    setError(null);
+
+    try {
+      const { poundsToPence } = await import("@pokeflip/shared");
+      const res = await fetch("/api/admin/bundles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || null,
+          pricePence: poundsToPence(price),
+          items: [
+            {
+              lotId: lotId,
+              quantity: 1,
+            },
+          ],
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to create bundle");
+      }
+
+      onBundleCreated();
+      setName("");
+      setDescription("");
+      setPrice("");
+    } catch (e: any) {
+      setError(e.message || "Failed to create bundle");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-semibold mb-4">Create New Bundle</h3>
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+            {error}
+          </div>
+        )}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Bundle Name *
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              placeholder="e.g., Starter Bundle"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              placeholder="Optional description"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Bundle Price (£) *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-3 mt-6">
+          <button
+            onClick={onClose}
+            disabled={creating}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {creating ? "Creating..." : "Create Bundle"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

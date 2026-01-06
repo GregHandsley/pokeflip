@@ -9,6 +9,14 @@ interface DashboardLayoutProps {
   children: ReactNode;
 }
 
+interface NavItem {
+  href: string;
+  label: string;
+  exact?: boolean;
+  description?: string;
+  badge?: number | null;
+}
+
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -16,6 +24,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [inboxCount, setInboxCount] = useState<number | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleLogout = async () => {
     setLogoutLoading(true);
@@ -62,13 +71,46 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   }, [pathname]);
 
-  const navItems = [
-    { href: "/admin", label: "Command Center", exact: true },
-    { href: "/admin/acquisitions", label: "Purchases" },
-    { href: "/admin/inventory", label: "Inventory" },
-    { href: "/admin/bundles", label: "Bundles" },
-    { href: "/admin/inbox", label: "Inbox" },
-    { href: "/admin/sales", label: "Sales & Profit" },
+  // Auto-expand settings if on a settings page
+  useEffect(() => {
+    if (pathname?.startsWith("/admin/settings")) {
+      setSettingsOpen(true);
+    }
+  }, [pathname]);
+
+  const navItems: NavItem[] = [
+    { 
+      href: "/admin", 
+      label: "Command Center", 
+      exact: true,
+      description: "Overview dashboard"
+    },
+    { 
+      href: "/admin/inventory", 
+      label: "Inventory", 
+      description: "View all cards"
+    },
+    { 
+      href: "/admin/sales", 
+      label: "Sales & Profit", 
+      description: "View reports & analytics"
+    },
+    { 
+      href: "/admin/acquisitions", 
+      label: "Purchases", 
+      description: "Step 1: Record purchases"
+    },
+    { 
+      href: "/admin/inbox", 
+      label: "Inbox", 
+      description: "Step 2: List cards",
+      badge: inboxCount
+    },
+    { 
+      href: "/admin/record-sale", 
+      label: "Record Sale", 
+      description: "Step 3: Record sale"
+    },
   ];
 
   const settingsItems = [
@@ -136,13 +178,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
         
         <nav className="flex-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {/* Main Navigation Group: Command Center, Inventory, Sales & Profit */}
+          {navItems.slice(0, 3).map((item) => {
             const isActive = item.exact
               ? pathname === item.href
               : pathname?.startsWith(item.href);
-            
-            const isInbox = item.href === "/admin/inbox";
-            const showBadge = isInbox && inboxCount !== null && inboxCount > 0;
             
             return (
               <a
@@ -156,16 +196,71 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 title={sidebarOpen ? undefined : item.label}
               >
                 {sidebarOpen ? (
-                  <div className="flex items-center justify-between">
-                    <span>{item.label}</span>
-                    {showBadge && (
-                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                        isActive
-                          ? "bg-white text-black"
-                          : "bg-blue-600 text-white"
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span>{item.label}</span>
+                    </div>
+                    {item.description && (
+                      <div className={`text-xs mt-0.5 leading-tight ${
+                        isActive ? "text-gray-300" : "text-gray-500"
                       }`}>
-                        {inboxCount}
-                      </span>
+                        {item.description}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex justify-center relative">
+                    <span className="text-lg">{item.label.charAt(0)}</span>
+                  </div>
+                )}
+              </a>
+            );
+          })}
+
+          {/* Divider */}
+          {sidebarOpen && <div className="px-6 py-2"><div className="border-t border-gray-200"></div></div>}
+
+          {/* Workflow Steps: Purchases, Inbox, Record Sale */}
+          {navItems.slice(3, 6).map((item, index) => {
+            const isActive = item.exact
+              ? pathname === item.href
+              : pathname?.startsWith(item.href);
+            
+            const isInbox = item.href === "/admin/inbox";
+            const showBadge = isInbox && item.badge !== null && item.badge !== undefined && item.badge > 0;
+            const badgeCount = item.badge || inboxCount;
+            
+            return (
+              <a
+                key={item.href}
+                href={item.href}
+                className={`block px-6 py-3 text-sm font-medium transition-colors relative ${
+                  isActive
+                    ? "bg-black text-white"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+                title={sidebarOpen ? undefined : item.label}
+              >
+                {sidebarOpen ? (
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span>{item.label}</span>
+                      {showBadge && (
+                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          isActive
+                            ? "bg-white text-black"
+                            : "bg-blue-600 text-white"
+                        }`}>
+                          {badgeCount}
+                        </span>
+                      )}
+                    </div>
+                    {item.description && (
+                      <div className={`text-xs mt-0.5 leading-tight ${
+                        isActive ? "text-gray-300" : "text-gray-500"
+                      }`}>
+                        {item.description}
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -173,7 +268,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     <span className="text-lg">{item.label.charAt(0)}</span>
                     {showBadge && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 rounded-full border-2 border-white flex items-center justify-center">
-                        <span className="text-[8px] text-white font-bold">{inboxCount! > 99 ? '99+' : inboxCount}</span>
+                        <span className="text-[8px] text-white font-bold">{badgeCount! > 99 ? '99+' : badgeCount}</span>
                       </span>
                     )}
                   </div>
@@ -181,29 +276,49 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </a>
             );
           })}
-          
-          {/* Settings Section */}
+
+          {/* Divider */}
+          {sidebarOpen && <div className="px-6 py-2"><div className="border-t border-gray-200"></div></div>}
+
+          {/* Settings Section - Collapsible */}
           {sidebarOpen && (
-            <div className="mt-4 px-6">
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Settings
-              </div>
-              {settingsItems.map((item) => {
-                const isActive = pathname?.startsWith(item.href);
-                return (
-                  <a
-                    key={item.href}
-                    href={item.href}
-                    className={`block px-3 py-2 text-sm font-medium transition-colors rounded ${
-                      isActive
-                        ? "bg-gray-900 text-white"
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    {item.label}
-                  </a>
-                );
-              })}
+            <div className="px-6">
+              <button
+                onClick={() => setSettingsOpen(!settingsOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              >
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Settings
+                </span>
+                <svg
+                  className={`w-4 h-4 text-gray-500 transition-transform ${settingsOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {settingsOpen && (
+                <div className="mt-1 space-y-1">
+                  {settingsItems.map((item) => {
+                    const isActive = pathname?.startsWith(item.href);
+                    return (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        className={`block px-3 py-2 text-sm font-medium transition-colors rounded ${
+                          isActive
+                            ? "bg-gray-900 text-white"
+                            : "text-gray-600 hover:bg-gray-100"
+                        }`}
+                      >
+                        {item.label}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </nav>

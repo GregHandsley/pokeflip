@@ -77,6 +77,29 @@ export async function POST(req: Request) {
 
     const supabase = supabaseServer();
 
+    // Verify all lots exist and are for sale
+    const lotIds = items.map((item: any) => item.lotId);
+    const { data: lots, error: lotsError } = await supabase
+      .from("inventory_lots")
+      .select("id, for_sale")
+      .in("id", lotIds);
+
+    if (lotsError || !lots || lots.length !== lotIds.length) {
+      return NextResponse.json(
+        { error: "One or more lots not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if all lots are for sale
+    const notForSaleLots = lots.filter((lot: any) => !lot.for_sale);
+    if (notForSaleLots.length > 0) {
+      return NextResponse.json(
+        { error: "Cannot add cards that are not for sale to bundles" },
+        { status: 400 }
+      );
+    }
+
     // Create the bundle
     const { data: bundle, error: bundleError } = await supabase
       .from("bundles")

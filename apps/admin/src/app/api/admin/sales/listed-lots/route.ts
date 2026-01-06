@@ -5,7 +5,8 @@ export async function GET(req: Request) {
   try {
     const supabase = supabaseServer();
 
-    // Fetch all listed lots that are for sale
+    // Fetch all lots that are for sale (both "ready" and "listed" status)
+    // Only include cards that are marked as for_sale = true
     const { data: lots, error: lotsError } = await supabase
       .from("inventory_lots")
       .select(`
@@ -29,8 +30,8 @@ export async function GET(req: Request) {
           )
         )
       `)
-      .eq("status", "listed")
       .eq("for_sale", true)
+      .in("status", ["ready", "listed"])
       .order("created_at", { ascending: false });
 
     if (lotsError) {
@@ -134,6 +135,7 @@ export async function GET(req: Request) {
           quantity: lot.quantity,
           available_qty: availableQty,
           sold_qty: soldQty,
+          for_sale: lot.for_sale, // Explicitly include for_sale in response
           list_price_pence: lot.list_price_pence,
           purchases: allPurchases, // Array of purchases with quantities
           card: lot.cards ? {

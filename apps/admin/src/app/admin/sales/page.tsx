@@ -146,11 +146,13 @@ export default function SalesPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Sales & Profit Reports</h1>
-          <p className="text-sm text-gray-600 mt-1">Track revenue, costs, and profit margins</p>
+          <p className="text-sm text-gray-600 mt-1">
+            Record multi-card sales (combine individual cards at sale time) • View profit reports
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="primary" onClick={() => setShowRecordSaleModal(true)}>
-            Record Sale
+            Record Multi-Card Sale
           </Button>
           <a
             href="/api/admin/analytics/export/inventory"

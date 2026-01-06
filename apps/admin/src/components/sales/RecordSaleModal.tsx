@@ -180,7 +180,7 @@ export default function RecordSaleModal({ isOpen, onClose, onSaleCreated }: Prop
         setExistingOrderGroups(json.orderGroups || []);
       }
     } catch (e) {
-      console.error("Failed to load order groups:", e);
+      console.error("Failed to load order numbers:", e);
     }
   };
 
@@ -189,20 +189,25 @@ export default function RecordSaleModal({ isOpen, onClose, onSaleCreated }: Prop
       const res = await fetch("/api/admin/sales/order-groups");
       const json = await res.json();
       if (json.ok && json.orderGroups) {
-        const existingGroups = json.orderGroups.filter((g: string) => /^ORDER-\d+$/.test(g));
+        // Match both old format (ORDER-1) and new format (ORD-0001)
+        const existingGroups = json.orderGroups.filter((g: string) => /^(ORDER|ORD)-\d+$/.test(g));
         if (existingGroups.length > 0) {
-          const numbers = existingGroups.map((g: string) => parseInt(g.replace("ORDER-", ""), 10));
+          const numbers = existingGroups.map((g: string) => {
+            const match = g.match(/(?:ORDER|ORD)-(\d+)/);
+            return match ? parseInt(match[1], 10) : 0;
+          });
           const maxNum = Math.max(...numbers);
-          setOrderGroup(`ORDER-${maxNum + 1}`);
+          const nextNum = maxNum + 1;
+          setOrderGroup(`ORD-${nextNum.toString().padStart(4, '0')}`);
         } else {
-          setOrderGroup("ORDER-1");
+          setOrderGroup("ORD-0001");
         }
       } else {
-        setOrderGroup("ORDER-1");
+        setOrderGroup("ORD-0001");
       }
     } catch (e) {
       console.error("Failed to generate order number:", e);
-      setOrderGroup("ORDER-1");
+      setOrderGroup("ORD-0001");
     }
   };
 
@@ -1057,7 +1062,7 @@ export default function RecordSaleModal({ isOpen, onClose, onSaleCreated }: Prop
             <div className="relative">
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  Order Group <span className="text-gray-500">(optional)</span>
+                  Order Number <span className="text-gray-500">(optional)</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -1086,7 +1091,7 @@ export default function RecordSaleModal({ isOpen, onClose, onSaleCreated }: Prop
                   handleOrderGroupChange(e.target.value);
                   setAutoGenerateOrderNumber(false);
                 }}
-                placeholder="Enter or select order group"
+                placeholder="Enter or select order number"
                 className="w-full"
               />
             </div>
