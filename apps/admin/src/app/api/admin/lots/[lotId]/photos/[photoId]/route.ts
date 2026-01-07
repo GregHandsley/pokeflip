@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ lotId: string; photoId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId, photoId } = await params;
     const supabase = supabaseServer();
@@ -30,7 +34,11 @@ export async function DELETE(
       .remove([photo.object_key]);
 
     if (storageError) {
-      console.warn("Error deleting from storage:", storageError);
+      logger.warn("Failed to delete photo from storage", storageError, undefined, {
+        lotId,
+        photoId,
+        objectKey: photo.object_key,
+      });
       // Continue to delete the record even if storage deletion fails
     }
 
@@ -42,10 +50,12 @@ export async function DELETE(
       .eq("lot_id", lotId);
 
     if (deleteError) {
-      console.error("Error deleting photo record:", deleteError);
-      return NextResponse.json(
-        { error: deleteError.message || "Failed to delete photo" },
-        { status: 500 }
+      logger.error("Failed to delete photo record", deleteError, undefined, { lotId, photoId });
+      return createErrorResponse(
+        deleteError.message || "Failed to delete photo",
+        500,
+        "DELETE_PHOTO_RECORD_FAILED",
+        deleteError
       );
     }
 
@@ -54,11 +64,10 @@ export async function DELETE(
       message: "Photo deleted successfully",
     });
   } catch (error: any) {
-    console.error("Error in delete photo API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "delete_lot_photo",
+      metadata: { lotId, photoId },
+    });
   }
 }
 

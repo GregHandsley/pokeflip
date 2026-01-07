@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ consumableId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { consumableId } = await params;
     const body = await req.json();
@@ -30,10 +34,12 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error("Error updating consumable:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to update consumable" },
-        { status: 500 }
+      logger.error("Failed to update consumable", error, undefined, { consumableId, name, unit });
+      return createErrorResponse(
+        error.message || "Failed to update consumable",
+        500,
+        "UPDATE_CONSUMABLE_FAILED",
+        error
       );
     }
 
@@ -42,11 +48,7 @@ export async function PATCH(
       consumable,
     });
   } catch (error: any) {
-    console.error("Error in update consumable API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "update_consumable", metadata: { consumableId } });
   }
 }
 

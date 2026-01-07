@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
     const { searchParams } = new URL(req.url);
@@ -28,10 +32,12 @@ export async function GET(req: Request) {
     const { data: buyers, error } = await query;
 
     if (error) {
-      console.error("Error fetching buyers:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch buyers" },
-        { status: 500 }
+      logger.error("Failed to fetch buyers", error);
+      return createErrorResponse(
+        error.message || "Failed to fetch buyers",
+        500,
+        "FETCH_BUYERS_FAILED",
+        error
       );
     }
 
@@ -86,11 +92,7 @@ export async function GET(req: Request) {
       buyers: buyersWithStats,
     });
   } catch (error: any) {
-    console.error("Error in buyers API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "fetch_buyers" });
   }
 }
 

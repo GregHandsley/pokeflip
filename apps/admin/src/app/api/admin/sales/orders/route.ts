@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
 
@@ -30,10 +34,12 @@ export async function GET(req: Request) {
       .order("sold_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching sales orders:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch sales orders" },
-        { status: 500 }
+      logger.error("Failed to fetch sales orders", error);
+      return createErrorResponse(
+        error.message || "Failed to fetch sales orders",
+        500,
+        "FETCH_SALES_ORDERS_FAILED",
+        error
       );
     }
 
@@ -59,11 +65,7 @@ export async function GET(req: Request) {
       orders: formattedOrders,
     });
   } catch (error: any) {
-    console.error("Error in sales orders API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_sales_orders" });
   }
 }
 

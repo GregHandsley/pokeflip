@@ -7,6 +7,7 @@ import Modal from "@/components/ui/Modal";
 import ErrorModal from "@/components/ui/ErrorModal";
 import PageHeader from "@/components/ui/PageHeader";
 import { SUPPORTED_LANGUAGES, getLanguageNameEn } from "@/lib/tcgdx/constants";
+import { logger } from "@/lib/logger";
 
 // Helper function to convert text to title case
 function toTitleCase(str: string): string {
@@ -83,7 +84,7 @@ export default function SetTranslationsPage() {
         }
       }
     } catch (e) {
-      console.error("Failed to load translations:", e);
+      logger.error("Failed to load set translations", e);
       setErrorModal({ isOpen: true, message: "Failed to load translations" });
     } finally {
       setLoading(false);

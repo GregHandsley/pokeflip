@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const { card_count } = body;
@@ -89,11 +93,7 @@ export async function POST(req: Request) {
       rule_name: rule.name,
     });
   } catch (error: any) {
-    console.error("Error in apply packaging rule API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "apply_packaging_rule" });
   }
 }
 

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ ruleId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { ruleId } = await params;
     const body = await req.json();
@@ -42,10 +46,12 @@ export async function PATCH(
       .single();
 
     if (ruleError || !rule) {
-      console.error("Error updating packaging rule:", ruleError);
-      return NextResponse.json(
-        { error: ruleError?.message || "Failed to update packaging rule" },
-        { status: 500 }
+      logger.error("Failed to update packaging rule", ruleError, undefined, { ruleId, name });
+      return createErrorResponse(
+        ruleError?.message || "Failed to update packaging rule",
+        500,
+        "UPDATE_PACKAGING_RULE_FAILED",
+        ruleError
       );
     }
 
@@ -68,7 +74,10 @@ export async function PATCH(
         .insert(ruleItems);
 
       if (itemsError) {
-        console.error("Error updating packaging rule items:", itemsError);
+        logger.error("Failed to update packaging rule items", itemsError, undefined, {
+          ruleId,
+          itemsCount: items.length,
+        });
         return NextResponse.json(
           { error: itemsError.message || "Failed to update rule items" },
           { status: 500 }
@@ -102,11 +111,7 @@ export async function PATCH(
       rule: completeRule,
     });
   } catch (error: any) {
-    console.error("Error in update packaging rule API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "update_packaging_rule", metadata: { ruleId } });
   }
 }
 
@@ -132,10 +137,12 @@ export async function DELETE(
       .eq("id", ruleId);
 
     if (error) {
-      console.error("Error deleting packaging rule:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to delete packaging rule" },
-        { status: 500 }
+      logger.error("Failed to delete packaging rule", error, undefined, { ruleId });
+      return createErrorResponse(
+        error.message || "Failed to delete packaging rule",
+        500,
+        "DELETE_PACKAGING_RULE_FAILED",
+        error
       );
     }
 
@@ -143,11 +150,7 @@ export async function DELETE(
       ok: true,
     });
   } catch (error: any) {
-    console.error("Error in delete packaging rule API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "delete_packaging_rule", metadata: { ruleId } });
   }
 }
 

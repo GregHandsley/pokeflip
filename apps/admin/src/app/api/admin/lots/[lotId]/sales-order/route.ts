@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const supabase = supabaseServer();
@@ -30,11 +34,7 @@ export async function GET(
       salesOrderId: salesItem.sales_order_id,
     });
   } catch (error: any) {
-    console.error("Error in get sales order for lot API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_lot_sales_order", metadata: { lotId } });
   }
 }
 

@@ -6,6 +6,7 @@ import type { DraftLine } from "./types";
 import IntakeLinePhotoUpload from "@/components/intake/IntakeLinePhotoUpload";
 import SplitModal from "@/components/ui/SplitModal";
 import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
+import { logger } from "@/lib/logger";
 
 type Props = {
   line: DraftLine;
@@ -58,7 +59,7 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
           setPhotos(json.photos || []);
         }
       } catch (e) {
-        console.error("Failed to load photos:", e);
+        logger.error("Failed to load intake line photos", e, undefined, { lineId: line.id });
       } finally {
         setLoadingPhotos(false);
       }
@@ -79,7 +80,7 @@ export function CardRow({ line, cardDisplay, cardIndex, totalQty, acquisitionId,
         setPhotos((prev) => prev.filter((p) => p.id !== photoId));
       }
     } catch (e) {
-      console.error("Failed to delete photo:", e);
+      logger.error("Failed to delete intake line photo", e, undefined, { lineId: line.id, photoId });
     }
   };
 

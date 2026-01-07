@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const { searchParams } = new URL(req.url);
     const activeOnly = searchParams.get("activeOnly") === "true";
@@ -19,10 +23,12 @@ export async function GET(req: Request) {
     const { data: deals, error } = await query.order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching promotional deals:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch promotional deals" },
-        { status: 500 }
+      logger.error("Failed to fetch promotional deals", error);
+      return createErrorResponse(
+        error.message || "Failed to fetch promotional deals",
+        500,
+        "FETCH_PROMOTIONAL_DEALS_FAILED",
+        error
       );
     }
 
@@ -31,15 +37,13 @@ export async function GET(req: Request) {
       deals: deals || [],
     });
   } catch (error: any) {
-    console.error("Error in promotional deals API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_promotional_deals" });
   }
 }
 
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const {
@@ -82,10 +86,12 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      console.error("Error creating promotional deal:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to create promotional deal" },
-        { status: 500 }
+      logger.error("Failed to create promotional deal", error, undefined, { name, deal_type });
+      return createErrorResponse(
+        error.message || "Failed to create promotional deal",
+        500,
+        "CREATE_PROMOTIONAL_DEAL_FAILED",
+        error
       );
     }
 
@@ -94,11 +100,7 @@ export async function POST(req: Request) {
       deal,
     });
   } catch (error: any) {
-    console.error("Error in create promotional deal API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "create_promotional_deal" });
   }
 }
 

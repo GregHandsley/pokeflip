@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { fetchCardsForSet } from "@/lib/tcgdx/tcgdxClient";
+import { handleApiError } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const { searchParams } = new URL(req.url);
     const setId = searchParams.get("setId");
@@ -19,10 +23,6 @@ export async function GET(req: Request) {
     
     return NextResponse.json({ ok: true, data: cards });
   } catch (error: any) {
-    console.error("Error fetching cards:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch cards" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_cards", metadata: { setId, locale } });
   }
 }

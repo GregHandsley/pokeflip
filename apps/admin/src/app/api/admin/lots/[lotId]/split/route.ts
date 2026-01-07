@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { poundsToPence } from "@pokeflip/shared";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const body = await req.json();
@@ -94,10 +98,15 @@ export async function POST(
       .single();
 
     if (insertError) {
-      console.error("Error creating split lot:", insertError);
-      return NextResponse.json(
-        { error: insertError.message || "Failed to create split lot" },
-        { status: 500 }
+      logger.error("Failed to create split lot", insertError, undefined, {
+        lotId,
+        splitQty: split_qty,
+      });
+      return createErrorResponse(
+        insertError.message || "Failed to create split lot",
+        500,
+        "CREATE_SPLIT_LOT_FAILED",
+        insertError
       );
     }
 
@@ -119,7 +128,11 @@ export async function POST(
         .insert(photoInserts);
 
       if (photoError) {
-        console.error("Error copying photos:", photoError);
+        logger.warn("Failed to copy photos during split", photoError, undefined, {
+          lotId,
+          newLotId: createdLot.id,
+          photosCount: photos.length,
+        });
         // Don't fail the whole operation if photos fail
       }
     }
@@ -132,10 +145,16 @@ export async function POST(
       .eq("id", lotId);
 
     if (updateError) {
-      console.error("Error updating original lot:", updateError);
-      return NextResponse.json(
-        { error: updateError.message || "Failed to update original lot" },
-        { status: 500 }
+      logger.error("Failed to update original lot during split", updateError, undefined, {
+        lotId,
+        newQuantity,
+        splitQty: split_qty,
+      });
+      return createErrorResponse(
+        updateError.message || "Failed to update original lot",
+        500,
+        "UPDATE_ORIGINAL_LOT_FAILED",
+        updateError
       );
     }
 
@@ -147,7 +166,9 @@ export async function POST(
       .eq("lot_id", lotId);
 
     if (historyError) {
-      console.error("Error fetching purchase history:", historyError);
+      logger.warn("Failed to fetch purchase history during split", historyError, undefined, {
+        lotId,
+      });
       // Don't fail the split if history fetch fails, but log it
     } else if (purchaseHistory && purchaseHistory.length > 0) {
       // Calculate the proportion to split based on quantities
@@ -169,7 +190,10 @@ export async function POST(
             .eq("acquisition_id", historyEntry.acquisition_id);
 
           if (updateHistoryError) {
-            console.error("Error updating purchase history:", updateHistoryError);
+            logger.warn("Failed to update purchase history during split", updateHistoryError, undefined, {
+              lotId,
+              acquisitionId: historyEntry.acquisition_id,
+            });
           }
         } else {
           // If quantity becomes 0, delete the history entry
@@ -191,7 +215,10 @@ export async function POST(
             });
 
           if (insertHistoryError) {
-            console.error("Error creating purchase history for split lot:", insertHistoryError);
+            logger.warn("Failed to create purchase history for split lot", insertHistoryError, undefined, {
+              newLotId: createdLot.id,
+              acquisitionId: historyEntry.acquisition_id,
+            });
           }
         }
       }
@@ -213,7 +240,10 @@ export async function POST(
           });
 
         if (insertNewHistoryError) {
-          console.error("Error creating purchase history for split lot:", insertNewHistoryError);
+          logger.warn("Failed to create purchase history for split lot (legacy)", insertNewHistoryError, undefined, {
+            newLotId: createdLot.id,
+            acquisitionId: originalLot.acquisition_id,
+          });
         }
       }
 
@@ -233,7 +263,10 @@ export async function POST(
           );
 
         if (upsertHistoryError) {
-          console.error("Error updating purchase history for original lot:", upsertHistoryError);
+          logger.warn("Failed to update purchase history for original lot", upsertHistoryError, undefined, {
+            lotId,
+            acquisitionId: originalLot.acquisition_id,
+          });
         }
       } else {
         // If remaining quantity is 0, delete the history entry if it exists
@@ -251,11 +284,10 @@ export async function POST(
       split_lot: createdLot,
     });
   } catch (error: any) {
-    console.error("Error in split API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "split_lot",
+      metadata: { lotId, body },
+    });
   }
 }
 

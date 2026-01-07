@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import ErrorModal from "@/components/ui/ErrorModal";
 import BundleSelector from "./BundleSelector";
+import { logger } from "@/lib/logger";
 
 type Lot = {
   id: string;
@@ -118,7 +119,8 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
         setCardInfo(json.card);
       }
     } catch (e) {
-      console.error("Failed to load card info:", e);
+      // Log error but don't show toast for background data loading
+      logger.error("Failed to load card info", e, { lotId: lot.id });
     }
   };
 
@@ -130,7 +132,7 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
         setExistingBuyers(json.buyers || []);
       }
     } catch (e) {
-      console.error("Failed to load buyers:", e);
+      logger.error("Failed to load buyers", e);
     }
   };
 
@@ -142,7 +144,7 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
         setExistingOrderGroups(json.orderGroups || []);
       }
     } catch (e) {
-      console.error("Failed to load order groups:", e);
+      logger.error("Failed to load order groups", e);
     }
   };
 
@@ -169,7 +171,7 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
         setOrderGroup("ORD-0001");
       }
     } catch (e) {
-      console.error("Failed to generate order number:", e);
+      logger.error("Failed to generate order number", e);
       setOrderGroup("ORD-0001");
     }
   };
@@ -217,7 +219,7 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
         setConsumables(json.consumables || []);
       }
     } catch (e) {
-      console.error("Failed to load consumables:", e);
+      logger.error("Failed to load consumables", e);
     } finally {
       setLoadingConsumables(false);
     }
@@ -247,7 +249,7 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
         setSelectedConsumables(selections);
       }
     } catch (e) {
-      console.error("Failed to apply packaging rule:", e);
+      logger.error("Failed to apply packaging rule", e);
     }
   };
 
@@ -389,6 +391,8 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
       onSaleCreated();
       onClose();
     } catch (e: any) {
+      // Error will be shown via toast if using useApiErrorHandler
+      // Keep error modal for now for backward compatibility
       setErrorModal({ isOpen: true, message: e.message || "Failed to create sale" });
     } finally {
       setSubmitting(false);

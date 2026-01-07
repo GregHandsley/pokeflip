@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ cardId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { cardId } = await params;
     const supabase = supabaseServer();
@@ -16,10 +20,12 @@ export async function DELETE(
       .eq("card_id", cardId);
 
     if (fetchError) {
-      console.error("Error fetching lots to delete:", fetchError);
-      return NextResponse.json(
-        { error: fetchError.message || "Failed to fetch lots" },
-        { status: 500 }
+      logger.error("Failed to fetch lots to delete", fetchError, undefined, { cardId });
+      return createErrorResponse(
+        fetchError.message || "Failed to fetch lots",
+        500,
+        "FETCH_LOTS_FAILED",
+        fetchError
       );
     }
 
@@ -39,7 +45,7 @@ export async function DELETE(
       .delete()
       .in("lot_id", lotIds);
     if (photosError) {
-      console.warn("Error deleting lot photos:", photosError);
+      logger.warn("Failed to delete lot photos", photosError, undefined, { cardId, lotIdsCount: lotIds.length });
     }
     
     // Delete eBay listings
@@ -48,7 +54,7 @@ export async function DELETE(
       .delete()
       .in("lot_id", lotIds);
     if (ebayError) {
-      console.warn("Error deleting eBay listings:", ebayError);
+      logger.warn("Failed to delete eBay listings", ebayError, undefined, { cardId, lotIdsCount: lotIds.length });
     }
     
     // Delete sales_items to keep database lean (as requested)
@@ -58,7 +64,7 @@ export async function DELETE(
       .delete()
       .in("lot_id", lotIds);
     if (salesError) {
-      console.warn("Error deleting sales items:", salesError);
+      logger.warn("Failed to delete sales items", salesError, undefined, { cardId, lotIdsCount: lotIds.length });
     }
 
     // Delete all inventory lots for this card
@@ -69,10 +75,12 @@ export async function DELETE(
       .eq("card_id", cardId);
 
     if (error) {
-      console.error("Error deleting inventory lots:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to delete inventory" },
-        { status: 500 }
+      logger.error("Failed to delete inventory lots", error, undefined, { cardId, lotIdsCount: lotIds.length });
+      return createErrorResponse(
+        error.message || "Failed to delete inventory",
+        500,
+        "DELETE_INVENTORY_LOTS_FAILED",
+        error
       );
     }
 
@@ -81,11 +89,7 @@ export async function DELETE(
       message: "Inventory deleted successfully",
     });
   } catch (error: any) {
-    console.error("Error in delete inventory API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "delete_inventory_card", metadata: { cardId } });
   }
 }
 

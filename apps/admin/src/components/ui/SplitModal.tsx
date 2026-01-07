@@ -4,6 +4,7 @@ import { useState } from "react";
 import Modal from "./Modal";
 import { penceToPounds, poundsToPence } from "@pokeflip/shared";
 import { CONDITIONS, Condition } from "@/features/intake/types";
+import { logger } from "@/lib/logger";
 
 type Props = {
   isOpen: boolean;
@@ -53,7 +54,11 @@ export default function SplitModal({
       setForSale(currentForSale);
       setPrice(currentPrice != null ? penceToPounds(currentPrice) : "");
     } catch (e) {
-      console.error("Split failed:", e);
+      logger.error("Split failed", e, undefined, {
+        splitQty,
+        currentQuantity,
+        forSale,
+      });
     } finally {
       setSplitting(false);
     }

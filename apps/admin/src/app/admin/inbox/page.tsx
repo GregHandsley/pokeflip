@@ -8,6 +8,7 @@ import InboxFilters from "@/components/inbox/InboxFilters";
 import InboxBulkActions from "@/components/inbox/InboxBulkActions";
 import SalesFlowModal from "@/components/inbox/sales-flow/SalesFlowModal";
 import { useRef } from "react";
+import { logger } from "@/lib/logger";
 
 type InboxLot = {
   lot_id: string;
@@ -74,7 +75,7 @@ export default function InboxPage() {
       setLots(json.data || []);
       setTotalCount(json.totalCount || 0);
     } catch (e: any) {
-      console.error("Failed to load inbox lots:", e);
+      logger.error("Failed to load inbox lots", e);
     } finally {
       setLoading(false);
     }

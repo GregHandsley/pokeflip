@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ acquisitionId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { acquisitionId } = await params;
     const supabase = supabaseServer();
@@ -31,10 +35,12 @@ export async function GET(
       .eq("acquisition_id", acquisitionId);
 
     if (historyError) {
-      console.error("Error fetching purchase history:", historyError);
-      return NextResponse.json(
-        { error: "Failed to fetch purchase history" },
-        { status: 500 }
+      logger.error("Failed to fetch purchase history", historyError, undefined, { acquisitionId });
+      return createErrorResponse(
+        "Failed to fetch purchase history",
+        500,
+        "FETCH_PURCHASE_HISTORY_FAILED",
+        historyError
       );
     }
 
@@ -48,7 +54,7 @@ export async function GET(
       .eq("acquisition_id", acquisitionId);
 
     if (directLotsError) {
-      console.error("Error fetching direct lots:", directLotsError);
+      logger.warn("Failed to fetch direct lots", directLotsError, undefined, { acquisitionId });
     }
 
     const directLotIds = (directLots || []).map((l: any) => l.id);
@@ -94,10 +100,12 @@ export async function GET(
       .order("created_at", { ascending: false });
 
     if (lotsError) {
-      console.error("Error fetching cards:", lotsError);
-      return NextResponse.json(
-        { error: lotsError.message || "Failed to fetch cards" },
-        { status: 500 }
+      logger.error("Failed to fetch cards", lotsError, undefined, { acquisitionId });
+      return createErrorResponse(
+        lotsError.message || "Failed to fetch cards",
+        500,
+        "FETCH_CARDS_FAILED",
+        lotsError
       );
     }
 
@@ -271,7 +279,7 @@ export async function GET(
       .order("created_at", { ascending: false });
 
     if (draftError) {
-      console.error("Error fetching draft lines:", draftError);
+      logger.warn("Failed to fetch draft lines", draftError, undefined, { acquisitionId });
     }
 
     // Format draft lines to match lot structure
@@ -323,11 +331,10 @@ export async function GET(
       lots: allItems,
     });
   } catch (error: any) {
-    console.error("Error in purchase lots API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "fetch_purchase_lots",
+      metadata: { acquisitionId },
+    });
   }
 }
 

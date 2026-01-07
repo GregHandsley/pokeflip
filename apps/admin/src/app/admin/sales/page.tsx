@@ -6,6 +6,7 @@ import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import OperationalDashboard from "@/components/analytics/OperationalDashboard";
 import RecordSaleModal from "@/components/sales/RecordSaleModal";
+import { useApiErrorHandler } from "@/hooks/useApiErrorHandler";
 
 type ProfitData = {
   sales_order_id: string;
@@ -48,6 +49,7 @@ type SalesOrder = {
 };
 
 export default function SalesPage() {
+  const { handleError } = useApiErrorHandler();
   const [profitData, setProfitData] = useState<ProfitData[]>([]);
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,7 +92,7 @@ export default function SalesPage() {
         setProfitData(profits.filter(Boolean));
       }
     } catch (e) {
-      console.error("Failed to load sales:", e);
+      handleError(e, { title: "Failed to load sales" });
     } finally {
       setLoading(false);
     }
@@ -105,7 +107,7 @@ export default function SalesPage() {
         setOrderProfit(json.profit);
       }
     } catch (e) {
-      console.error("Failed to load order profit:", e);
+      handleError(e, { title: "Failed to load order profit" });
     }
   };
 
@@ -130,7 +132,7 @@ export default function SalesPage() {
         setOverallProfit(json.profit);
       }
     } catch (e) {
-      console.error("Failed to load overall profit:", e);
+      handleError(e, { title: "Failed to load overall profit" });
     }
   };
 

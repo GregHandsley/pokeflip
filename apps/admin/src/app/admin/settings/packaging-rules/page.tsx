@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import ErrorModal from "@/components/ui/ErrorModal";
+import { logger } from "@/lib/logger";
 
 type Consumable = {
   consumable_id: string;
@@ -63,7 +64,7 @@ export default function PackagingRulesPage() {
         setRules(json.rules || []);
       }
     } catch (e) {
-      console.error("Failed to load packaging rules:", e);
+      logger.error("Failed to load packaging rules", e);
     } finally {
       setLoading(false);
     }
@@ -77,7 +78,7 @@ export default function PackagingRulesPage() {
         setConsumables(json.consumables || []);
       }
     } catch (e) {
-      console.error("Failed to load consumables:", e);
+      logger.error("Failed to load consumables for packaging rules", e);
     }
   };
 

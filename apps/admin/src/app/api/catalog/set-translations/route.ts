@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 /**
  * GET /api/catalog/set-translations
  * Fetch all set translations (English display names) from database
  */
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
     const { data, error } = await supabase
@@ -29,14 +33,7 @@ export async function GET(req: Request) {
       translationsList: data || [] // Full array for settings page
     });
   } catch (error: any) {
-    console.error("[API] Error fetching set translations:", error);
-    return NextResponse.json(
-      {
-        error: error.message || "Failed to fetch set translations",
-        details: process.env.NODE_ENV === "development" ? error.stack : undefined,
-      },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_set_translations" });
   }
 }
 
@@ -45,6 +42,8 @@ export async function GET(req: Request) {
  * Upsert set translations (for manual curation or bulk import)
  */
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const { translations } = body; // Array of { set_id, name_en, source? }
@@ -73,14 +72,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, count: translations.length });
   } catch (error: any) {
-    console.error("[API] Error upserting set translations:", error);
-    return NextResponse.json(
-      {
-        error: error.message || "Failed to upsert set translations",
-        details: process.env.NODE_ENV === "development" ? error.stack : undefined,
-      },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "upsert_set_translations" });
   }
 }
 

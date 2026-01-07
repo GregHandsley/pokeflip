@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { penceToPounds } from "@pokeflip/shared";
+import { logger } from "@/lib/logger";
 
 type PromotionalDeal = {
   id: string;
@@ -54,7 +55,7 @@ export default function PromotionalDealsPage() {
         setDeals(json.deals || []);
       }
     } catch (e) {
-      console.error("Failed to load deals:", e);
+      logger.error("Failed to load promotional deals", e);
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
 
@@ -194,11 +198,7 @@ export async function GET(req: Request) {
       overallProfit,
     });
   } catch (error: any) {
-    console.error("Error in dashboard summary API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_dashboard_summary" });
   }
 }
 

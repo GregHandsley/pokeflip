@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const body = await req.json();
@@ -68,10 +72,12 @@ export async function POST(
       .single();
 
     if (insertError) {
-      console.error("Error inserting lot_photo:", insertError);
-      return NextResponse.json(
-        { error: insertError.message || "Failed to save photo record" },
-        { status: 500 }
+      logger.error("Failed to insert lot_photo", insertError, undefined, { lotId, objectKey, kind });
+      return createErrorResponse(
+        insertError.message || "Failed to save photo record",
+        500,
+        "INSERT_LOT_PHOTO_FAILED",
+        insertError
       );
     }
 
@@ -86,11 +92,7 @@ export async function POST(
       },
     });
   } catch (error: any) {
-    console.error("Error in commit photo API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "commit_lot_photo", metadata: { lotId } });
   }
 }
 

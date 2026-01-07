@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const supabase = supabaseServer();
@@ -16,7 +20,7 @@ export async function DELETE(
       .delete()
       .eq("lot_id", lotId);
     if (photosError) {
-      console.warn("Error deleting lot photos:", photosError);
+      logger.warn("Failed to delete lot photos", photosError, undefined, { lotId });
     }
     
     // Delete eBay listings (cascade should handle this, but being explicit)
@@ -25,7 +29,7 @@ export async function DELETE(
       .delete()
       .eq("lot_id", lotId);
     if (ebayError) {
-      console.warn("Error deleting eBay listings:", ebayError);
+      logger.warn("Failed to delete eBay listings", ebayError, undefined, { lotId });
     }
     
     // Delete sales_items to keep database lean
@@ -35,7 +39,7 @@ export async function DELETE(
       .delete()
       .eq("lot_id", lotId);
     if (salesError) {
-      console.warn("Error deleting sales items:", salesError);
+      logger.warn("Failed to delete sales items", salesError, undefined, { lotId });
     }
 
     // Delete the inventory lot itself
@@ -45,10 +49,12 @@ export async function DELETE(
       .eq("id", lotId);
 
     if (error) {
-      console.error("Error deleting inventory lot:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to delete lot" },
-        { status: 500 }
+      logger.error("Failed to delete inventory lot", error, undefined, { lotId });
+      return createErrorResponse(
+        error.message || "Failed to delete lot",
+        500,
+        "DELETE_LOT_FAILED",
+        error
       );
     }
 
@@ -57,11 +63,7 @@ export async function DELETE(
       message: "Lot deleted successfully",
     });
   } catch (error: any) {
-    console.error("Error in delete lot API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "delete_lot", metadata: { lotId } });
   }
 }
 

@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 // POST: Add a lot to an existing bundle
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ bundleId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { bundleId } = await params;
     const body = await req.json();
@@ -85,10 +89,17 @@ export async function POST(
         .eq("id", existingItem.id);
 
       if (updateError) {
-        console.error("Error updating bundle item:", updateError);
-        return NextResponse.json(
-          { error: updateError.message || "Failed to update bundle item" },
-          { status: 500 }
+        logger.error("Failed to update bundle item", updateError, undefined, {
+          bundleId,
+          lotId,
+          existingQuantity: existingItem.quantity,
+          addedQuantity: quantity,
+        });
+        return createErrorResponse(
+          updateError.message || "Failed to update bundle item",
+          500,
+          "UPDATE_BUNDLE_ITEM_FAILED",
+          updateError
         );
       }
     } else {
@@ -102,10 +113,16 @@ export async function POST(
         });
 
       if (insertError) {
-        console.error("Error adding bundle item:", insertError);
-        return NextResponse.json(
-          { error: insertError.message || "Failed to add item to bundle" },
-          { status: 500 }
+        logger.error("Failed to add bundle item", insertError, undefined, {
+          bundleId,
+          lotId,
+          quantity,
+        });
+        return createErrorResponse(
+          insertError.message || "Failed to add item to bundle",
+          500,
+          "ADD_BUNDLE_ITEM_FAILED",
+          insertError
         );
       }
     }
@@ -115,11 +132,10 @@ export async function POST(
       message: "Item added to bundle successfully",
     });
   } catch (error: any) {
-    console.error("Error in add bundle item API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "add_bundle_item",
+      metadata: { bundleId, body },
+    });
   }
 }
 

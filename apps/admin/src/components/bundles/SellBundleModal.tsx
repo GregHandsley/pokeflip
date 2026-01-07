@@ -5,6 +5,7 @@ import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { penceToPounds, poundsToPence } from "@pokeflip/shared";
+import { logger } from "@/lib/logger";
 
 type Buyer = {
   id: string;
@@ -99,7 +100,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
         setExistingBuyers(json.buyers || []);
       }
     } catch (e) {
-      console.error("Failed to load buyers:", e);
+      logger.error("Failed to load buyers for SellBundleModal", e);
     }
   };
 
@@ -137,7 +138,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
         setConsumables(json.consumables || []);
       }
     } catch (e) {
-      console.error("Failed to load consumables:", e);
+      logger.error("Failed to load consumables", e);
     } finally {
       setLoadingConsumables(false);
     }
@@ -165,7 +166,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
         setSelectedConsumables(selections);
       }
     } catch (e) {
-      console.error("Failed to apply packaging rule:", e);
+      logger.error("Failed to apply packaging rule", e);
     }
   };
 

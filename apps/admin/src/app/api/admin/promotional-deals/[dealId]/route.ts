@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ dealId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { dealId } = await params;
     const body = await req.json();
@@ -43,10 +47,12 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error("Error updating promotional deal:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to update promotional deal" },
-        { status: 500 }
+      logger.error("Failed to update promotional deal", error, undefined, { dealId, name, deal_type });
+      return createErrorResponse(
+        error.message || "Failed to update promotional deal",
+        500,
+        "UPDATE_PROMOTIONAL_DEAL_FAILED",
+        error
       );
     }
 
@@ -55,11 +61,7 @@ export async function PATCH(
       deal,
     });
   } catch (error: any) {
-    console.error("Error in update promotional deal API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "update_promotional_deal", metadata: { dealId } });
   }
 }
 
@@ -67,6 +69,8 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ dealId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { dealId } = await params;
     const supabase = supabaseServer();
@@ -77,10 +81,12 @@ export async function DELETE(
       .eq("id", dealId);
 
     if (error) {
-      console.error("Error deleting promotional deal:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to delete promotional deal" },
-        { status: 500 }
+      logger.error("Failed to delete promotional deal", error, undefined, { dealId });
+      return createErrorResponse(
+        error.message || "Failed to delete promotional deal",
+        500,
+        "DELETE_PROMOTIONAL_DEAL_FAILED",
+        error
       );
     }
 
@@ -88,11 +94,7 @@ export async function DELETE(
       ok: true,
     });
   } catch (error: any) {
-    console.error("Error in delete promotional deal API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "delete_promotional_deal", metadata: { dealId } });
   }
 }
 

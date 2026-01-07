@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Modal from "@/components/ui/Modal";
 import LotPhotoUpload from "@/components/inventory/LotPhotoUpload";
 import Button from "@/components/ui/Button";
+import { logger } from "@/lib/logger";
 
 type InboxLot = {
   lot_id: string;
@@ -57,7 +58,7 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
         setPhotos(json.photos || []);
       }
     } catch (e) {
-      console.error("Failed to load photos:", e);
+      logger.error("Failed to load photos", e, undefined, { lotId: lot?.lot_id });
     } finally {
       setLoadingPhotos(false);
     }

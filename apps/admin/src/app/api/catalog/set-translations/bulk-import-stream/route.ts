@@ -1,5 +1,6 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { fetchAllSets } from "@/lib/tcgdx/tcgdxClient";
+import { createApiLogger } from "@/lib/logger";
 
 // Helper function to convert text to title case
 function toTitleCase(str: string): string {
@@ -65,7 +66,7 @@ async function translateText(text: string, sourceLang: string): Promise<string |
     console.warn(`MyMemory error for "${text}":`, e.message);
   }
   
-  console.error(`✗ Both translation APIs failed for "${text}" (${sourceLang})`);
+  logger.warn(`Both translation APIs failed`, undefined, undefined, { text, sourceLang });
   return null;
 }
 
@@ -74,6 +75,7 @@ async function translateText(text: string, sourceLang: string): Promise<string |
  * Stream progress updates via Server-Sent Events
  */
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -227,14 +229,14 @@ export async function POST(req: Request) {
                     });
 
                     if (setError) {
-                      console.error(`Failed to create set ${set.id}:`, setError);
+                      logger.error(`Failed to create set during bulk import`, setError, undefined, { setId: set.id });
                       sendProgress({
                         warning: `Set ${set.id} doesn't exist in database and couldn't be created: ${setError.message}`
                       });
                       skippedCount++;
                       continue;
                     } else {
-                      console.log(`✓ Created set ${set.id} in database`);
+                      logger.info(`Created set in database`, undefined, undefined, { setId: set.id });
                     }
                   } else {
                     // If English doesn't exist, create with the translated name
@@ -247,14 +249,14 @@ export async function POST(req: Request) {
                     });
 
                     if (setError) {
-                      console.error(`Failed to create set ${set.id}:`, setError);
+                      logger.error(`Failed to create set during bulk import`, setError, undefined, { setId: set.id });
                       sendProgress({
                         warning: `Set ${set.id} doesn't exist in database and couldn't be created: ${setError.message}`
                       });
                       skippedCount++;
                       continue;
                     } else {
-                      console.log(`✓ Created set ${set.id} in database with translated name`);
+                      logger.info(`Created set in database with translated name`, undefined, undefined, { setId: set.id });
                     }
                   }
                 } catch (e: any) {
@@ -276,7 +278,7 @@ export async function POST(req: Request) {
                 }, { onConflict: "set_id" });
 
               if (saveError) {
-                console.error(`Failed to save translation for ${set.id}:`, saveError);
+                logger.error(`Failed to save translation during bulk import`, saveError, undefined, { setId: set.id });
                 sendProgress({
                   warning: `Failed to save ${set.id}: ${saveError.message}`
                 });
@@ -293,7 +295,7 @@ export async function POST(req: Request) {
             }
           } catch (e: any) {
             failedCount++;
-            console.error(`Error processing set ${set.id}:`, e);
+            logger.error(`Error processing set during bulk import`, e instanceof Error ? e : new Error(String(e)), undefined, { setId: set.id });
             sendProgress({
               warning: `Error processing ${set.id}: ${e.message}`
             });
@@ -320,7 +322,7 @@ export async function POST(req: Request) {
 
         controller.close();
       } catch (error: any) {
-        console.error("[API] Error in bulk import:", error);
+        logger.error("Error in bulk import stream", error instanceof Error ? error : new Error(String(error)));
         sendProgress({
           error: error.message || "Failed to bulk import translations",
           details: process.env.NODE_ENV === "development" ? error.stack : undefined,

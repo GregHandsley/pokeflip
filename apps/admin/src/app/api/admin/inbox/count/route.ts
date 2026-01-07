@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
 
@@ -13,10 +17,12 @@ export async function GET(req: Request) {
       .eq("status", "ready");
 
     if (error) {
-      console.error("Error fetching inbox count:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch inbox count" },
-        { status: 500 }
+      logger.error("Failed to fetch inbox count", error);
+      return createErrorResponse(
+        error.message || "Failed to fetch inbox count",
+        500,
+        "FETCH_INBOX_COUNT_FAILED",
+        error
       );
     }
 
@@ -25,11 +31,7 @@ export async function GET(req: Request) {
       count: count || 0,
     });
   } catch (error: any) {
-    console.error("Error in inbox count API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "fetch_inbox_count" });
   }
 }
 

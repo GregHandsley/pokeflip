@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
 
@@ -12,10 +16,12 @@ export async function GET(req: Request) {
       .order("name", { ascending: true });
 
     if (error) {
-      console.error("Error fetching consumables:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch consumables" },
-        { status: 500 }
+      logger.error("Failed to fetch consumables", error);
+      return createErrorResponse(
+        error.message || "Failed to fetch consumables",
+        500,
+        "FETCH_CONSUMABLES_FAILED",
+        error
       );
     }
 
@@ -24,15 +30,13 @@ export async function GET(req: Request) {
       consumables: consumables || [],
     });
   } catch (error: any) {
-    console.error("Error in consumables API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_consumables" });
   }
 }
 
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const { name, unit = "each" } = body;
@@ -56,10 +60,12 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      console.error("Error creating consumable:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to create consumable" },
-        { status: 500 }
+      logger.error("Failed to create consumable", error, undefined, { name, unit });
+      return createErrorResponse(
+        error.message || "Failed to create consumable",
+        500,
+        "CREATE_CONSUMABLE_FAILED",
+        error
       );
     }
 
@@ -68,11 +74,7 @@ export async function POST(req: Request) {
       consumable,
     });
   } catch (error: any) {
-    console.error("Error in create consumable API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "create_consumable" });
   }
 }
 

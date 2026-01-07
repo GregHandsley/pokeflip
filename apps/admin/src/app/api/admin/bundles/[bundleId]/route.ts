@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 // GET: Get a single bundle with items
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ bundleId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { bundleId } = await params;
     const supabase = supabaseServer();
@@ -50,11 +54,7 @@ export async function GET(
       bundle,
     });
   } catch (error: any) {
-    console.error("Error in get bundle API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_bundle", metadata: { bundleId } });
   }
 }
 
@@ -63,6 +63,8 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ bundleId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { bundleId } = await params;
     const supabase = supabaseServer();
@@ -87,10 +89,12 @@ export async function DELETE(
       .eq("id", bundleId);
 
     if (error) {
-      console.error("Error deleting bundle:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to delete bundle" },
-        { status: 500 }
+      logger.error("Failed to delete bundle", error, undefined, { bundleId });
+      return createErrorResponse(
+        error.message || "Failed to delete bundle",
+        500,
+        "DELETE_BUNDLE_FAILED",
+        error
       );
     }
 
@@ -99,11 +103,7 @@ export async function DELETE(
       message: "Bundle deleted successfully",
     });
   } catch (error: any) {
-    console.error("Error in delete bundle API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "delete_bundle", metadata: { bundleId } });
   }
 }
 

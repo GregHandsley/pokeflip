@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 type LotRow = {
   id: string;
@@ -40,7 +42,9 @@ const sumByDate = (
     .sort((a, b) => a.date.localeCompare(b.date));
 };
 
-export async function GET() {
+export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const rangeDays = 90; // default lookback
     const supabase = supabaseServer();
@@ -61,14 +65,16 @@ export async function GET() {
       ]);
 
     if (lotsRes.error || salesItemsRes.error || profitRes.error) {
-      console.error("Dashboard load error:", {
-        lots: lotsRes.error,
-        sales: salesItemsRes.error,
-        profit: profitRes.error,
+      logger.error("Failed to load dashboard analytics", undefined, undefined, {
+        lotsError: lotsRes.error,
+        salesError: salesItemsRes.error,
+        profitError: profitRes.error,
       });
-      return NextResponse.json(
-        { error: "Failed to load dashboard analytics" },
-        { status: 500 }
+      return createErrorResponse(
+        "Failed to load dashboard analytics",
+        500,
+        "DASHBOARD_LOAD_FAILED",
+        lotsRes.error || salesItemsRes.error || profitRes.error
       );
     }
 
@@ -161,11 +167,7 @@ export async function GET() {
       profitTrend,
     });
   } catch (error: unknown) {
-    console.error("Dashboard analytics error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_dashboard_analytics" });
   }
 }
 

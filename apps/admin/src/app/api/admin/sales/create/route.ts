@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const {
@@ -30,9 +34,11 @@ export async function POST(req: Request) {
       // Legacy format: single lot
       lotsToSell = [{ lotId, qty }];
     } else {
-      return NextResponse.json(
-        { error: "Missing required fields: either (lotId + qty) or (lots array)" },
-        { status: 400 }
+      logger.warn("Missing required fields for sale creation", undefined, { body });
+      return createErrorResponse(
+        "Missing required fields: either (lotId + qty) or (lots array)",
+        400,
+        "MISSING_FIELDS"
       );
     }
 
@@ -41,16 +47,20 @@ export async function POST(req: Request) {
     const hasOldFormat = soldPricePence != null;
     
     if (!hasNewFormat && !hasOldFormat) {
-      return NextResponse.json(
-        { error: "Missing required fields: either soldPricePence or lots with pricePence" },
-        { status: 400 }
+      logger.warn("Missing price information for sale", undefined, { body });
+      return createErrorResponse(
+        "Missing required fields: either soldPricePence or lots with pricePence",
+        400,
+        "MISSING_PRICE"
       );
     }
 
     if (!buyerHandle) {
-      return NextResponse.json(
-        { error: "Missing required field: buyerHandle" },
-        { status: 400 }
+      logger.warn("Missing buyer handle for sale", undefined, { body });
+      return createErrorResponse(
+        "Missing required field: buyerHandle",
+        400,
+        "MISSING_BUYER"
       );
     }
 
@@ -176,7 +186,7 @@ export async function POST(req: Request) {
          errorMessage.includes("order_group"));
       
       if (isColumnError) {
-        console.warn("Optional columns not found, creating order without them:", {
+        logger.warn("Optional columns not found, creating order without them", undefined, {
           code: errorCode,
           message: errorMessage,
         });
@@ -197,10 +207,15 @@ export async function POST(req: Request) {
     }
 
     if (orderError || !salesOrder) {
-      console.error("Error creating sales order:", orderError);
-      return NextResponse.json(
-        { error: orderError?.message || "Failed to create sales order" },
-        { status: 500 }
+      logger.error("Failed to create sales order", orderError, undefined, {
+        orderError: orderError?.message,
+        buyerId,
+      });
+      return createErrorResponse(
+        orderError?.message || "Failed to create sales order",
+        500,
+        "ORDER_CREATE_FAILED",
+        orderError
       );
     }
 
@@ -252,10 +267,15 @@ export async function POST(req: Request) {
       .select("id, lot_id");
 
     if (itemError) {
-      console.error("Error creating sales items:", itemError);
-      return NextResponse.json(
-        { error: "Failed to create sales items" },
-        { status: 500 }
+      logger.error("Failed to create sales items", itemError, undefined, {
+        salesOrderId: salesOrder.id,
+        itemsCount: salesItems.length,
+      });
+      return createErrorResponse(
+        "Failed to create sales items",
+        500,
+        "SALES_ITEMS_CREATE_FAILED",
+        itemError
       );
     }
 
@@ -282,7 +302,10 @@ export async function POST(req: Request) {
           .insert(allocationsToInsert);
         
         if (allocError) {
-          console.error("Error creating purchase allocations:", allocError);
+          logger.warn("Failed to create purchase allocations", allocError, undefined, {
+            salesOrderId: salesOrder.id,
+            allocationsCount: allocationsToInsert.length,
+          });
           // Don't fail the sale if allocations fail, but log it
         }
       }
@@ -304,7 +327,10 @@ export async function POST(req: Request) {
           .insert(salesConsumables);
 
         if (consumablesError) {
-          console.error("Error creating sales consumables:", consumablesError);
+          logger.warn("Failed to create sales consumables", consumablesError, undefined, {
+            salesOrderId: salesOrder.id,
+            consumablesCount: salesConsumables.length,
+          });
           // Don't fail the whole request, just log the error
         }
       }
@@ -326,7 +352,10 @@ export async function POST(req: Request) {
           .eq("id", lotToSell.lotId);
 
         if (statusError) {
-          console.error("Error updating lot status:", statusError);
+          logger.warn("Failed to update lot status", statusError, undefined, {
+            lotId: lotToSell.lotId,
+            salesOrderId: salesOrder.id,
+          });
           // Don't fail the request, just log the error
         }
       }
@@ -338,11 +367,10 @@ export async function POST(req: Request) {
       salesOrderId: salesOrder.id,
     });
   } catch (error: any) {
-    console.error("Error in create sale API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "create_sale",
+      metadata: { body },
+    });
   }
 }
 

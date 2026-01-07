@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { orderId } = await params;
     const supabase = supabaseServer();
@@ -17,10 +21,12 @@ export async function GET(
       .single();
 
     if (error) {
-      console.error("Error fetching profit data:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch profit data" },
-        { status: 500 }
+      logger.error("Failed to fetch profit data", error, undefined, { orderId });
+      return createErrorResponse(
+        error.message || "Failed to fetch profit data",
+        500,
+        "FETCH_PROFIT_DATA_FAILED",
+        error
       );
     }
 
@@ -81,11 +87,7 @@ export async function GET(
       },
     });
   } catch (error: any) {
-    console.error("Error in profit API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_order_profit", metadata: { orderId } });
   }
 }
 

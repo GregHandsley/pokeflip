@@ -73,7 +73,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
         setPhotos(json.photos || []);
       }
     } catch (e) {
-      console.error("Failed to load photos:", e);
+      logger.error("Failed to load photos", e, undefined, { lotId: lot.lot_id });
     } finally {
       setLoadingPhotos(false);
     }
@@ -86,17 +86,23 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       const res = await fetch(`/api/admin/inbox/lots/${lot.lot_id}/sales-data`);
       if (!res.ok) {
         const text = await res.text();
-        console.error("Failed to load sales data:", res.status, text);
+        logger.error("Failed to load sales data", new Error(`HTTP ${res.status}: ${text}`), undefined, {
+          lotId: lot.lot_id,
+          status: res.status,
+        });
         return;
       }
       const json = await res.json();
       if (json.ok && json.data) {
         setSalesData(json.data);
       } else {
-        console.error("Invalid sales data response:", json);
+        logger.error("Invalid sales data response", new Error("Invalid response format"), undefined, {
+          lotId: lot.lot_id,
+          response: json,
+        });
       }
     } catch (e) {
-      console.error("Failed to load sales data:", e);
+      logger.error("Failed to load sales data", e, undefined, { lotId: lot.lot_id });
     } finally {
       setLoadingSalesData(false);
     }
@@ -386,7 +392,10 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (e) {
-      console.error("Failed to download image:", e);
+      logger.error("Failed to download image", e, undefined, {
+        lotId: lot?.lot_id,
+        photoKind: photo.kind,
+      });
       alert("Failed to download image");
     }
   };

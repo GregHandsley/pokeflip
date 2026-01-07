@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const body = await req.json();
@@ -26,10 +30,12 @@ export async function PATCH(
       .eq("id", lotId);
 
     if (error) {
-      console.error("Error updating use_api_image flag:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to update use_api_image flag" },
-        { status: 500 }
+      logger.error("Failed to update use_api_image flag", error, undefined, { lotId, use_api_image });
+      return createErrorResponse(
+        error.message || "Failed to update use_api_image flag",
+        500,
+        "UPDATE_USE_API_IMAGE_FAILED",
+        error
       );
     }
 
@@ -38,11 +44,7 @@ export async function PATCH(
       message: `API image flag ${use_api_image ? "enabled" : "disabled"}`,
     });
   } catch (error: any) {
-    console.error("Error in use-api-image API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "update_use_api_image", metadata: { lotId } });
   }
 }
 

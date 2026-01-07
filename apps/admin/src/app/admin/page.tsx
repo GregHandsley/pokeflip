@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Card from "@/components/ui/Card";
 import PageHeader from "@/components/ui/PageHeader";
 import { InboxSummary, FinancialOverview, QuickStats } from "@/components/dashboard";
+import { logger } from "@/lib/logger";
 
 const links = [
   {
@@ -80,7 +81,7 @@ export default function AdminHome() {
           setSummary(json);
         }
       } catch (e) {
-        console.error("Failed to load dashboard summary:", e);
+        logger.error("Failed to load dashboard summary", e);
       } finally {
         setLoading(false);
       }

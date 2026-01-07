@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 const ALLOWED_VARIATIONS = [
   "standard",
@@ -17,6 +19,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const body = await req.json();
@@ -36,20 +40,18 @@ export async function PATCH(
       .eq("id", lotId);
 
     if (error) {
-      console.error("Update variation error:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to update variation" },
-        { status: 500 }
+      logger.error("Failed to update variation", error, undefined, { lotId, variation });
+      return createErrorResponse(
+        error.message || "Failed to update variation",
+        500,
+        "UPDATE_VARIATION_FAILED",
+        error
       );
     }
 
     return NextResponse.json({ ok: true, variation });
   } catch (error: unknown) {
-    console.error("Error updating variation:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "update_variation", metadata: { lotId } });
   }
 }
 

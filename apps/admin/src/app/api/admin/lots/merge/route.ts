@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const { lot_ids, target_lot_id } = body;
@@ -147,7 +151,10 @@ export async function POST(req: Request) {
       .eq("id", target_lot_id);
 
     if (updateError) {
-      console.error("Error updating target lot:", updateError);
+      logger.error("Failed to update target lot during merge", updateError, undefined, {
+        targetLotId: target_lot_id,
+        lotIds,
+      });
       return NextResponse.json(
         { error: updateError.message || "Failed to update target lot" },
         { status: 500 }
@@ -166,10 +173,15 @@ export async function POST(req: Request) {
       .in("lot_id", lot_ids);
 
     if (historyError) {
-      console.error("Error fetching purchase history:", historyError);
-      return NextResponse.json(
-        { error: "Failed to fetch purchase history for merge" },
-        { status: 500 }
+      logger.error("Failed to fetch purchase history during merge", historyError, undefined, {
+        targetLotId: target_lot_id,
+        lotIds,
+      });
+      return createErrorResponse(
+        "Failed to fetch purchase history for merge",
+        500,
+        "FETCH_PURCHASE_HISTORY_FAILED",
+        historyError
       );
     }
 
@@ -224,10 +236,15 @@ export async function POST(req: Request) {
         .insert(historyInserts);
 
       if (insertHistoryError) {
-        console.error("Error inserting merged purchase history:", insertHistoryError);
-        return NextResponse.json(
-          { error: "Failed to preserve purchase history during merge" },
-          { status: 500 }
+        logger.error("Failed to insert merged purchase history", insertHistoryError, undefined, {
+          targetLotId: target_lot_id,
+          historyInsertsCount: historyInserts.length,
+        });
+        return createErrorResponse(
+          "Failed to preserve purchase history during merge",
+          500,
+          "INSERT_PURCHASE_HISTORY_FAILED",
+          insertHistoryError
         );
       }
     }
@@ -268,7 +285,10 @@ export async function POST(req: Request) {
             .insert(photosToInsert);
 
           if (photoError) {
-            console.error("Error copying photos:", photoError);
+            logger.warn("Failed to copy photos during merge", photoError, undefined, {
+              targetLotId: target_lot_id,
+              photosToInsertCount: photosToInsert.length,
+            });
             // Don't fail the merge if photos fail
           }
         }
@@ -282,7 +302,10 @@ export async function POST(req: Request) {
       .in("id", otherLotIds);
 
     if (deleteError) {
-      console.error("Error deleting merged lots:", deleteError);
+      logger.error("Failed to delete merged lots", deleteError, undefined, {
+        targetLotId: target_lot_id,
+        lotIdsToDelete: lotIds.filter((id) => id !== target_lot_id),
+      });
       return NextResponse.json(
         { error: deleteError.message || "Failed to delete merged lots" },
         { status: 500 }
@@ -298,11 +321,10 @@ export async function POST(req: Request) {
       merged_count: lot_ids.length,
     });
   } catch (error: any) {
-    console.error("Error in merge API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "merge_lots",
+      metadata: { lotIds, targetLotId: target_lot_id },
+    });
   }
 }
 

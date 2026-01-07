@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 /**
  * DELETE /api/catalog/set-translations/[setId]
@@ -9,6 +11,8 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ setId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { setId } = await params;
     const supabase = supabaseServer();
@@ -24,14 +28,7 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    console.error("[API] Error deleting set translation:", error);
-    return NextResponse.json(
-      {
-        error: error.message || "Failed to delete set translation",
-        details: process.env.NODE_ENV === "development" ? error.stack : undefined,
-      },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "delete_set_translation", metadata: { setId } });
   }
 }
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 const dateKey = (date: string | null | undefined) => {
   if (!date) return "";
@@ -30,9 +32,11 @@ const variationLabel = (v?: string | null) => {
 };
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ cardId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { cardId } = await params;
     const supabase = supabaseServer();
@@ -45,10 +49,12 @@ export async function GET(
     let { data: lots, error: lotError } = await fetchLotsForCard(resolvedCardId);
 
     if (lotError) {
-      console.error("Error loading lots for card analytics:", lotError);
-      return NextResponse.json(
-        { error: lotError.message || "Failed to load card analytics" },
-        { status: 500 }
+      logger.error("Failed to load lots for card analytics", lotError, undefined, { cardId });
+      return createErrorResponse(
+        lotError.message || "Failed to load card analytics",
+        500,
+        "LOAD_CARD_ANALYTICS_FAILED",
+        lotError
       );
     }
 
@@ -65,7 +71,7 @@ export async function GET(
         .single();
 
       if (cardError) {
-        console.error("Fallback card lookup error:", cardError);
+        logger.warn("Fallback card lookup failed", cardError, undefined, { cardId, numberCandidate });
       }
 
       if (cardRow?.id) {
@@ -74,10 +80,15 @@ export async function GET(
         lots = lotsRetry.data || [];
         lotError = lotsRetry.error;
         if (lotError) {
-          console.error("Error loading lots (fallback) for card analytics:", lotError);
-          return NextResponse.json(
-            { error: lotError.message || "Failed to load card analytics" },
-            { status: 500 }
+          logger.error("Failed to load lots (fallback) for card analytics", lotError, undefined, {
+            cardId,
+            resolvedCardId,
+          });
+          return createErrorResponse(
+            lotError.message || "Failed to load card analytics",
+            500,
+            "LOAD_CARD_ANALYTICS_FAILED",
+            lotError
           );
         }
       }
@@ -111,10 +122,15 @@ export async function GET(
       .order("sold_at", { ascending: true, referencedTable: "sales_orders" });
 
     if (salesError) {
-      console.error("Error loading sales items:", salesError);
-      return NextResponse.json(
-        { error: salesError.message || "Failed to load card analytics" },
-        { status: 500 }
+      logger.error("Failed to load sales items for card analytics", salesError, undefined, {
+        cardId,
+        lotIdsCount: lotIds.length,
+      });
+      return createErrorResponse(
+        salesError.message || "Failed to load card analytics",
+        500,
+        "LOAD_CARD_ANALYTICS_FAILED",
+        salesError
       );
     }
 
@@ -153,7 +169,10 @@ export async function GET(
       .in("sales_order_id", orderIds);
 
     if (profitError) {
-      console.error("Error loading order profits:", profitError);
+      logger.error("Failed to load order profits for card analytics", profitError, undefined, {
+        cardId,
+        salesOrderIdsCount: salesOrderIds.length,
+      });
     }
 
     const profitMap = new Map(
@@ -230,11 +249,7 @@ export async function GET(
       avgMarginPercent,
     });
   } catch (error: unknown) {
-    console.error("Card analytics error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_card_analytics", metadata: { cardId } });
   }
 }
 

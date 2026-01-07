@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
 
@@ -35,10 +39,12 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false });
 
     if (lotsError) {
-      console.error("Error fetching listed lots:", lotsError);
-      return NextResponse.json(
-        { error: lotsError.message || "Failed to fetch listed lots" },
-        { status: 500 }
+      logger.error("Failed to fetch listed lots", lotsError);
+      return createErrorResponse(
+        lotsError.message || "Failed to fetch listed lots",
+        500,
+        "FETCH_LOTS_FAILED",
+        lotsError
       );
     }
 
@@ -158,11 +164,7 @@ export async function GET(req: Request) {
       lots: formattedLots,
     });
   } catch (error: any) {
-    console.error("Error in listed lots API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "fetch_listed_lots" });
   }
 }
 

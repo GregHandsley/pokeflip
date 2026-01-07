@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { Parser } from "json2csv";
 import { penceToPounds } from "@pokeflip/shared";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
     const { data, error } = await supabase
@@ -33,10 +37,12 @@ export async function GET() {
       );
 
     if (error) {
-      console.error("Inventory export error:", error);
-      return NextResponse.json(
-        { error: "Failed to generate inventory export" },
-        { status: 500 }
+      logger.error("Failed to generate inventory export", error);
+      return createErrorResponse(
+        "Failed to generate inventory export",
+        500,
+        "INVENTORY_EXPORT_FAILED",
+        error
       );
     }
 
@@ -73,11 +79,7 @@ export async function GET() {
       },
     });
   } catch (error: unknown) {
-    console.error("Inventory export exception:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "export_inventory" });
   }
 }
 

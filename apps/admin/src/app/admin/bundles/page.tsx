@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import { penceToPounds } from "@pokeflip/shared";
 import CreateBundleModal from "@/components/bundles/CreateBundleModal";
 import SellBundleModal from "@/components/bundles/SellBundleModal";
+import { useApiErrorHandler } from "@/hooks/useApiErrorHandler";
 
 type Bundle = {
   id: string;
@@ -36,6 +37,7 @@ type Bundle = {
 };
 
 export default function BundlesPage() {
+  const { handleError } = useApiErrorHandler();
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -55,7 +57,7 @@ export default function BundlesPage() {
         setBundles(json.bundles || []);
       }
     } catch (e) {
-      console.error("Failed to load bundles:", e);
+      handleError(e, { title: "Failed to load bundles" });
     } finally {
       setLoading(false);
     }
@@ -91,8 +93,7 @@ export default function BundlesPage() {
         alert(json.error || "Failed to delete bundle");
       }
     } catch (e) {
-      console.error("Failed to delete bundle:", e);
-      alert("Failed to delete bundle");
+      handleError(e, { title: "Failed to delete bundle" });
     }
   };
 

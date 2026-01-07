@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const supabase = supabaseServer();
@@ -17,10 +21,12 @@ export async function GET(
       .order("created_at", { ascending: false });
 
     if (itemsError) {
-      console.error("Error fetching sales items:", itemsError);
-      return NextResponse.json(
-        { error: itemsError.message || "Failed to fetch sales items" },
-        { status: 500 }
+      logger.error("Failed to fetch sales items", itemsError, undefined, { lotId });
+      return createErrorResponse(
+        itemsError.message || "Failed to fetch sales items",
+        500,
+        "FETCH_SALES_ITEMS_FAILED",
+        itemsError
       );
     }
 
@@ -39,10 +45,15 @@ export async function GET(
       .in("id", orderIds);
 
     if (ordersError) {
-      console.error("Error fetching sales orders:", ordersError);
-      return NextResponse.json(
-        { error: ordersError.message || "Failed to fetch sales orders" },
-        { status: 500 }
+      logger.error("Failed to fetch sales orders", ordersError, undefined, {
+        lotId,
+        orderIdsCount: orderIds.length,
+      });
+      return createErrorResponse(
+        ordersError.message || "Failed to fetch sales orders",
+        500,
+        "FETCH_SALES_ORDERS_FAILED",
+        ordersError
       );
     }
 
@@ -89,11 +100,7 @@ export async function GET(
       sales_items: formattedItems,
     });
   } catch (error: any) {
-    console.error("Error in sales items API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_lot_sales", metadata: { lotId } });
   }
 }
 

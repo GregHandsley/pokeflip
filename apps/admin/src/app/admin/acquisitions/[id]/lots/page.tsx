@@ -143,7 +143,7 @@ export default function PurchaseLotsPage() {
         setProfitData(json.profit);
       }
     } catch (e: any) {
-      console.error("Failed to load profit data:", e);
+      logger.error("Failed to load profit data", e, undefined, { purchaseId });
     } finally {
       setLoadingProfit(false);
     }
@@ -161,7 +161,7 @@ export default function PurchaseLotsPage() {
         setDraftCount(count);
       }
     } catch (e: any) {
-      console.error("Failed to load draft count:", e);
+      logger.error("Failed to load draft count", e, undefined, { purchaseId });
     }
   };
 
@@ -480,7 +480,7 @@ export default function PurchaseLotsPage() {
         .single();
 
       if (cardError || !card) {
-        console.error("Error fetching card:", cardError);
+        logger.error("Error fetching card for InboxLot conversion", cardError, undefined, { cardId: lot.card_id });
         return null;
       }
 
@@ -524,7 +524,10 @@ export default function PurchaseLotsPage() {
 
       return inboxLot;
     } catch (e) {
-      console.error("Error converting lot to InboxLot:", e);
+      logger.error("Failed to convert lot to InboxLot", e, undefined, {
+        lotId: lot.id,
+        cardId: lot.card_id,
+      });
       return null;
     }
   };

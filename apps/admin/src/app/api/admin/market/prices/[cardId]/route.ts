@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 type PriceResult = {
   ok: boolean;
@@ -167,9 +169,11 @@ function chooseForCondition(
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ cardId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { cardId } = await params;
     const supabase = supabaseServer();
@@ -255,11 +259,7 @@ export async function GET(
 
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error("price fetch failed", e);
-    return NextResponse.json(
-      { error: e?.message || "Failed to fetch price" },
-      { status: 500 }
-    );
+    return handleApiError(req, e, { operation: "get_market_price", metadata: { cardId } });
   }
 }
 

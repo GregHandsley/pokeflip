@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ lineId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lineId } = await params;
     const supabase = supabaseServer();
@@ -17,10 +21,12 @@ export async function GET(
       .order("created_at", { ascending: true });
 
     if (error) {
-      console.error("Error fetching photos:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch photos" },
-        { status: 500 }
+      logger.error("Failed to fetch intake line photos", error, undefined, { lineId });
+      return createErrorResponse(
+        error.message || "Failed to fetch photos",
+        500,
+        "FETCH_INTAKE_PHOTOS_FAILED",
+        error
       );
     }
 
@@ -47,11 +53,7 @@ export async function GET(
       photos: photosWithUrls,
     });
   } catch (error: any) {
-    console.error("Error in photos list API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_intake_line_photos", metadata: { lineId } });
   }
 }
 

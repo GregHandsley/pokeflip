@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ cardId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { cardId } = await params;
     const supabase = supabaseServer();
@@ -27,10 +31,12 @@ export async function GET(
       .single();
 
     if (cardError) {
-      console.error("Error fetching card:", cardError);
-      return NextResponse.json(
-        { error: cardError.message || "Failed to fetch card" },
-        { status: 500 }
+      logger.error("Failed to fetch card", cardError, undefined, { cardId });
+      return createErrorResponse(
+        cardError.message || "Failed to fetch card",
+        500,
+        "FETCH_CARD_FAILED",
+        cardError
       );
     }
 
@@ -43,10 +49,12 @@ export async function GET(
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching lots:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch lots" },
-        { status: 500 }
+      logger.error("Failed to fetch lots", error, undefined, { cardId });
+      return createErrorResponse(
+        error.message || "Failed to fetch lots",
+        500,
+        "FETCH_LOTS_FAILED",
+        error
       );
     }
 
@@ -216,11 +224,7 @@ export async function GET(
       } : null,
     });
   } catch (error: any) {
-    console.error("Error in lots API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "fetch_card_lots", metadata: { cardId } });
   }
 }
 

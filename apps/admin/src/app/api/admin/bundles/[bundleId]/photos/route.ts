@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ bundleId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { bundleId } = await params;
     const supabase = supabaseServer();
@@ -16,10 +20,12 @@ export async function GET(
       .order("created_at", { ascending: true });
 
     if (error) {
-      console.error("Error fetching bundle photos:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch photos" },
-        { status: 500 }
+      logger.error("Failed to fetch bundle photos", error, undefined, { bundleId });
+      return createErrorResponse(
+        error.message || "Failed to fetch photos",
+        500,
+        "FETCH_BUNDLE_PHOTOS_FAILED",
+        error
       );
     }
 
@@ -45,10 +51,6 @@ export async function GET(
       photos: photosWithUrls,
     });
   } catch (error: any) {
-    console.error("Error in bundle photos API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "fetch_bundle_photos", metadata: { bundleId } });
   }
 }

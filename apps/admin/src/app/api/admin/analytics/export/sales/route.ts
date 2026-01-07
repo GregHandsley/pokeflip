@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { Parser } from "json2csv";
 import { penceToPounds } from "@pokeflip/shared";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
 
@@ -42,13 +46,15 @@ export async function GET() {
     ]);
 
     if (ordersRes.error || profitRes.error) {
-      console.error("Sales export error:", {
-        orders: ordersRes.error,
-        profit: profitRes.error,
+      logger.error("Failed to generate sales export", undefined, undefined, {
+        ordersError: ordersRes.error,
+        profitError: profitRes.error,
       });
-      return NextResponse.json(
-        { error: "Failed to generate sales export" },
-        { status: 500 }
+      return createErrorResponse(
+        "Failed to generate sales export",
+        500,
+        "SALES_EXPORT_FAILED",
+        ordersRes.error || profitRes.error
       );
     }
 
@@ -124,11 +130,7 @@ export async function GET() {
       },
     });
   } catch (error: unknown) {
-    console.error("Sales export exception:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "export_sales" });
   }
 }
 

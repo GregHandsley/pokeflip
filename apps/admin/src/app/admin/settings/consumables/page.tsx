@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import ErrorModal from "@/components/ui/ErrorModal";
+import { logger } from "@/lib/logger";
 
 type Consumable = {
   consumable_id: string;
@@ -65,7 +66,7 @@ export default function ConsumablesPage() {
         setConsumables(json.consumables || []);
       }
     } catch (e) {
-      console.error("Failed to load consumables:", e);
+      logger.error("Failed to load consumables", e);
     } finally {
       setLoading(false);
     }
@@ -79,7 +80,7 @@ export default function ConsumablesPage() {
         setPurchases(json.purchases || []);
       }
     } catch (e) {
-      console.error("Failed to load purchases:", e);
+      logger.error("Failed to load consumable purchases", e);
     }
   };
 

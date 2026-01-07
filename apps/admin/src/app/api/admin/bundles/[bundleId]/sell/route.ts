@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 // POST: Sell a bundle
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ bundleId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { bundleId } = await params;
     const body = await req.json();
@@ -174,10 +178,15 @@ export async function POST(
       .single();
 
     if (orderError || !salesOrder) {
-      console.error("Error creating sales order:", orderError);
-      return NextResponse.json(
-        { error: orderError?.message || "Failed to create sales order" },
-        { status: 500 }
+      logger.error("Failed to create sales order for bundle", orderError, undefined, {
+        bundleId,
+        buyerId,
+      });
+      return createErrorResponse(
+        orderError?.message || "Failed to create sales order",
+        500,
+        "CREATE_SALES_ORDER_FAILED",
+        orderError
       );
     }
 
@@ -233,10 +242,16 @@ export async function POST(
       .select("id, lot_id, qty");
 
     if (itemError || !insertedSalesItems) {
-      console.error("Error creating sales items:", itemError);
-      return NextResponse.json(
-        { error: "Failed to create sales items" },
-        { status: 500 }
+      logger.error("Failed to create sales items for bundle", itemError, undefined, {
+        bundleId,
+        salesOrderId: salesOrder.id,
+        itemsCount: salesItems.length,
+      });
+      return createErrorResponse(
+        "Failed to create sales items",
+        500,
+        "CREATE_SALES_ITEMS_FAILED",
+        itemError
       );
     }
 
@@ -297,10 +312,17 @@ export async function POST(
         .insert(purchaseAllocations);
 
       if (allocError) {
-        console.error("Error creating purchase allocations:", allocError);
+        logger.warn("Failed to create purchase allocations for bundle sale", allocError, undefined, {
+          bundleId,
+          salesOrderId: salesOrder.id,
+          allocationsCount: purchaseAllocations.length,
+        });
         // Don't fail the sale if allocations fail
       } else {
-        console.log(`Bundle sell: Successfully created ${purchaseAllocations.length} purchase allocations`);
+        logger.info(`Bundle sell: Successfully created ${purchaseAllocations.length} purchase allocations`, undefined, {
+          bundleId,
+          salesOrderId: salesOrder.id,
+        });
       }
     } else {
       console.warn("Bundle sell: No purchase allocations created!");
@@ -322,7 +344,11 @@ export async function POST(
           .insert(salesConsumables);
 
         if (consumablesError) {
-          console.error("Error creating sales consumables:", consumablesError);
+          logger.warn("Failed to create sales consumables for bundle", consumablesError, undefined, {
+            bundleId,
+            salesOrderId: salesOrder.id,
+            consumablesCount: salesConsumables.length,
+          });
           // Don't fail the sale if consumables fail
         }
       }
@@ -342,11 +368,10 @@ export async function POST(
       },
     });
   } catch (error: any) {
-    console.error("Error in sell bundle API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "sell_bundle",
+      metadata: { bundleId, body },
+    });
   }
 }
 

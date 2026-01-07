@@ -13,6 +13,7 @@ import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 import { variationLabel } from "./variations";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import CardAnalyticsPanel from "../analytics/CardAnalyticsPanel";
+import { logger } from "@/lib/logger";
 
 type Purchase = {
   id: string;
@@ -130,7 +131,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
         }
       }
     } catch (e) {
-      console.error("Failed to load cards:", e);
+      logger.error("Failed to load cards", e, undefined, { cardId });
     } finally {
       setLoading(false);
     }
@@ -158,7 +159,10 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
         .single();
 
       if (cardError || !card) {
-        console.error("Error fetching card:", cardError);
+        logger.error("Failed to fetch card for InboxLot conversion", cardError, undefined, {
+          cardId,
+          lotId: lot.id,
+        });
         return null;
       }
 
@@ -202,7 +206,10 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
 
       return inboxLot;
     } catch (e) {
-      console.error("Error converting lot to InboxLot:", e);
+      logger.error("Failed to convert lot to InboxLot", e, undefined, {
+        lotId: lot.id,
+        cardId,
+      });
       return null;
     }
   };
@@ -350,7 +357,7 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
             });
           }
         } catch (e) {
-          console.error("Failed to load sales items:", e);
+          logger.error("Failed to load sales items", e, undefined, { lotId });
         } finally {
           setLoadingSalesItems((prev) => {
             const next = new Set(prev);
@@ -932,7 +939,10 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                                     window.location.href = `/admin/sales?orderId=${json.salesOrderId}`;
                                   }
                                 } catch (e) {
-                                  console.error("Failed to get sales order:", e);
+                                  logger.error("Failed to get sales order", e, undefined, {
+                                    salesOrderId: item.sales_order_id,
+                                    lotId: lot.id,
+                                  });
                                 }
                               }}
                             >

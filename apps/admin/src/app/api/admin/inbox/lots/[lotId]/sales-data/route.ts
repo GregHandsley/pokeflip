@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 import { variationLabel } from "@/components/inventory/variations";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const supabase = supabaseServer();
@@ -19,10 +23,12 @@ export async function GET(
       .single();
 
     if (lotError || !lot) {
-      console.error("Error fetching lot:", lotError);
-      return NextResponse.json(
-        { error: "Lot not found" },
-        { status: 404 }
+      logger.error("Failed to fetch lot", lotError, undefined, { lotId });
+      return createErrorResponse(
+        "Lot not found",
+        404,
+        "LOT_NOT_FOUND",
+        lotError
       );
     }
 
@@ -44,10 +50,12 @@ export async function GET(
       .single();
 
     if (cardError || !card) {
-      console.error("Error fetching card:", cardError);
-      return NextResponse.json(
-        { error: "Card not found" },
-        { status: 404 }
+      logger.error("Failed to fetch card", cardError, undefined, { lotId, cardId: lot.card_id });
+      return createErrorResponse(
+        "Card not found",
+        404,
+        "CARD_NOT_FOUND",
+        cardError
       );
     }
 
@@ -169,10 +177,6 @@ export async function GET(
       },
     });
   } catch (error: any) {
-    console.error("Error in sales-data API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_sales_data", metadata: { lotId } });
   }
 }

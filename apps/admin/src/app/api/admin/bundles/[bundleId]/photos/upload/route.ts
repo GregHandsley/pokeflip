@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ bundleId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { bundleId } = await params;
     const formData = await req.formData();
@@ -43,10 +47,16 @@ export async function POST(
       });
 
     if (uploadError) {
-      console.error("Error uploading file:", uploadError);
-      return NextResponse.json(
-        { error: uploadError.message || "Failed to upload file" },
-        { status: 500 }
+      logger.error("Failed to upload bundle photo", uploadError, undefined, {
+        bundleId,
+        fileName: file.name,
+        fileSize: file.size,
+      });
+      return createErrorResponse(
+        uploadError.message || "Failed to upload file",
+        500,
+        "UPLOAD_PHOTO_FAILED",
+        uploadError
       );
     }
 
@@ -62,12 +72,17 @@ export async function POST(
       .single();
 
     if (insertError) {
-      console.error("Error inserting bundle_photo:", insertError);
+      logger.error("Failed to insert bundle photo record", insertError, undefined, {
+        bundleId,
+        objectKey,
+      });
       // Try to clean up uploaded file
       await supabase.storage.from("card-photos").remove([objectKey]);
-      return NextResponse.json(
-        { error: insertError.message || "Failed to save photo record" },
-        { status: 500 }
+      return createErrorResponse(
+        insertError.message || "Failed to save photo record",
+        500,
+        "INSERT_PHOTO_RECORD_FAILED",
+        insertError
       );
     }
 
@@ -88,11 +103,10 @@ export async function POST(
       },
     });
   } catch (error: any) {
-    console.error("Error in bundle photo upload API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "upload_bundle_photo",
+      metadata: { bundleId },
+    });
   }
 }
 

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const body = await req.json();
@@ -42,10 +46,16 @@ export async function PATCH(
       .eq("id", lotId);
 
     if (error) {
-      console.error("Error updating lot for_sale status:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to update for_sale status" },
-        { status: 500 }
+      logger.error("Failed to update lot for_sale status", error, undefined, {
+        lotId,
+        for_sale,
+        list_price_pence,
+      });
+      return createErrorResponse(
+        error.message || "Failed to update for_sale status",
+        500,
+        "UPDATE_FOR_SALE_FAILED",
+        error
       );
     }
 
@@ -54,11 +64,10 @@ export async function PATCH(
       message: `Lot marked as ${for_sale ? "for sale" : "not for sale"}`,
     });
   } catch (error: any) {
-    console.error("Error in update for_sale API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "update_for_sale",
+      metadata: { lotId, body },
+    });
   }
 }
 

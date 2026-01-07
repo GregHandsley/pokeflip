@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { InboxLot, SalesData } from "./types";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
+import { logger } from "@/lib/logger";
 
 interface Props {
   lot: InboxLot;
@@ -263,7 +264,7 @@ function BundleSelector({ lotId }: { lotId: string }) {
         setBundles(json.bundles || []);
       }
     } catch (e) {
-      console.error("Failed to load bundles:", e);
+      logger.error("Failed to load bundles", e);
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const { searchParams } = new URL(req.url);
     const setId = searchParams.get("setId");
@@ -49,10 +53,15 @@ export async function GET(req: Request) {
     if (error) {
       const errorMsg = error.message || "";
       const errorCode = (error as any).code;
-      console.error("Error fetching inventory cards:", error);
-      console.error("Error message:", errorMsg);
-      console.error("Error code:", errorCode);
-      console.error("Error details:", JSON.stringify(error, null, 2));
+      logger.error("Failed to fetch inventory cards", error, undefined, {
+        setId,
+        q,
+        rarity,
+        page,
+        pageSize,
+        sort,
+        errorCode,
+      });
       
       // Check for specific column errors that indicate migration issue
       // Only trigger if the error specifically mentions these columns don't exist
@@ -105,11 +114,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error: any) {
-    console.error("Error in inventory cards API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_inventory_cards" });
   }
 }
 

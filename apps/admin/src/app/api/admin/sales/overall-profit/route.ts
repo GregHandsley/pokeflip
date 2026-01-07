@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
 
@@ -11,10 +15,12 @@ export async function GET(req: Request) {
       .select("id, purchase_total_pence");
 
     if (acqError) {
-      console.error("Error fetching acquisitions:", acqError);
-      return NextResponse.json(
-        { error: acqError.message || "Failed to fetch purchases" },
-        { status: 500 }
+      logger.error("Failed to fetch acquisitions", acqError);
+      return createErrorResponse(
+        acqError.message || "Failed to fetch purchases",
+        500,
+        "FETCH_ACQUISITIONS_FAILED",
+        acqError
       );
     }
 
@@ -29,10 +35,12 @@ export async function GET(req: Request) {
       .select("revenue_after_discount_pence");
 
     if (profitError) {
-      console.error("Error fetching profit data:", profitError);
-      return NextResponse.json(
-        { error: profitError.message || "Failed to fetch profit data" },
-        { status: 500 }
+      logger.error("Failed to fetch profit data", profitError);
+      return createErrorResponse(
+        profitError.message || "Failed to fetch profit data",
+        500,
+        "FETCH_PROFIT_DATA_FAILED",
+        profitError
       );
     }
 
@@ -110,11 +118,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error: any) {
-    console.error("Error in overall profit API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_overall_profit" });
   }
 }
 

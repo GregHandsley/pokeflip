@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ acquisitionId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { acquisitionId } = await params;
     const supabase = supabaseServer();
@@ -31,10 +35,12 @@ export async function GET(
       .eq("acquisition_id", acquisitionId);
 
     if (historyError) {
-      console.error("Error fetching purchase history:", historyError);
-      return NextResponse.json(
-        { error: "Failed to fetch purchase history" },
-        { status: 500 }
+      logger.error("Failed to fetch purchase history", historyError, undefined, { acquisitionId });
+      return createErrorResponse(
+        "Failed to fetch purchase history",
+        500,
+        "FETCH_PURCHASE_HISTORY_FAILED",
+        historyError
       );
     }
 
@@ -48,7 +54,7 @@ export async function GET(
       .eq("acquisition_id", acquisitionId);
 
     if (directLotsError) {
-      console.error("Error fetching direct lots:", directLotsError);
+      logger.warn("Failed to fetch direct lots (legacy)", directLotsError, undefined, { acquisitionId });
     }
 
     const directLotIds = (directLots || []).map((l: any) => l.id);
@@ -111,7 +117,7 @@ export async function GET(
       .eq("acquisition_id", acquisitionId);
 
     if (allocError) {
-      console.error("Error fetching purchase allocations:", allocError);
+      logger.warn("Failed to fetch purchase allocations", allocError, undefined, { acquisitionId });
     }
 
     // Create a map of sales_item_id -> qty from this purchase
@@ -144,7 +150,7 @@ export async function GET(
         .in("id", salesItemIdsArray);
 
       if (salesError) {
-        console.error("Error fetching sales items:", salesError);
+        logger.warn("Failed to fetch sales items", salesError, undefined, { acquisitionId });
         return NextResponse.json(
           { error: salesError.message || "Failed to fetch sales" },
           { status: 500 }
@@ -168,7 +174,7 @@ export async function GET(
       .in("lot_id", allLotIds);
 
     if (legacySalesError) {
-      console.error("Error fetching legacy sales items:", legacySalesError);
+      logger.warn("Failed to fetch legacy sales items", legacySalesError, undefined, { acquisitionId });
     }
 
     // Combine both sets, but exclude items that already have allocations to avoid duplicates
@@ -241,10 +247,15 @@ export async function GET(
         .in("sales_order_id", salesOrderIds);
 
       if (profitError) {
-        console.error("Error fetching profit data:", profitError);
-        return NextResponse.json(
-          { error: profitError.message || "Failed to fetch profit data" },
-          { status: 500 }
+        logger.error("Failed to fetch profit data", profitError, undefined, {
+          acquisitionId,
+          salesOrderIdsCount: salesOrderIds.length,
+        });
+        return createErrorResponse(
+          profitError.message || "Failed to fetch profit data",
+          500,
+          "FETCH_PROFIT_DATA_FAILED",
+          profitError
         );
       }
 
@@ -425,11 +436,10 @@ export async function GET(
       },
     });
   } catch (error: any) {
-    console.error("Error in purchase profit API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "fetch_purchase_profit",
+      metadata: { acquisitionId },
+    });
   }
 }
 

@@ -131,7 +131,7 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
         }));
       }
     } catch (e) {
-      console.error("Failed to load photos:", e);
+      logger.error("Failed to load photos", e, undefined, { lotId: currentLot.id });
     } finally {
       setLoadingPhotos(false);
     }
@@ -254,7 +254,11 @@ export default function LotDetailModal({ lot, onClose, onLotUpdated, onPhotoCoun
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (e) {
-      console.error("Failed to download image:", e);
+      logger.error("Failed to download image", e, undefined, {
+        lotId: currentLot.id,
+        photoId: photo.id,
+        photoKind: photo.kind,
+      });
       alert("Failed to download image");
     }
   };

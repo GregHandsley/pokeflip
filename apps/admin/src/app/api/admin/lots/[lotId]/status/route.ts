@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const body = await req.json();
@@ -34,10 +38,12 @@ export async function PATCH(
       .eq("id", lotId);
 
     if (error) {
-      console.error("Error updating lot status:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to update lot status" },
-        { status: 500 }
+      logger.error("Failed to update lot status", error, undefined, { lotId, status });
+      return createErrorResponse(
+        error.message || "Failed to update lot status",
+        500,
+        "UPDATE_LOT_STATUS_FAILED",
+        error
       );
     }
 
@@ -46,11 +52,7 @@ export async function PATCH(
       message: `Lot status updated to ${status}`,
     });
   } catch (error: any) {
-    console.error("Error in update lot status API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "update_lot_status", metadata: { lotId } });
   }
 }
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 type BulkAction =
   | { action: "update_list_price"; lotIds: string[]; list_price: number }
@@ -7,6 +9,8 @@ type BulkAction =
   | { action: "group_lots"; lotIds: string[] };
 
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json() as BulkAction;
     const supabase = supabaseServer();
@@ -136,7 +140,9 @@ export async function POST(req: Request) {
           .in("lot_id", body.lotIds);
 
         if (photosError) {
-          console.error("Error fetching photos:", photosError);
+          logger.warn("Failed to fetch photos during bulk group", photosError, undefined, {
+            lotIds: body.lotIds,
+          });
           // Continue even if photos fail - we'll still group the lots
         } else if (allPhotos && allPhotos.length > 0) {
           // Group photos by kind and deduplicate
@@ -176,7 +182,10 @@ export async function POST(req: Request) {
               .insert(photosToInsert);
 
             if (insertPhotosError) {
-              console.error("Error transferring photos:", insertPhotosError);
+              logger.warn("Failed to transfer photos during bulk group", insertPhotosError, undefined, {
+                lotIds: body.lotIds,
+                photosCount: photosToInsert.length,
+              });
               // Continue even if photos fail - we'll still group the lots
             }
           }
@@ -209,11 +218,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error("Error in bulk inbox action:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "bulk_inbox_action",
+      metadata: { action: (body as BulkAction)?.action },
+    });
   }
 }
 

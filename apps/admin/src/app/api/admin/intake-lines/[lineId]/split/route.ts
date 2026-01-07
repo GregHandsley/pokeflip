@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { poundsToPence } from "@pokeflip/shared";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ lineId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lineId } = await params;
     const body = await req.json();
@@ -64,10 +68,12 @@ export async function POST(
       .single();
 
     if (insertError) {
-      console.error("Error creating split line:", insertError);
-      return NextResponse.json(
-        { error: insertError.message || "Failed to create split line" },
-        { status: 500 }
+      logger.error("Failed to create split line", insertError, undefined, { lineId, split_qty });
+      return createErrorResponse(
+        insertError.message || "Failed to create split line",
+        500,
+        "CREATE_SPLIT_LINE_FAILED",
+        insertError
       );
     }
 
@@ -79,10 +85,15 @@ export async function POST(
       .eq("id", lineId);
 
     if (updateError) {
-      console.error("Error updating original line:", updateError);
-      return NextResponse.json(
-        { error: updateError.message || "Failed to update original line" },
-        { status: 500 }
+      logger.error("Failed to update original line after split", updateError, undefined, {
+        lineId,
+        newQuantity,
+      });
+      return createErrorResponse(
+        updateError.message || "Failed to update original line",
+        500,
+        "UPDATE_ORIGINAL_LINE_FAILED",
+        updateError
       );
     }
 
@@ -92,11 +103,7 @@ export async function POST(
       split_line: createdLine,
     });
   } catch (error: any) {
-    console.error("Error in split API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "split_intake_line", metadata: { lineId } });
   }
 }
 

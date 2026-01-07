@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { poundsToPence } from "@pokeflip/shared";
 import SellBundleModal from "@/components/bundles/SellBundleModal";
 import CreateBundleModal from "@/components/bundles/CreateBundleModal";
+import { logger } from "@/lib/logger";
 
 interface Bundle {
   id: string;
@@ -37,7 +38,7 @@ export default function BundleSelector({ lotId, onBundleAction }: BundleSelector
         setBundles(json.bundles || []);
       }
     } catch (e) {
-      console.error("Failed to load bundles:", e);
+      logger.error("Failed to load bundles", e);
     } finally {
       setLoading(false);
     }

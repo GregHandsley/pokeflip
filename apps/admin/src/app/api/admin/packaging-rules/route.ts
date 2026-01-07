@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
 
@@ -27,10 +31,12 @@ export async function GET(req: Request) {
       .order("card_count_min", { ascending: true });
 
     if (error) {
-      console.error("Error fetching packaging rules:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch packaging rules" },
-        { status: 500 }
+      logger.error("Failed to fetch packaging rules", error);
+      return createErrorResponse(
+        error.message || "Failed to fetch packaging rules",
+        500,
+        "FETCH_PACKAGING_RULES_FAILED",
+        error
       );
     }
 
@@ -39,15 +45,13 @@ export async function GET(req: Request) {
       rules: rules || [],
     });
   } catch (error: any) {
-    console.error("Error in packaging rules API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_packaging_rules" });
   }
 }
 
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const { name, is_default, card_count_min, card_count_max, items } = body;
@@ -82,10 +86,12 @@ export async function POST(req: Request) {
       .single();
 
     if (ruleError || !rule) {
-      console.error("Error creating packaging rule:", ruleError);
-      return NextResponse.json(
-        { error: ruleError?.message || "Failed to create packaging rule" },
-        { status: 500 }
+      logger.error("Failed to create packaging rule", ruleError, undefined, { name, card_count_min });
+      return createErrorResponse(
+        ruleError?.message || "Failed to create packaging rule",
+        500,
+        "CREATE_PACKAGING_RULE_FAILED",
+        ruleError
       );
     }
 
@@ -102,7 +108,10 @@ export async function POST(req: Request) {
         .insert(ruleItems);
 
       if (itemsError) {
-        console.error("Error creating packaging rule items:", itemsError);
+        logger.warn("Failed to create packaging rule items", itemsError, undefined, {
+          ruleId: rule.id,
+          itemsCount: items.length,
+        });
         // Don't fail the whole request, just log the error
       }
     }
@@ -133,11 +142,7 @@ export async function POST(req: Request) {
       rule: completeRule,
     });
   } catch (error: any) {
-    console.error("Error in create packaging rule API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "create_packaging_rule" });
   }
 }
 

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 // GET: List all bundles
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
     const { searchParams } = new URL(req.url);
@@ -42,10 +46,12 @@ export async function GET(req: Request) {
     const { data: bundles, error } = await query;
 
     if (error) {
-      console.error("Error fetching bundles:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch bundles" },
-        { status: 500 }
+      logger.error("Failed to fetch bundles", error);
+      return createErrorResponse(
+        error.message || "Failed to fetch bundles",
+        500,
+        "FETCH_BUNDLES_FAILED",
+        error
       );
     }
 
@@ -54,16 +60,14 @@ export async function GET(req: Request) {
       bundles: bundles || [],
     });
   } catch (error: any) {
-    console.error("Error in bundles API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "fetch_bundles" });
   }
 }
 
 // POST: Create a new bundle
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const { name, description, pricePence, items } = body;
@@ -113,10 +117,12 @@ export async function POST(req: Request) {
       .single();
 
     if (bundleError || !bundle) {
-      console.error("Error creating bundle:", bundleError);
-      return NextResponse.json(
-        { error: bundleError?.message || "Failed to create bundle" },
-        { status: 500 }
+      logger.error("Failed to create bundle", bundleError, undefined, { name, pricePence });
+      return createErrorResponse(
+        bundleError?.message || "Failed to create bundle",
+        500,
+        "CREATE_BUNDLE_FAILED",
+        bundleError
       );
     }
 
@@ -132,12 +138,17 @@ export async function POST(req: Request) {
       .insert(bundleItems);
 
     if (itemsError) {
-      console.error("Error creating bundle items:", itemsError);
+      logger.error("Failed to create bundle items", itemsError, undefined, {
+        bundleId: bundle.id,
+        itemsCount: bundleItems.length,
+      });
       // Rollback bundle creation
       await supabase.from("bundles").delete().eq("id", bundle.id);
-      return NextResponse.json(
-        { error: itemsError.message || "Failed to create bundle items" },
-        { status: 500 }
+      return createErrorResponse(
+        itemsError.message || "Failed to create bundle items",
+        500,
+        "CREATE_BUNDLE_ITEMS_FAILED",
+        itemsError
       );
     }
 
@@ -152,11 +163,10 @@ export async function POST(req: Request) {
       },
     });
   } catch (error: any) {
-    console.error("Error in create bundle API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, {
+      operation: "create_bundle",
+      metadata: { body },
+    });
   }
 }
 

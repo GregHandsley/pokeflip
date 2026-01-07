@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import RecordSaleModal from "@/components/sales/RecordSaleModal";
 import SellBundleModal from "@/components/bundles/SellBundleModal";
 import CreateBundleModal from "@/components/bundles/CreateBundleModal";
+import { logger } from "@/lib/logger";
 
 type Bundle = {
   id: string;
@@ -54,7 +55,7 @@ export default function RecordSalePage() {
         setBundles(json.bundles || []);
       }
     } catch (e) {
-      console.error("Failed to load bundles:", e);
+      logger.error("Failed to load bundles for RecordSalePage", e);
     } finally {
       setLoadingBundles(false);
     }

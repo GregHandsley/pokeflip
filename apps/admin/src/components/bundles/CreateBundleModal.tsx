@@ -5,6 +5,7 @@ import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { penceToPounds, poundsToPence } from "@pokeflip/shared";
+import { logger } from "@/lib/logger";
 
 type Purchase = {
   id: string;
@@ -92,7 +93,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
         setFilteredLots(lots);
       }
     } catch (e) {
-      console.error("Failed to load lots:", e);
+      logger.error("Failed to load lots for bundle creation", e);
     } finally {
       setLoading(false);
     }
@@ -223,7 +224,11 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
       onBundleCreated();
       onClose(); // Close the modal after successful creation
     } catch (e: any) {
-      console.error("Error creating bundle:", e);
+      logger.error("Failed to create bundle", e, undefined, {
+        name,
+        pricePence: poundsToPence(parseFloat(price)),
+        itemsCount: selectedLots.size,
+      });
       setError(e.message || "Failed to create bundle");
     } finally {
       setSubmitting(false);
@@ -281,7 +286,10 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
 
         const uploadJson = await uploadRes.json();
         if (!uploadRes.ok) {
-          console.error("Failed to upload photo:", uploadJson.error);
+          logger.error("Failed to upload bundle photo", new Error(uploadJson.error), undefined, {
+            bundleId,
+            photoId: photo.id,
+          });
           continue;
         }
 
@@ -297,7 +305,10 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
           ));
         }
       } catch (e) {
-        console.error("Error uploading photo:", e);
+        logger.error("Error uploading bundle photo", e, undefined, {
+          bundleId,
+          photoId: photo.id,
+        });
       }
     }
   };
@@ -313,7 +324,10 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
           setBundlePhotos((prev) => prev.filter((p) => p.id !== photoId));
         }
       } catch (e) {
-        console.error("Failed to delete photo:", e);
+        logger.error("Failed to delete bundle photo", e, undefined, {
+          bundleId: createdBundleId,
+          photoId,
+        });
       }
     } else {
       // Just remove from local state if temporary

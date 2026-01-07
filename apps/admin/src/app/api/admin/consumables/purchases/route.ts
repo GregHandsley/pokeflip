@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
     const { searchParams } = new URL(req.url);
@@ -28,10 +32,12 @@ export async function GET(req: Request) {
     const { data: purchases, error } = await query;
 
     if (error) {
-      console.error("Error fetching consumable purchases:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch purchases" },
-        { status: 500 }
+      logger.error("Failed to fetch consumable purchases", error, undefined, { consumableId });
+      return createErrorResponse(
+        error.message || "Failed to fetch purchases",
+        500,
+        "FETCH_CONSUMABLE_PURCHASES_FAILED",
+        error
       );
     }
 
@@ -40,15 +46,13 @@ export async function GET(req: Request) {
       purchases: purchases || [],
     });
   } catch (error: any) {
-    console.error("Error in consumable purchases API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_consumable_purchases" });
   }
 }
 
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const { consumable_id, qty, total_cost_pence, purchased_at } = body;
@@ -83,10 +87,16 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      console.error("Error creating consumable purchase:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to create purchase" },
-        { status: 500 }
+      logger.error("Failed to create consumable purchase", error, undefined, {
+        consumable_id,
+        qty,
+        total_cost_pence,
+      });
+      return createErrorResponse(
+        error.message || "Failed to create purchase",
+        500,
+        "CREATE_CONSUMABLE_PURCHASE_FAILED",
+        error
       );
     }
 
@@ -95,11 +105,7 @@ export async function POST(req: Request) {
       purchase,
     });
   } catch (error: any) {
-    console.error("Error in create consumable purchase API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "create_consumable_purchase" });
   }
 }
 

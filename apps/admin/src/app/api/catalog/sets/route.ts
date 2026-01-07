@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { fetchAllSets } from "@/lib/tcgdx/tcgdxClient";
+import { handleApiError } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const { searchParams } = new URL(req.url);
     const locale = searchParams.get("locale") || "en";
@@ -19,13 +23,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ ok: true, data: transformedSets });
   } catch (error: any) {
-    console.error("[API] Error fetching sets:", error);
-    return NextResponse.json(
-      { 
-        error: error.message || "Failed to fetch sets",
-        details: process.env.NODE_ENV === "development" ? error.stack : undefined
-      },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_sets", metadata: { locale } });
   }
 }

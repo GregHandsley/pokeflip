@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 /**
  * Worker endpoint to process queued jobs
@@ -7,6 +9,8 @@ import { supabaseServer } from "@/lib/supabase/server";
  * For v1, we'll call this manually or via a simple cron
  */
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const maxJobs = body.maxJobs || 5;
@@ -118,11 +122,7 @@ export async function POST(req: Request) {
       results,
     });
   } catch (error: any) {
-    console.error("Error in worker:", error);
-    return NextResponse.json(
-      { error: error.message || "Worker error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "process_jobs" });
   }
 }
 

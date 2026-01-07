@@ -17,6 +17,30 @@ type Acquisition = {
   status: "open" | "closed";
 };
 
+const generatePurchaseSKU = async (supabase: ReturnType<typeof supabaseBrowser>): Promise<string> => {
+  // Get all existing purchases with PUR- prefix
+  const { data } = await supabase
+    .from("acquisitions")
+    .select("source_name")
+    .like("source_name", "PUR-%");
+
+  // Extract numbers from existing SKUs and find the highest
+  let maxNum = 0;
+  if (data) {
+    for (const acquisition of data) {
+      const match = acquisition.source_name?.match(/^PUR-(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+  }
+
+  // Generate next sequential number
+  const nextNum = maxNum + 1;
+  return `PUR-${String(nextNum).padStart(3, "0")}`;
+};
+
 export default function AcquisitionsPage() {
   const supabase = supabaseBrowser();
   const router = useRouter();
@@ -49,6 +73,14 @@ export default function AcquisitionsPage() {
   };
 
   useEffect(() => { void load(); }, [filter]);
+
+  useEffect(() => {
+    if (showCreateModal) {
+      generatePurchaseSKU(supabase).then(sku => {
+        setSourceName(sku);
+      });
+    }
+  }, [showCreateModal, supabase]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,7 +194,6 @@ export default function AcquisitionsPage() {
                 value={sourceName} 
                 onChange={(e) => setSourceName(e.target.value)} 
                 required 
-                autoFocus
               />
             </label>
 

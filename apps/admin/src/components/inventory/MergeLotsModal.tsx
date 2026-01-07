@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { logger } from "@/lib/logger";
 import Modal from "@/components/ui/Modal";
 import { penceToPounds } from "@pokeflip/shared";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
@@ -51,7 +52,10 @@ export default function MergeLotsModal({
       await onMerge(targetLotId);
       onClose();
     } catch (e) {
-      console.error("Merge failed:", e);
+      logger.error("Failed to merge lots", e, undefined, {
+        lotIds: selectedLots,
+        targetLotId,
+      });
     } finally {
       setMerging(false);
     }

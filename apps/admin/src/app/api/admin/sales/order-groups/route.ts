@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const supabase = supabaseServer();
 
@@ -15,16 +19,18 @@ export async function GET(req: Request) {
     if (error) {
       // If column doesn't exist, return empty array instead of error
       if (error.message?.includes("column") && error.message?.includes("does not exist")) {
-        console.warn("order_group column not found, returning empty array");
+        logger.warn("order_group column not found, returning empty array");
         return NextResponse.json({
           ok: true,
           orderGroups: [],
         });
       }
-      console.error("Error fetching order numbers:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch order numbers" },
-        { status: 500 }
+      logger.error("Failed to fetch order numbers", error);
+      return createErrorResponse(
+        error.message || "Failed to fetch order numbers",
+        500,
+        "FETCH_ORDER_NUMBERS_FAILED",
+        error
       );
     }
 
@@ -38,18 +44,15 @@ export async function GET(req: Request) {
       orderGroups,
     });
   } catch (error: any) {
-    console.error("Error in order numbers API:", error);
     // If it's a column error, return empty array
     if (error.message?.includes("column") && error.message?.includes("does not exist")) {
+      logger.warn("order_group column not found in catch block, returning empty array");
       return NextResponse.json({
         ok: true,
         orderGroups: [],
       });
     }
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "fetch_order_numbers" });
   }
 }
 

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ lotId: string }> }
 ) {
+  const logger = createApiLogger(req);
+  
   try {
     const { lotId } = await params;
     const supabase = supabaseServer();
@@ -50,10 +54,15 @@ export async function GET(
       .order("created_at", { ascending: true });
 
     if (groupedError) {
-      console.error("Error fetching grouped lots:", groupedError);
-      return NextResponse.json(
-        { error: groupedError.message || "Failed to fetch grouped lots" },
-        { status: 500 }
+      logger.error("Failed to fetch grouped lots", groupedError, undefined, {
+        lotId,
+        item_number: currentLot.item_number,
+      });
+      return createErrorResponse(
+        groupedError.message || "Failed to fetch grouped lots",
+        500,
+        "FETCH_GROUPED_LOTS_FAILED",
+        groupedError
       );
     }
 
@@ -133,11 +142,7 @@ export async function GET(
       group_count: lotsWithDetails.length,
     });
   } catch (error: any) {
-    console.error("Error in item group API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_item_group", metadata: { lotId } });
   }
 }
 

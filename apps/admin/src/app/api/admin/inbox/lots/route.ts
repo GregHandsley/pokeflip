@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 type SortOption = "price_desc" | "qty_desc" | "rarity_desc" | "updated_desc";
 const FLOOR_GBP = Number(process.env.PRICE_FLOOR_GBP || "0.99");
 const ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "http://127.0.0.1:3000";
 
 export async function GET(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const { searchParams } = new URL(req.url);
     const includeDraft = searchParams.get("includeDraft") === "true";
@@ -61,10 +65,17 @@ export async function GET(req: Request) {
     const { data, error, count } = await query;
 
     if (error) {
-      console.error("Error fetching inbox lots:", error);
-      return NextResponse.json(
-        { error: error.message || "Failed to fetch inbox lots" },
-        { status: 500 }
+      logger.error("Failed to fetch inbox lots", error, undefined, {
+        includeDraft,
+        sort,
+        page,
+        pageSize,
+      });
+      return createErrorResponse(
+        error.message || "Failed to fetch inbox lots",
+        500,
+        "FETCH_INBOX_LOTS_FAILED",
+        error
       );
     }
 
@@ -178,11 +189,7 @@ export async function GET(req: Request) {
       totalCount: count || 0,
     });
   } catch (error: any) {
-    console.error("Error in inbox lots API:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "get_inbox_lots" });
   }
 }
 

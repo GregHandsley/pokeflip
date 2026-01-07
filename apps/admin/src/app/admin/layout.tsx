@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import DashboardLayout from "@/components/layout/DashboardLayout";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 export default function AdminLayout({
   children,
@@ -34,6 +36,12 @@ export default function AdminLayout({
     );
   }
 
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return (
+    <ErrorBoundary>
+      <ToastProvider>
+        <DashboardLayout>{children}</DashboardLayout>
+      </ToastProvider>
+    </ErrorBoundary>
+  );
 }
 

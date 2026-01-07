@@ -4,6 +4,8 @@ import { ReactNode, useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import LogoutButton from "./LogoutButton";
+import ToastContainer from "@/components/ui/ToastContainer";
+import { logger } from "@/lib/logger";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -42,7 +44,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         setInboxCount(json.count);
       }
     } catch (e) {
-      console.error("Failed to load inbox count:", e);
+      logger.error("Failed to load inbox count", e);
     }
   };
 
@@ -380,6 +382,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { fetchAllSets } from "@/lib/tcgdx/tcgdxClient";
+import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
+import { createApiLogger } from "@/lib/logger";
 
 /**
  * Translate text using Google Translate API (free tier: 500k chars/month)
@@ -50,6 +52,8 @@ async function translateText(text: string, sourceLang: string): Promise<string |
  * Body: { enabledLocales: string[] } - which languages to import
  */
 export async function POST(req: Request) {
+  const logger = createApiLogger(req);
+  
   try {
     const body = await req.json();
     const { enabledLocales = [] } = body; // No default - user selects languages
@@ -69,7 +73,7 @@ export async function POST(req: Request) {
       .select("set_id");
     
     if (existingError) {
-      console.error("Error fetching existing translations:", existingError);
+      logger.error("Failed to fetch existing translations", existingError, undefined, { enabledLocalesCount: enabledLocales.length });
       // If table doesn't exist, return helpful error
       if (existingError.message?.includes("does not exist") || existingError.code === "42P01") {
         return NextResponse.json(
@@ -188,13 +192,6 @@ export async function POST(req: Request) {
       localesProcessed: enabledLocales,
     });
   } catch (error: any) {
-    console.error("[API] Error in bulk import:", error);
-    return NextResponse.json(
-      {
-        error: error.message || "Failed to bulk import translations",
-        details: process.env.NODE_ENV === "development" ? error.stack : undefined,
-      },
-      { status: 500 }
-    );
+    return handleApiError(req, error, { operation: "bulk_import_set_translations", metadata: { enabledLocalesCount: enabledLocales.length } });
   }
 }
