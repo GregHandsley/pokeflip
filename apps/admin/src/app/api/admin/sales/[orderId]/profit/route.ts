@@ -8,9 +8,11 @@ export async function GET(
   { params }: { params: Promise<{ orderId: string }> }
 ) {
   const logger = createApiLogger(req);
+  let orderId: string = "";
   
   try {
-    const { orderId } = await params;
+    const paramsResult = await params;
+    orderId = paramsResult.orderId;
     const supabase = supabaseServer();
 
     // Get profit data from the view

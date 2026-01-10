@@ -4,6 +4,8 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import {
   nonEmptyString,
+  sanitizedNonEmptyString,
+  sanitizedString,
   pricePence,
   nonEmptyArray,
   uuid,
@@ -84,8 +86,8 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
     
-    // Validate required fields
-    const validatedName = nonEmptyString(body.name, "name");
+    // Validate and sanitize required fields
+    const validatedName = sanitizedNonEmptyString(body.name, "name");
     const validatedPricePence = pricePence(body.pricePence, "pricePence");
     const validatedItems = nonEmptyArray(body.items, "items");
     const validatedBundleQuantity = quantity(body.quantity || 1, "quantity");
@@ -96,7 +98,8 @@ export async function POST(req: Request) {
       quantity(item.quantity || 1, `items[${index}].quantity`);
     });
     
-    const validatedDescription = optional(body.description, string, "description");
+    // Sanitize optional description
+    const validatedDescription = optional(body.description, (v) => sanitizedString(v, "description"), "description");
 
     const supabase = supabaseServer();
 

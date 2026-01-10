@@ -6,6 +6,9 @@ import {
   uuid,
   optional,
   nonEmptyString,
+  sanitizedNonEmptyString,
+  sanitizedString,
+  string,
   dealType,
   percentage,
   nonNegative,
@@ -28,8 +31,8 @@ export async function PATCH(
     
     // Validate request body
     const body = await req.json();
-    const validatedName = optional(body.name, nonEmptyString, "name");
-    const validatedDescription = optional(body.description, (v) => string(v, "description"), "description");
+    const validatedName = optional(body.name, (v) => sanitizedNonEmptyString(v, "name"), "name");
+    const validatedDescription = optional(body.description, (v) => sanitizedString(v, "description"), "description");
     const validatedDealType = optional(body.deal_type, dealType, "deal_type");
     const validatedDiscountPercent = optional(body.discount_percent, (v) => percentage(number(v, "discount_percent"), "discount_percent"), "discount_percent");
     const validatedDiscountAmountPence = optional(body.discount_amount_pence, (v) => nonNegative(integer(v, "discount_amount_pence"), "discount_amount_pence"), "discount_amount_pence");

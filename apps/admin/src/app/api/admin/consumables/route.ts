@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
-import { nonEmptyString, optional, string } from "@/lib/validation";
+import { nonEmptyString, sanitizedNonEmptyString, optional, string } from "@/lib/validation";
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
@@ -41,17 +41,17 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    // Validate required fields
-    const validatedName = nonEmptyString(body.name, "name");
-    const validatedUnit = optional(body.unit, (v) => nonEmptyString(v, "unit"), "unit") || "each";
+    // Validate and sanitize required fields
+    const validatedName = sanitizedNonEmptyString(body.name, "name");
+    const validatedUnit = optional(body.unit, (v) => sanitizedNonEmptyString(v, "unit"), "unit") || "each";
 
     const supabase = supabaseServer();
 
     const { data: consumable, error } = await supabase
       .from("consumables")
       .insert({
-        name: validatedName.trim(),
-        unit: validatedUnit.trim(),
+        name: validatedName, // Already sanitized
+        unit: validatedUnit, // Already sanitized
       })
       .select("*")
       .single();

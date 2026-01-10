@@ -3,6 +3,8 @@
  * Provides type-safe validation for API endpoints
  */
 
+import { sanitizeString, sanitizeForDisplay } from "./sanitization";
+
 export interface ValidationError {
   field: string;
   message: string;
@@ -54,6 +56,33 @@ export function nonEmptyString(value: unknown, fieldName: string): string {
     ]);
   }
   return str;
+}
+
+/**
+ * Validates and sanitizes a string value to prevent XSS
+ * Use this for user-provided text that will be stored
+ */
+export function sanitizedString(value: unknown, fieldName: string): string {
+  const str = string(value, fieldName);
+  return sanitizeString(str);
+}
+
+/**
+ * Validates and sanitizes a non-empty string value to prevent XSS
+ * Use this for required user-provided text that will be stored
+ */
+export function sanitizedNonEmptyString(value: unknown, fieldName: string): string {
+  const str = nonEmptyString(value, fieldName);
+  return sanitizeString(str);
+}
+
+/**
+ * Validates a string that may contain HTML (for display purposes)
+ * Sanitizes dangerous content but allows safe HTML
+ */
+export function sanitizedHtmlString(value: unknown, fieldName: string): string {
+  const str = string(value, fieldName);
+  return sanitizeForDisplay(str);
 }
 
 /**

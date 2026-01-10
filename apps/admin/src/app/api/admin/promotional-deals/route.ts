@@ -4,6 +4,9 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import {
   nonEmptyString,
+  sanitizedNonEmptyString,
+  sanitizedString,
+  string,
   dealType,
   optional,
   percentage,
@@ -57,12 +60,12 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    // Validate required fields
-    const validatedName = nonEmptyString(body.name, "name");
+    // Validate and sanitize required fields
+    const validatedName = sanitizedNonEmptyString(body.name, "name");
     const validatedDealType = dealType(body.deal_type, "deal_type");
     
-    // Validate optional fields
-    const validatedDescription = optional(body.description, (v) => string(v, "description"), "description");
+    // Validate and sanitize optional fields
+    const validatedDescription = optional(body.description, (v) => sanitizedString(v, "description"), "description");
     const validatedDiscountPercent = optional(body.discount_percent, (v) => percentage(number(v, "discount_percent"), "discount_percent"), "discount_percent");
     const validatedDiscountAmountPence = optional(body.discount_amount_pence, (v) => nonNegative(integer(v, "discount_amount_pence"), "discount_amount_pence"), "discount_amount_pence");
     const validatedBuyQuantity = optional(body.buy_quantity, (v) => quantity(v, "buy_quantity"), "buy_quantity");

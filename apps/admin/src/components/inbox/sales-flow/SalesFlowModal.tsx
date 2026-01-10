@@ -119,8 +119,23 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
   const uploadFile = async (file: File, kind: "front" | "back" | "extra") => {
     if (!lot) return;
 
+    // Client-side validation (server will also validate)
     if (!file.type.startsWith("image/")) {
       alert("Please select an image file");
+      return;
+    }
+    
+    // Check file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      alert("File size exceeds 10MB limit");
+      return;
+    }
+    
+    // Validate allowed image types
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      alert("Invalid file type. Allowed: JPEG, PNG, WebP, GIF");
       return;
     }
 

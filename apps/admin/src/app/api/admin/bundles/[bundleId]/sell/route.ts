@@ -5,6 +5,8 @@ import { createApiLogger } from "@/lib/logger";
 import {
   uuid,
   nonEmptyString,
+  sanitizedNonEmptyString,
+  sanitizedString,
   optional,
   nonNegative,
   array,
@@ -25,10 +27,10 @@ export async function POST(
     const { bundleId } = await params;
     validatedBundleId = uuid(bundleId, "bundleId");
     
-    // Validate request body
+    // Validate and sanitize request body
     const body = await req.json();
-    const validatedBuyerHandle = nonEmptyString(body.buyerHandle, "buyerHandle");
-    const validatedOrderGroup = optional(body.orderGroup, (v) => nonEmptyString(v, "orderGroup"), "orderGroup");
+    const validatedBuyerHandle = sanitizedNonEmptyString(body.buyerHandle, "buyerHandle");
+    const validatedOrderGroup = optional(body.orderGroup, (v) => sanitizedString(v, "orderGroup"), "orderGroup");
     const validatedFeesPence = optional(body.feesPence, (v) => nonNegative(number(v, "feesPence"), "feesPence"), "feesPence");
     const validatedShippingPence = optional(body.shippingPence, (v) => nonNegative(number(v, "shippingPence"), "shippingPence"), "shippingPence");
     const validatedDiscountPence = optional(body.discountPence, (v) => nonNegative(number(v, "discountPence"), "discountPence"), "discountPence");

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
-import { uuid, nonEmptyString, optional, string } from "@/lib/validation";
+import { uuid, nonEmptyString, sanitizedNonEmptyString, optional, string } from "@/lib/validation";
 
 export async function PATCH(
   req: Request,
@@ -15,10 +15,10 @@ export async function PATCH(
     const { consumableId } = await params;
     const validatedConsumableId = uuid(consumableId, "consumableId");
     
-    // Validate request body
+    // Validate and sanitize request body
     const body = await req.json();
-    const validatedName = optional(body.name, nonEmptyString, "name");
-    const validatedUnit = optional(body.unit, (v) => nonEmptyString(v, "unit"), "unit");
+    const validatedName = optional(body.name, (v) => sanitizedNonEmptyString(v, "name"), "name");
+    const validatedUnit = optional(body.unit, (v) => sanitizedNonEmptyString(v, "unit"), "unit");
     
     // At least one field must be provided
     if (!validatedName && !validatedUnit) {
@@ -32,8 +32,8 @@ export async function PATCH(
     const supabase = supabaseServer();
 
     const updateData: any = {};
-    if (validatedName) updateData.name = validatedName.trim();
-    if (validatedUnit) updateData.unit = validatedUnit.trim();
+    if (validatedName) updateData.name = validatedName; // Already sanitized
+    if (validatedUnit) updateData.unit = validatedUnit; // Already sanitized
 
     const { data: consumable, error } = await supabase
       .from("consumables")

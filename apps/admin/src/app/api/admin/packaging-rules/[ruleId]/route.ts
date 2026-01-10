@@ -5,6 +5,7 @@ import { createApiLogger } from "@/lib/logger";
 import {
   uuid,
   nonEmptyString,
+  sanitizedNonEmptyString,
   integer,
   min,
   optional,
@@ -24,9 +25,9 @@ export async function PATCH(
     const { ruleId } = await params;
     const validatedRuleId = uuid(ruleId, "ruleId");
     
-    // Validate request body
+    // Validate and sanitize request body
     const body = await req.json();
-    const validatedName = optional(body.name, nonEmptyString, "name");
+    const validatedName = optional(body.name, (v) => sanitizedNonEmptyString(v, "name"), "name");
     const validatedIsDefault = optional(body.is_default, boolean, "is_default");
     const validatedCardCountMin = optional(body.card_count_min, (v) => min(integer(v, "card_count_min"), 1, "card_count_min"), "card_count_min");
     const validatedCardCountMax = optional(body.card_count_max, (v) => min(integer(v, "card_count_max"), validatedCardCountMin || 1, "card_count_max"), "card_count_max");
@@ -45,7 +46,7 @@ export async function PATCH(
 
     // Build update object with only provided fields
     const updateData: any = {};
-    if (validatedName) updateData.name = validatedName.trim();
+    if (validatedName) updateData.name = validatedName; // Already sanitized
     if (validatedIsDefault !== undefined) updateData.is_default = validatedIsDefault;
     if (validatedCardCountMin !== undefined) updateData.card_count_min = validatedCardCountMin;
     if (validatedCardCountMax !== undefined) updateData.card_count_max = validatedCardCountMax;

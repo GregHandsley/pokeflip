@@ -4,6 +4,7 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import {
   nonEmptyString,
+  sanitizedNonEmptyString,
   integer,
   min,
   optional,
@@ -65,8 +66,8 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    // Validate required fields
-    const validatedName = nonEmptyString(body.name, "name");
+    // Validate and sanitize required fields
+    const validatedName = sanitizedNonEmptyString(body.name, "name");
     const validatedCardCountMin = min(integer(body.card_count_min, "card_count_min"), 1, "card_count_min");
     
     // Validate optional fields
@@ -88,7 +89,7 @@ export async function POST(req: Request) {
     const { data: rule, error: ruleError } = await supabase
       .from("packaging_rules")
       .insert({
-        name: validatedName.trim(),
+        name: validatedName, // Already sanitized
         is_default: validatedIsDefault,
         card_count_min: validatedCardCountMin,
         card_count_max: validatedCardCountMax || null,

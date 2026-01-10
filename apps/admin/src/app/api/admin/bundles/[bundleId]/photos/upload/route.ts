@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import { validateImageFile, getSafeFilename } from "@/lib/file-validation";
+import { uuid } from "@/lib/validation";
 
 export async function POST(
   req: Request,
@@ -11,12 +13,22 @@ export async function POST(
   
   try {
     const { bundleId } = await params;
+    const validatedBundleId = uuid(bundleId, "bundleId");
+    
     const formData = await req.formData();
     const file = formData.get("file") as File;
-    const kind = formData.get("kind") as string;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+
+    // Validate image file (type, size, content)
+    const fileValidation = await validateImageFile(file);
+    if (!fileValidation.valid) {
+      return NextResponse.json(
+        { error: fileValidation.error || "Invalid file" },
+        { status: 400 }
+      );
     }
 
     const supabase = supabaseServer();
@@ -25,17 +37,18 @@ export async function POST(
     const { data: bundle, error: bundleError } = await supabase
       .from("bundles")
       .select("id")
-      .eq("id", bundleId)
+      .eq("id", validatedBundleId)
       .single();
 
     if (bundleError || !bundle) {
       return NextResponse.json({ error: "Bundle not found" }, { status: 404 });
     }
 
-    // Generate object key
+    // Generate object key with safe filename
     const photoId = crypto.randomUUID();
-    const extension = file.type.includes("webp") ? "webp" : "jpg";
-    const objectKey = `bundles/${bundleId}/${photoId}.${extension}`;
+    const extension = file.type.includes("webp") ? "webp" : file.type.includes("png") ? "png" : file.type.includes("gif") ? "gif" : "jpg";
+    const safeFilename = getSafeFilename(photoId, "");
+    const objectKey = `bundles/${validatedBundleId}/${safeFilename}.${extension}`;
 
     // Upload to storage using service role (private bucket)
     const fileBuffer = await file.arrayBuffer();
@@ -48,7 +61,7 @@ export async function POST(
 
     if (uploadError) {
       logger.error("Failed to upload bundle photo", uploadError, undefined, {
-        bundleId,
+        bundleId: validatedBundleId,
         fileName: file.name,
         fileSize: file.size,
       });
@@ -64,7 +77,7 @@ export async function POST(
     const { data: photo, error: insertError } = await supabase
       .from("bundle_photos")
       .insert({
-        bundle_id: bundleId,
+        bundle_id: validatedBundleId,
         kind: "bundle",
         object_key: objectKey,
       })
@@ -73,7 +86,7 @@ export async function POST(
 
     if (insertError) {
       logger.error("Failed to insert bundle photo record", insertError, undefined, {
-        bundleId,
+        bundleId: validatedBundleId,
         objectKey,
       });
       // Try to clean up uploaded file
@@ -105,7 +118,7 @@ export async function POST(
   } catch (error: any) {
     return handleApiError(req, error, {
       operation: "upload_bundle_photo",
-      metadata: { bundleId },
+      metadata: { bundleId: validatedBundleId },
     });
   }
 }

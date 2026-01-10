@@ -4,6 +4,8 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import {
   nonEmptyString,
+  sanitizedNonEmptyString,
+  sanitizedString,
   optional,
   nonNegative,
   array,
@@ -20,8 +22,8 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
     
-    // Validate buyer handle (required)
-    const validatedBuyerHandle = nonEmptyString(body.buyerHandle, "buyerHandle");
+    // Validate and sanitize buyer handle (required)
+    const validatedBuyerHandle = sanitizedNonEmptyString(body.buyerHandle, "buyerHandle");
     
     // Support both old format (lotId + qty) and new format (lots array)
     let lotsToSell: Array<{ lotId: string; qty: number }> = [];
@@ -73,7 +75,7 @@ export async function POST(req: Request) {
     }
     
     // Validate optional fields
-    const validatedOrderGroup = optional(body.orderGroup, (v) => nonEmptyString(v, "orderGroup"), "orderGroup");
+    const validatedOrderGroup = optional(body.orderGroup, (v) => sanitizedString(v, "orderGroup"), "orderGroup");
     const validatedFeesPence = optional(body.feesPence, (v) => nonNegative(number(v, "feesPence"), "feesPence"), "feesPence");
     const validatedShippingPence = optional(body.shippingPence, (v) => nonNegative(number(v, "shippingPence"), "shippingPence"), "shippingPence");
     const validatedDiscountPence = optional(body.discountPence, (v) => nonNegative(number(v, "discountPence"), "discountPence"), "discountPence");

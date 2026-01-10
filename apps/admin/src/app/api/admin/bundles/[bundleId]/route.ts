@@ -4,6 +4,8 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import {
   nonEmptyString,
+  sanitizedNonEmptyString,
+  sanitizedString,
   pricePence,
   optional,
   string,
@@ -108,15 +110,15 @@ export async function PATCH(
       );
     }
 
-    // Build update object with validated fields
+    // Build update object with validated and sanitized fields
     const updateData: any = {};
     
     if (body.name !== undefined) {
-      updateData.name = nonEmptyString(body.name, "name");
+      updateData.name = sanitizedNonEmptyString(body.name, "name");
     }
     
     if (body.description !== undefined) {
-      updateData.description = optional(body.description, string, "description") || null;
+      updateData.description = optional(body.description, (v) => sanitizedString(v, "description"), "description") || null;
     }
     
     if (body.pricePence !== undefined) {

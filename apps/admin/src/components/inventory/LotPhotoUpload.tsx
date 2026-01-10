@@ -18,8 +18,23 @@ export default function LotPhotoUpload({ lotId, kind, onUploaded }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Client-side validation (server will also validate)
     if (!file.type.startsWith("image/")) {
       setError("Please select an image file");
+      return;
+    }
+    
+    // Check file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      setError("File size exceeds 10MB limit");
+      return;
+    }
+    
+    // Validate allowed image types
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      setError("Invalid file type. Allowed: JPEG, PNG, WebP, GIF");
       return;
     }
 
