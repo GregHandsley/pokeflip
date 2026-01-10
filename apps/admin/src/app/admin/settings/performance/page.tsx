@@ -5,6 +5,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { logger } from "@/lib/logger";
+import MonitoringDashboard from "@/components/monitoring/MonitoringDashboard";
 
 type PerformanceMetrics = {
   database: {
@@ -71,28 +72,41 @@ export default function PerformancePage() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      {/* Monitoring Dashboard */}
+      <div className="space-y-4">
         <PageHeader
-          title="Performance Monitoring"
-          description="Track database performance, index usage, and optimization status"
+          title="System Monitoring"
+          description="Health checks, business metrics, and alert status"
         />
-        <Button onClick={loadMetrics} disabled={loading} variant="secondary">
-          {loading ? "Refreshing..." : "Refresh"}
-        </Button>
+        <MonitoringDashboard />
       </div>
 
-      {error && (
-        <Card className="border-red-200 bg-red-50">
-          <div className="text-sm text-red-700">{error}</div>
-        </Card>
-      )}
+      {/* Performance Metrics */}
+      <div className="space-y-4 border-t border-gray-200 pt-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Performance Metrics</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Track database performance, index usage, and optimization status
+            </p>
+          </div>
+          <Button onClick={loadMetrics} disabled={loading} variant="secondary">
+            {loading ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
 
-      {loading && !metrics && (
-        <div className="text-center py-8 text-gray-500">Loading performance metrics...</div>
-      )}
+        {error && (
+          <Card className="border-red-200 bg-red-50">
+            <div className="text-sm text-red-700">{error}</div>
+          </Card>
+        )}
 
-      {metrics && (
+        {loading && !metrics && (
+          <div className="text-center py-8 text-gray-500">Loading performance metrics...</div>
+        )}
+
+        {metrics && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Database Status */}
           <Card>
@@ -238,13 +252,14 @@ export default function PerformancePage() {
         </div>
       )}
 
-      {metrics && (
-        <Card className="bg-gray-50">
-          <div className="text-xs text-gray-500">
-            Last updated: {new Date(metrics.timestamp).toLocaleString()}
-          </div>
-        </Card>
-      )}
+        {metrics && (
+          <Card className="bg-gray-50">
+            <div className="text-xs text-gray-500">
+              Last updated: {new Date(metrics.timestamp).toLocaleString()}
+            </div>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

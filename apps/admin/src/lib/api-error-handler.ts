@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createApiLogger } from "./logger";
 import { ValidationErrorResponse, formatValidationError } from "./validation";
+import { handleErrorWithAlert } from "./monitoring/alerts";
 
 export interface ApiError {
   message: string;
@@ -94,12 +95,27 @@ export function handleApiError(
   const logMessage = context?.operation 
     ? `${context.operation} failed` 
     : "API request failed";
-  logger.error(
-    logMessage,
-    error instanceof Error ? error : new Error(message),
-    undefined,
-    context?.metadata
-  );
+  
+  // Use enhanced error alerting for critical errors
+  if (statusCode >= 500) {
+    handleErrorWithAlert(
+      logMessage,
+      error instanceof Error ? error : new Error(message),
+      {
+        userId: context?.userId,
+        userEmail: context?.userEmail,
+        operation: context?.operation,
+        metadata: context?.metadata,
+      }
+    );
+  } else {
+    logger.error(
+      logMessage,
+      error instanceof Error ? error : new Error(message),
+      undefined,
+      context?.metadata
+    );
+  }
 
   // Return standardized error response
   return createErrorResponse(message, statusCode, code, details);

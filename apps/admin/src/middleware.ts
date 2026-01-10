@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { trackResponseTime } from "@/lib/monitoring/response-time";
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // Track response times for API routes
+  if (pathname.startsWith("/api")) {
+    const response = NextResponse.next();
+    return trackResponseTime(req, response);
+  }
 
   // Only protect admin routes (but let client-side handle auth check)
   // Supabase stores sessions in localStorage, not cookies, so we can't check here
@@ -15,5 +22,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/api/:path*"],
 };
