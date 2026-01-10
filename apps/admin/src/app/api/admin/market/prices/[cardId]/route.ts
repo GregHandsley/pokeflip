@@ -62,7 +62,9 @@ type PriceResult = {
 
 const TCGDEX_API = "https://api.tcgdex.net/v2/en/cards";
 const FX_API = "https://api.exchangerate.host/convert";
-const FLOOR_GBP = Number(process.env.PRICE_FLOOR_GBP || "0.99");
+import { app } from "@/lib/config/env";
+
+const FLOOR_GBP = app().priceFloorGbp;
 
 async function fetchFx(from: "EUR" | "USD", to: "GBP"): Promise<number> {
   try {

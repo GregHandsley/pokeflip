@@ -1,36 +1,109 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pokeflip Admin
+
+This is the admin application for Pokeflip, a Pokemon card inventory and sales management system.
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+ and pnpm (or npm/yarn)
+- A Supabase project (for database and storage)
+
+### Environment Setup
+
+1. **Copy the example environment file:**
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. **Fill in required environment variables in `.env.local`:**
+   - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anonymous key
+   - `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key (server-only)
+
+3. **Optional: Configure additional services:**
+   - Sentry (error tracking)
+   - Custom site URL
+   - Price floor settings
+
+See [ENV_CONFIG.md](./ENV_CONFIG.md) for detailed environment variable documentation.
+
+### Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+# Install dependencies (from monorepo root)
+pnpm install
+
+# Or if installing just this app
+cd apps/admin
+pnpm install
+```
+
+### Development
+
+Run the development server:
+
+```bash
 pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The application will validate environment variables on startup and show any missing required variables.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Testing
+
+```bash
+# Unit and integration tests
+pnpm test
+
+# Test UI (interactive)
+pnpm test:ui
+
+# Test coverage
+pnpm test:coverage
+
+# E2E tests
+pnpm test:e2e
+```
+
+## Documentation
+
+- [Environment Configuration](./ENV_CONFIG.md) - Complete guide to environment variables
+- [Input Sanitization](../INPUT_SANITIZATION.md) - Security measures for inputs and file uploads
+- [Performance Optimizations](../PERFORMANCE_OPTIMIZATIONS.md) - Performance improvements and monitoring
+- [Error Handling](./src/lib/ERROR_HANDLING.md) - Error handling and logging guide
+- [Database Security](./src/lib/DATABASE_SECURITY.md) - Database security practices
+
+## Project Structure
+
+```
+apps/admin/
+├── src/
+│   ├── app/              # Next.js App Router pages and API routes
+│   ├── components/       # React components
+│   ├── lib/             # Utilities and configuration
+│   │   ├── config/      # Environment configuration
+│   │   ├── supabase/    # Supabase clients
+│   │   └── ...
+│   └── ...
+├── e2e/                 # End-to-end tests (Playwright)
+├── .env.example         # Example environment variables
+└── ENV_CONFIG.md        # Environment configuration documentation
+```
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+- [Next.js Documentation](https://nextjs.org/docs) - Learn about Next.js features and API
+- [Supabase Documentation](https://supabase.com/docs) - Supabase guides and reference
+- [Sentry Next.js Integration](https://docs.sentry.io/platforms/javascript/guides/nextjs/) - Error tracking setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The application can be deployed to any platform that supports Next.js:
 
-## Deploy on Vercel
+- **Vercel** (recommended): Automatic deployments from git
+- **Railway**: Simple deployment with environment variable management
+- **Docker**: Containerize the application for any platform
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Remember to set all required environment variables in your deployment platform!

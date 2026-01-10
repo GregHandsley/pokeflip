@@ -1,9 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import { getSupabaseConfigForServer } from "@/lib/config/env";
 
-export const supabaseServer = () =>
-  createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!, // server-only
-    { auth: { persistSession: false } }
-  );
+export const supabaseServer = () => {
+  const config = getSupabaseConfigForServer();
+  return createClient(config.url, config.serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+};
 

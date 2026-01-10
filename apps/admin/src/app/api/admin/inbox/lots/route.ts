@@ -4,8 +4,10 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
 type SortOption = "price_desc" | "qty_desc" | "rarity_desc" | "updated_desc";
-const FLOOR_GBP = Number(process.env.PRICE_FLOOR_GBP || "0.99");
-const ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "http://127.0.0.1:3000";
+import { app } from "@/lib/config/env";
+
+const FLOOR_GBP = app().priceFloorGbp;
+const ORIGIN = app().siteUrl;
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);

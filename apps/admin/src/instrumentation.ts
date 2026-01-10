@@ -1,4 +1,9 @@
+import { validateEnvironment } from "./lib/config/env-validation";
+
 export async function register() {
+  // Validate environment configuration on startup
+  validateEnvironment();
+
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("../sentry.server.config");
   }
