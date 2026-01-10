@@ -55,15 +55,21 @@ export async function getSalesMetrics(days: number = 7): Promise<SalesMetrics> {
     }
 
     const totalSalesCount = allSales?.length || 0;
+    
+    // Calculate total revenue: use revenue_after_discount_pence if available (accounts for discounts),
+    // otherwise fall back to revenue_pence (base revenue before discounts).
+    // This ensures accurate revenue tracking when discounts are applied.
     const totalRevenuePence = (allSales || []).reduce(
       (sum, sale) => {
+        // Priority: discount-adjusted revenue > base revenue > 0
         const revenue = (sale as any).revenue_after_discount_pence ?? (sale as any).revenue_pence ?? 0;
         return sum + revenue;
       },
       0
     );
 
-    // Calculate recent sales (last N days)
+    // Calculate recent sales: filter sales from the last N days.
+    // Uses cutoff date to determine which sales count as "recent" for trend analysis.
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
     const recentSales = (allSales || []).filter(
@@ -160,7 +166,9 @@ export async function getInventoryMetrics(): Promise<InventoryMetrics> {
       .filter((lot) => ["draft", "ready", "listed"].includes(lot.status))
       .reduce((sum, lot) => sum + (lot.quantity || 0), 0);
 
-    // Get sold quantities from sales_items to calculate actual available
+    // Get sold quantities from sales_items to calculate actual available inventory.
+    // A lot may have been partially sold (e.g., 10 cards in lot, 3 sold),
+    // so we need to track sold quantities separately to get accurate available counts.
     const { data: soldItems, error: soldItemsError } = await supabase
       .from("sales_items")
       .select("qty, lot_id");
@@ -169,9 +177,12 @@ export async function getInventoryMetrics(): Promise<InventoryMetrics> {
       logger.error("Failed to fetch sold items for metrics", soldItemsError, undefined, {
         operation: "get_inventory_metrics",
       });
-      // Don't throw - continue without sold quantity tracking
+      // Don't throw - continue without sold quantity tracking to avoid breaking the metrics endpoint
+      // The available quantity will be slightly inaccurate but the endpoint still works
     }
 
+    // Build a map of lot_id -> total sold quantity.
+    // Multiple sales_items can reference the same lot_id, so we sum them up.
     const soldQuantityMap = new Map<string, number>();
     (soldItems || []).forEach((item: any) => {
       const lotId = item.lot_id;
@@ -181,7 +192,9 @@ export async function getInventoryMetrics(): Promise<InventoryMetrics> {
       }
     });
 
-    // Recalculate available quantity accounting for partial sales
+    // Recalculate available quantity accounting for partial sales.
+    // For active lots (draft, ready, listed), subtract sold quantity from total quantity.
+    // Use Math.max to ensure we never have negative available quantities.
     let actualAvailableQuantity = 0;
     allLots
       .filter((lot) => ["draft", "ready", "listed"].includes(lot.status))

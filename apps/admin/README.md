@@ -69,6 +69,11 @@ pnpm test:e2e
 
 ## Documentation
 
+### User Documentation
+- [User Guide](../docs/USER_GUIDE.md) - Complete user guide and workflows
+- [API Documentation](../docs/API.md) - API endpoints reference
+
+### Technical Documentation
 - [Environment Configuration](./ENV_CONFIG.md) - Complete guide to environment variables
 - [Input Sanitization](../INPUT_SANITIZATION.md) - Security measures for inputs and file uploads
 - [Performance Optimizations](../PERFORMANCE_OPTIMIZATIONS.md) - Performance improvements and monitoring

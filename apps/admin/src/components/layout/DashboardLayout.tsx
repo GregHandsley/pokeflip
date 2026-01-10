@@ -128,9 +128,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
       <aside
+        id="sidebar-navigation"
         className={`fixed left-0 top-0 h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 z-40 ${
           sidebarOpen ? "w-64" : "w-0 overflow-hidden"
         }`}
+        aria-label="Main navigation"
       >
         <div className={`p-6 flex items-center ${sidebarOpen ? "justify-between" : "justify-center"}`}>
           {sidebarOpen ? (
@@ -140,14 +142,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
                 aria-label="Collapse sidebar"
+                aria-expanded="true"
+                aria-controls="sidebar-navigation"
               >
                 <svg
                   className="w-5 h-5 text-gray-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
@@ -159,16 +164,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </button>
             </>
           ) : (
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Expand sidebar"
-            >
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+                aria-label="Expand sidebar"
+                aria-expanded="false"
+                aria-controls="sidebar-navigation"
+              >
               <svg
                 className="w-5 h-5 text-gray-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -181,7 +189,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           )}
         </div>
         
-        <nav className="flex-1 overflow-y-auto">
+        <nav className="flex-1 overflow-y-auto" aria-label="Main navigation">
           {/* Main Navigation Group: Command Center, Inventory, Sales & Profit */}
           {navItems.slice(0, 3).map((item) => {
             const isActive = item.exact
@@ -192,12 +200,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <a
                 key={item.href}
                 href={item.href}
-                className={`block px-6 py-3 text-sm font-medium transition-colors relative ${
+                className={`block px-6 py-3 text-sm font-medium transition-colors relative focus:outline-none focus:ring-2 focus:ring-inset focus:ring-black ${
                   isActive
                     ? "bg-black text-white"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
                 title={sidebarOpen ? undefined : item.label}
+                aria-current={isActive ? "page" : undefined}
               >
                 {sidebarOpen ? (
                   <div>
@@ -238,12 +247,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <a
                 key={item.href}
                 href={item.href}
-                className={`block px-6 py-3 text-sm font-medium transition-colors relative ${
+                className={`block px-6 py-3 text-sm font-medium transition-colors relative focus:outline-none focus:ring-2 focus:ring-inset focus:ring-black ${
                   isActive
                     ? "bg-black text-white"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
                 title={sidebarOpen ? undefined : item.label}
+                aria-current={isActive ? "page" : undefined}
               >
                 {sidebarOpen ? (
                   <div>
@@ -299,6 +309,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -334,14 +345,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <button
               onClick={handleLogout}
               disabled={logoutLoading}
-              className="w-full p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+              className="w-full p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
               title="Logout"
+              aria-label="Log out of your account"
             >
               <svg
                 className="w-5 h-5 mx-auto"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -359,14 +372,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {!sidebarOpen && (
         <button
           onClick={() => setSidebarOpen(true)}
-          className="fixed left-4 top-4 z-50 p-2 bg-white border border-gray-200 rounded-lg shadow-md hover:bg-gray-50 transition-colors"
+          className="fixed left-4 top-4 z-50 p-2 bg-white border border-gray-200 rounded-lg shadow-md hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
           aria-label="Open sidebar"
+          aria-expanded="false"
+          aria-controls="sidebar-navigation"
         >
           <svg
             className="w-5 h-5 text-gray-600"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"
@@ -378,8 +394,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </button>
       )}
 
+      {/* Skip to main content link */}
+      <a 
+        href="#main-content" 
+        className="skip-to-main"
+        aria-label="Skip to main content"
+      >
+        Skip to main content
+      </a>
+
       {/* Main content */}
-      <main className={`transition-all duration-300 ${sidebarOpen ? "ml-64" : "ml-0"}`}>
+      <main 
+        id="main-content"
+        className={`transition-all duration-300 ${sidebarOpen ? "ml-64" : "ml-0"}`}
+        role="main"
+        aria-label="Main content"
+      >
         <div className="p-6">
           {children}
         </div>
