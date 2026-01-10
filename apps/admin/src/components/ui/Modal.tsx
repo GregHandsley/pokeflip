@@ -103,31 +103,31 @@ export default function Modal({
       aria-modal="true"
       aria-labelledby="modal-title"
       aria-describedby={subtitle ? "modal-subtitle" : undefined}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
       onClick={onClose}
     >
       <div
         ref={modalRef}
-        className={`bg-white rounded-lg shadow-xl w-full ${maxWidthClasses[maxWidth]} max-h-[90vh] flex flex-col`}
+        className={`bg-white rounded-lg shadow-xl w-full ${maxWidthClasses[maxWidth]} max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] flex flex-col`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex-1">
-            <h2 id="modal-title" className="text-2xl font-bold">{title}</h2>
+        <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200 flex-shrink-0">
+          <div className="flex-1 min-w-0 pr-2">
+            <h2 id="modal-title" className="text-xl md:text-2xl font-bold truncate">{title}</h2>
             {subtitle && (
               <div id="modal-subtitle" className="text-sm text-gray-600 mt-1">
                 {subtitle}
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {headerAction}
             <button
               ref={closeButtonRef}
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+              className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 flex items-center justify-center rounded focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 min-w-[32px] min-h-[32px]"
               aria-label="Close modal"
               type="button"
             >
@@ -137,11 +137,11 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">{children}</div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-between p-6 border-t border-gray-200">
+          <div className="flex items-center justify-between p-4 md:p-6 border-t border-gray-200 flex-shrink-0">
             {footer}
           </div>
         )}

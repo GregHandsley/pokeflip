@@ -14,11 +14,13 @@ export default function Button({
   children,
   ...props
 }: ButtonProps) {
-  const baseClasses = "rounded-lg font-medium transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2";
+  // Minimum touch target size for laptop/desktop interaction (44x44px recommended)
+  // Buttons should be at least 32px height for comfortable clicking
+  const baseClasses = "rounded-lg font-medium transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 min-h-[32px]";
   const sizeClasses = {
-    sm: "px-2 py-1 text-sm",
-    md: "px-4 py-2",
-    lg: "px-6 py-3 text-lg",
+    sm: "px-3 py-1.5 text-sm min-h-[32px]",
+    md: "px-4 py-2 min-h-[36px]",
+    lg: "px-6 py-3 text-lg min-h-[44px]",
   };
   const variants = {
     primary: "bg-black text-white hover:bg-gray-800 focus:ring-black",

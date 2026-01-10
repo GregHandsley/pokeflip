@@ -142,7 +142,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 min-w-[32px] min-h-[32px] flex items-center justify-center"
                 aria-label="Collapse sidebar"
                 aria-expanded="true"
                 aria-controls="sidebar-navigation"
@@ -166,7 +166,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           ) : (
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 min-w-[32px] min-h-[32px] flex items-center justify-center"
                 aria-label="Expand sidebar"
                 aria-expanded="false"
                 aria-controls="sidebar-navigation"
@@ -345,7 +345,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <button
               onClick={handleLogout}
               disabled={logoutLoading}
-              className="w-full p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+              className="w-full p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 min-h-[36px] flex items-center justify-center"
               title="Logout"
               aria-label="Log out of your account"
             >
@@ -372,7 +372,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {!sidebarOpen && (
         <button
           onClick={() => setSidebarOpen(true)}
-          className="fixed left-4 top-4 z-50 p-2 bg-white border border-gray-200 rounded-lg shadow-md hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+          className="fixed left-4 top-4 z-50 p-2 bg-white border border-gray-200 rounded-lg shadow-md hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 min-w-[40px] min-h-[40px] flex items-center justify-center"
           aria-label="Open sidebar"
           aria-expanded="false"
           aria-controls="sidebar-navigation"
@@ -406,11 +406,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Main content */}
       <main 
         id="main-content"
-        className={`transition-all duration-300 ${sidebarOpen ? "ml-64" : "ml-0"}`}
+        className={`transition-all duration-300 ${sidebarOpen ? "ml-64" : "ml-0"} min-w-0`}
         role="main"
         aria-label="Main content"
       >
-        <div className="p-6">
+        <div className="p-4 md:p-6 max-w-full overflow-x-auto">
           {children}
         </div>
       </main>
