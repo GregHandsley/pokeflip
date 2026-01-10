@@ -1,5 +1,6 @@
 import { penceToPounds } from "@pokeflip/shared";
 import Card from "@/components/ui/Card";
+import { OptimizedImage } from "@/components/ui/OptimizedImage";
 
 interface InventoryCardProps {
   card_id: string;
@@ -26,10 +27,11 @@ export default function InventoryCard({
     <Card>
       <div className="flex items-center gap-3">
         {api_image_url && (
-          <img
-            src={`${api_image_url}/low.webp`}
+          <OptimizedImage
+            src={api_image_url}
             alt={`${name} card`}
             className="h-12 w-auto rounded border border-gray-200"
+            quality="low"
           />
         )}
         <div className="flex-1">

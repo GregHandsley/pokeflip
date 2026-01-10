@@ -32,7 +32,7 @@ describe("PATCH /api/admin/bundles/[bundleId]", () => {
     (supabaseServer as any).mockReturnValue(mockSupabase);
   });
 
-  it("updates bundle name and description", async () => {
+  it("Updates bundle name and description", async () => {
     // Mock bundle fetch
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
@@ -73,7 +73,7 @@ describe("PATCH /api/admin/bundles/[bundleId]", () => {
     expect(json.ok).toBe(true);
   });
 
-  it("rejects updating sold bundle", async () => {
+  it("Rejects updating sold bundle", async () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -100,7 +100,7 @@ describe("PATCH /api/admin/bundles/[bundleId]", () => {
     expect(json.error).toContain("sold");
   });
 
-  it("validates stock when increasing bundle quantity", async () => {
+  it("Validates stock when increasing bundle quantity", async () => {
     // Mock bundle fetch
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
@@ -180,7 +180,7 @@ describe.skip("DELETE /api/admin/bundles/[bundleId]", () => {
     (supabaseServer as any).mockReturnValue(mockSupabase);
   });
 
-  it("deletes active bundle", async () => {
+  it("Deletes active bundle", async () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -209,7 +209,7 @@ describe.skip("DELETE /api/admin/bundles/[bundleId]", () => {
     expect(json.ok).toBe(true);
   });
 
-  it("rejects deleting sold bundle", async () => {
+  it("Rejects deleting sold bundle", async () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),

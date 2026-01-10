@@ -5,6 +5,7 @@ import Card from "@/components/ui/Card";
 import PageHeader from "@/components/ui/PageHeader";
 import { InboxSummary, FinancialOverview, QuickStats } from "@/components/dashboard";
 import TestStatus from "@/components/dashboard/TestStatus";
+import PerformanceStatus from "@/components/dashboard/PerformanceStatus";
 import { logger } from "@/lib/logger";
 
 const links = [
@@ -119,6 +120,7 @@ export default function AdminHome() {
             loading={loading}
           />
           <TestStatus />
+          <PerformanceStatus />
         </div>
       </div>
 

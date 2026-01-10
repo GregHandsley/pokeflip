@@ -97,7 +97,7 @@ describe("SKU Generation", () => {
     });
   });
 
-  describe("generatePurchaseSKU", () => {
+  describe("GeneratePurchaseSKU", () => {
     it("Generates first SKU when no existing SKUs", () => {
       const sku = generatePurchaseSKU([]);
       expect(sku).toBe("PUR-001");

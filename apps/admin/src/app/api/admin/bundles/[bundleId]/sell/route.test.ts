@@ -34,7 +34,7 @@ describe.skip("POST /api/admin/bundles/[bundleId]/sell", () => {
     (supabaseServer as any).mockReturnValue(mockSupabase);
   });
 
-  it("sells a bundle successfully", async () => {
+  it("Sells a bundle successfully", async () => {
     // Mock bundle fetch
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
@@ -160,7 +160,7 @@ describe.skip("POST /api/admin/bundles/[bundleId]/sell", () => {
     expect(json.salesOrder).toBeDefined();
   });
 
-  it("rejects selling more bundles than available", async () => {
+  it("Rejects selling more bundles than available", async () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -190,7 +190,7 @@ describe.skip("POST /api/admin/bundles/[bundleId]/sell", () => {
     expect(json.error).toContain("Only 2 bundle");
   });
 
-  it("rejects selling already sold bundle", async () => {
+  it("Rejects selling already sold bundle", async () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),

@@ -35,7 +35,7 @@ describe.skip("POST /api/admin/bundles", () => {
     (supabaseServer as any).mockReturnValue(mockSupabase);
   });
 
-  it("creates a bundle with valid data", async () => {
+  it("Creates a bundle with valid data", async () => {
     // Mock lot lookup
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
@@ -103,7 +103,7 @@ describe.skip("POST /api/admin/bundles", () => {
     expect(json.bundle).toBeDefined();
   });
 
-  it("rejects bundle creation when lot not for sale", async () => {
+  it("Rejects bundle creation when lot not for sale", async () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       in: vi.fn().mockResolvedValue({
@@ -131,7 +131,7 @@ describe.skip("POST /api/admin/bundles", () => {
     expect(json.error).toContain("not for sale");
   });
 
-  it("rejects bundle creation when insufficient stock", async () => {
+  it("Rejects bundle creation when insufficient stock", async () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       in: vi.fn().mockResolvedValue({
@@ -178,7 +178,7 @@ describe.skip("POST /api/admin/bundles", () => {
     expect(json.error).toContain("Insufficient quantity");
   });
 
-  it("accounts for bundle reservations from other bundles", async () => {
+  it("Accounts for bundle reservations from other bundles", async () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       in: vi.fn().mockResolvedValue({

@@ -35,7 +35,7 @@ describe.skip("POST /api/admin/sales/create", () => {
     (supabaseServer as any).mockReturnValue(mockSupabase);
   });
 
-  it("creates a sale with multiple lots", async () => {
+  it("Creates a sale with multiple lots", async () => {
     // Mock buyer lookup
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
@@ -144,7 +144,7 @@ describe.skip("POST /api/admin/sales/create", () => {
     expect(json.salesOrder).toBeDefined();
   });
 
-  it("rejects sale when lot not for sale", async () => {
+  it("Rejects sale when lot not for sale", async () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -177,7 +177,7 @@ describe.skip("POST /api/admin/sales/create", () => {
     expect(json.error).toContain("not for sale");
   });
 
-  it("rejects sale when insufficient stock due to bundle reservations", async () => {
+  it("Rejects sale when insufficient stock due to bundle reservations", async () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -245,7 +245,10 @@ describe.skip("POST /api/admin/sales/create", () => {
     const json = await response.json();
 
     expect(response.status).toBe(400);
-    expect(json.error).toContain("insufficient") || expect(json.error).toContain("available");
+    expect(
+      json.error.toLowerCase().includes("insufficient") || 
+      json.error.toLowerCase().includes("available")
+    ).toBe(true);
   });
 });
 

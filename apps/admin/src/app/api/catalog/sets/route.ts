@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { fetchAllSets } from "@/lib/tcgdx/tcgdxClient";
 import { handleApiError } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import { unstable_cache } from "next/cache";
+
+// Cache catalog data for 1 hour (sets don't change frequently)
+async function fetchSetsUncached(locale: string) {
+  return await fetchAllSets(locale);
+}
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
@@ -11,8 +17,17 @@ export async function GET(req: Request) {
     const locale = searchParams.get("locale") || "en";
     const simplified = searchParams.get("simplified") === "true";
 
-    // Directly call TCGdx API - it's fast and doesn't need caching
-    const sets = await fetchAllSets(locale);
+    // Use cached sets (revalidates every hour) - cache key includes locale
+    const getCachedSets = unstable_cache(
+      () => fetchSetsUncached(locale),
+      [`catalog-sets-${locale}`],
+      {
+        revalidate: 3600, // 1 hour
+        tags: ["catalog-sets"],
+      }
+    );
+
+    const sets = await getCachedSets();
     
     // Return simplified format if requested (for backward compatibility)
     if (simplified) {
