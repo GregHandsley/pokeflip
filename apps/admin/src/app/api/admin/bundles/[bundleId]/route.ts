@@ -250,9 +250,11 @@ export async function DELETE(
   { params }: { params: Promise<{ bundleId: string }> }
 ) {
   const logger = createApiLogger(req);
+  let bundleId: string = "";
   
   try {
-    const { bundleId } = await params;
+    const resolved = await params;
+    bundleId = resolved.bundleId;
     const supabase = supabaseServer();
 
     // Check if bundle has been sold

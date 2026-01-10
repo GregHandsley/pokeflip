@@ -1,15 +1,25 @@
 {
-    "name": "pokeflip",
-    "private": true,
-    "packageManager": "pnpm@10.26.2",
-    "workspaces": [
-      "apps/*",
-      "packages/*"
-    ],
-    "scripts": {
-      "dev": "pnpm -r dev",
-      "build": "pnpm -r build",
-      "lint": "pnpm -r lint",
-      "typecheck": "pnpm -r typecheck"
-    }
+  "name": "pokeflip",
+  "private": true,
+  "packageManager": "pnpm@10.26.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm -r dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
+    "@vitejs/plugin-react": "^5.1.2",
+    "@vitest/ui": "^4.0.16",
+    "jsdom": "^27.4.0",
+    "vitest": "^4.0.16"
   }
+}

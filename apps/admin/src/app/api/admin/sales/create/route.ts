@@ -15,9 +15,10 @@ import {
 
 export async function POST(req: Request) {
   const logger = createApiLogger(req);
+  let body: any;
   
   try {
-    const body = await req.json();
+    body = await req.json();
     
     // Validate buyer handle (required)
     const validatedBuyerHandle = nonEmptyString(body.buyerHandle, "buyerHandle");

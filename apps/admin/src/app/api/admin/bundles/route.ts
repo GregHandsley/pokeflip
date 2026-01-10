@@ -79,9 +79,10 @@ export async function GET(req: Request) {
 // POST: Create a new bundle
 export async function POST(req: Request) {
   const logger = createApiLogger(req);
+  let body: any;
   
   try {
-    const body = await req.json();
+    body = await req.json();
     
     // Validate required fields
     const validatedName = nonEmptyString(body.name, "name");

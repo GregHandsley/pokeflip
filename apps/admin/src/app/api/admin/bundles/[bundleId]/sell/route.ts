@@ -18,11 +18,12 @@ export async function POST(
   { params }: { params: Promise<{ bundleId: string }> }
 ) {
   const logger = createApiLogger(req);
+  let validatedBundleId: string = "";
   
   try {
     // Validate route parameters
     const { bundleId } = await params;
-    const validatedBundleId = uuid(bundleId, "bundleId");
+    validatedBundleId = uuid(bundleId, "bundleId");
     
     // Validate request body
     const body = await req.json();

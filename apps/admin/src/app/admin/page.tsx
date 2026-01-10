@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Card from "@/components/ui/Card";
 import PageHeader from "@/components/ui/PageHeader";
 import { InboxSummary, FinancialOverview, QuickStats } from "@/components/dashboard";
+import TestStatus from "@/components/dashboard/TestStatus";
 import { logger } from "@/lib/logger";
 
 const links = [
@@ -108,14 +109,17 @@ export default function AdminHome() {
             loading={loading}
           />
         </div>
-        <QuickStats 
-          data={summary ? {
-            purchases: summary.purchases,
-            inventory: summary.inventory,
-            recentSales: summary.recentSales,
-          } : null} 
-          loading={loading}
-        />
+        <div className="space-y-4">
+          <QuickStats 
+            data={summary ? {
+              purchases: summary.purchases,
+              inventory: summary.inventory,
+              recentSales: summary.recentSales,
+            } : null} 
+            loading={loading}
+          />
+          <TestStatus />
+        </div>
       </div>
 
       {/* Quick Links */}
