@@ -30,6 +30,8 @@ type Lot = {
   quantity: number;
   available_qty: number;
   sold_qty: number;
+  bundle_reserved_qty?: number; // Quantity reserved in bundles
+  in_bundles?: Array<{ bundleId: string; quantity: number }> | null; // Bundles this lot is in
   for_sale: boolean;
   list_price_pence: number | null;
   status: string;
@@ -215,8 +217,8 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
   };
 
   const handleLotClick = async (lot: Lot) => {
-    // If marked as "not for sale", open Lot Detail modal to allow marking as for sale
-    if (!lot.for_sale) {
+    // If marked as "not for sale" or no available quantity (e.g., reserved in bundle), open Lot Detail modal
+    if (!lot.for_sale || lot.available_qty <= 0) {
       setSelectedLot(lot);
       return;
     }
@@ -662,7 +664,15 @@ export default function CardLotsView({ cardId, isExpanded, onLotsChanged }: Prop
                                   </span>
                                 );
                               })()}
-                              {!lot.for_sale && (
+                              {lot.bundle_reserved_qty && lot.bundle_reserved_qty > 0 && (
+                                <span
+                                  className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700"
+                                  title={`${lot.bundle_reserved_qty} reserved in bundle(s)`}
+                                >
+                                  In Bundle ({lot.bundle_reserved_qty})
+                                </span>
+                              )}
+                              {!lot.for_sale && !lot.bundle_reserved_qty && (
                                 <span
                                   className="px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700"
                                   title="Not for sale - will not appear in inbox"

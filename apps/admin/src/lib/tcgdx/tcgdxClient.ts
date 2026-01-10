@@ -37,6 +37,32 @@ export function getSetImageUrl(
  * Endpoint: GET https://api.tcgdex.net/v2/en/sets
  */
 export async function fetchAllSets(locale: string = "en"): Promise<TcgdxSet[]> {
+  // If running client-side, use our API route to avoid CORS
+  if (typeof window !== "undefined") {
+    const url = `/api/catalog/sets?locale=${encodeURIComponent(locale)}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const json = await response.json().catch(() => ({}));
+      throw new Error(json.error || `API returned ${response.status}`);
+    }
+
+    const json = await response.json();
+    
+    if (!json.ok || !json.data) {
+      throw new Error("Invalid API response: expected data array");
+    }
+
+    // API route returns full TcgdxSet[] format
+    return json.data as TcgdxSet[];
+  }
+
+  // Server-side: call external API directly
   const url = `${BASE_URL}/${locale}/sets`;
   
   const response = await fetch(url, {
@@ -66,6 +92,31 @@ export async function fetchAllSets(locale: string = "en"): Promise<TcgdxSet[]> {
  * Endpoint: GET https://api.tcgdex.net/v2/en/sets/{setId}
  */
 export async function fetchCardsForSet(setId: string, locale: string = "en"): Promise<TcgdxCard[]> {
+  // If running client-side, use our API route to avoid CORS
+  if (typeof window !== "undefined") {
+    const url = `/api/catalog/cards?setId=${encodeURIComponent(setId)}&locale=${encodeURIComponent(locale)}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const json = await response.json().catch(() => ({}));
+      throw new Error(json.error || `API returned ${response.status}`);
+    }
+
+    const json = await response.json();
+    
+    if (!json.ok || !json.data) {
+      throw new Error("Invalid API response: expected data array");
+    }
+
+    return json.data as TcgdxCard[];
+  }
+
+  // Server-side: call external API directly
   const url = `${BASE_URL}/${locale}/sets/${setId}`;
 
   const response = await fetch(url, {

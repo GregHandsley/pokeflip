@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import {
+  uuid,
+  nonEmptyString,
+  optional,
+  nonNegative,
+  array,
+  number,
+  quantity,
+} from "@/lib/validation";
 
 // POST: Sell a bundle
 export async function POST(
@@ -11,23 +20,19 @@ export async function POST(
   const logger = createApiLogger(req);
   
   try {
+    // Validate route parameters
     const { bundleId } = await params;
+    const validatedBundleId = uuid(bundleId, "bundleId");
+    
+    // Validate request body
     const body = await req.json();
-    const {
-      buyerHandle,
-      orderGroup,
-      feesPence,
-      shippingPence,
-      discountPence,
-      consumables,
-    } = body;
-
-    if (!buyerHandle) {
-      return NextResponse.json(
-        { error: "Missing required field: buyerHandle" },
-        { status: 400 }
-      );
-    }
+    const validatedBuyerHandle = nonEmptyString(body.buyerHandle, "buyerHandle");
+    const validatedOrderGroup = optional(body.orderGroup, (v) => nonEmptyString(v, "orderGroup"), "orderGroup");
+    const validatedFeesPence = optional(body.feesPence, (v) => nonNegative(number(v, "feesPence"), "feesPence"), "feesPence");
+    const validatedShippingPence = optional(body.shippingPence, (v) => nonNegative(number(v, "shippingPence"), "shippingPence"), "shippingPence");
+    const validatedDiscountPence = optional(body.discountPence, (v) => nonNegative(number(v, "discountPence"), "discountPence"), "discountPence");
+    const validatedConsumables = optional(body.consumables, array, "consumables");
+    const validatedQuantity = quantity(body.quantity || 1, "quantity"); // Quantity of bundles to sell
 
     const supabase = supabaseServer();
 
@@ -49,7 +54,7 @@ export async function POST(
           )
         )
       `)
-      .eq("id", bundleId)
+      .eq("id", validatedBundleId)
       .single();
 
     if (bundleError || !bundle) {
@@ -62,6 +67,15 @@ export async function POST(
     if (bundle.status === "sold") {
       return NextResponse.json(
         { error: "Bundle has already been sold" },
+        { status: 400 }
+      );
+    }
+
+    // Check if bundle has enough quantity available
+    const bundleQuantity = bundle.quantity || 1;
+    if (validatedQuantity > bundleQuantity) {
+      return NextResponse.json(
+        { error: `Only ${bundleQuantity} bundle(s) available. Requested: ${validatedQuantity}` },
         { status: 400 }
       );
     }
@@ -100,7 +114,9 @@ export async function POST(
       soldQtyMap.set(item.lot_id, current + (item.qty || 0));
     });
 
-    // Verify quantities
+    // Verify quantities - cards are already reserved in the bundle, but we need to ensure
+    // they haven't been sold individually and that we have enough bundle quantity
+    // Total cards needed = validatedQuantity * cards_per_bundle for each item
     for (const bundleItem of bundleItems) {
       const lot = lots.find((l: any) => l.id === bundleItem.lot_id);
       if (!lot) {
@@ -111,11 +127,16 @@ export async function POST(
       }
 
       const currentSoldQty = soldQtyMap.get(bundleItem.lot_id) || 0;
-      const availableQty = lot.quantity - currentSoldQty;
+      const cardsPerBundle = bundleItem.quantity || 1;
+      const totalCardsNeeded = validatedQuantity * cardsPerBundle;
+      
+      // Cards are reserved in bundle, but check that total available (including reserved) is enough
+      // Available = lot.quantity - already_sold
+      const totalAvailable = lot.quantity - currentSoldQty;
 
-      if (bundleItem.quantity > availableQty) {
+      if (totalCardsNeeded > totalAvailable) {
         return NextResponse.json(
-          { error: `Only ${availableQty} items available for lot ${bundleItem.lot_id}` },
+          { error: `Insufficient quantity for lot ${bundleItem.lot_id}. Available: ${totalAvailable}, Needed for ${validatedQuantity} bundle(s): ${totalCardsNeeded} (${cardsPerBundle} per bundle)` },
           { status: 400 }
         );
       }
@@ -127,7 +148,7 @@ export async function POST(
       .from("buyers")
       .select("id")
       .eq("platform", "ebay")
-      .eq("handle", buyerHandle.trim())
+      .eq("handle", validatedBuyerHandle.trim())
       .single();
 
     if (existingBuyer) {
@@ -137,7 +158,7 @@ export async function POST(
         .from("buyers")
         .insert({
           platform: "ebay",
-          handle: buyerHandle.trim(),
+          handle: validatedBuyerHandle.trim(),
         })
         .select("id")
         .single();
@@ -155,20 +176,20 @@ export async function POST(
     const orderData: any = {
       platform: "ebay",
       buyer_id: buyerId,
-      bundle_id: bundleId,
+      bundle_id: validatedBundleId,
     };
 
-    if (orderGroup && orderGroup.trim()) {
-      orderData.order_group = orderGroup.trim();
+    if (validatedOrderGroup) {
+      orderData.order_group = validatedOrderGroup;
     }
-    if (feesPence != null && feesPence > 0) {
-      orderData.fees_pence = feesPence;
+    if (validatedFeesPence !== undefined && validatedFeesPence > 0) {
+      orderData.fees_pence = validatedFeesPence;
     }
-    if (shippingPence != null && shippingPence > 0) {
-      orderData.shipping_pence = shippingPence;
+    if (validatedShippingPence !== undefined && validatedShippingPence > 0) {
+      orderData.shipping_pence = validatedShippingPence;
     }
-    if (discountPence != null && discountPence > 0) {
-      orderData.discount_pence = discountPence;
+    if (validatedDiscountPence !== undefined && validatedDiscountPence > 0) {
+      orderData.discount_pence = validatedDiscountPence;
     }
 
     const { data: salesOrder, error: orderError } = await supabase
@@ -179,7 +200,7 @@ export async function POST(
 
     if (orderError || !salesOrder) {
       logger.error("Failed to create sales order for bundle", orderError, undefined, {
-        bundleId,
+        bundleId: validatedBundleId,
         buyerId,
       });
       return createErrorResponse(
@@ -228,10 +249,13 @@ export async function POST(
       const lot = lots.find((l: any) => l.id === bundleItem.lot_id);
       if (!lot) continue;
 
+      // Total quantity sold = number of bundles * cards per bundle
+      const totalCardsSold = validatedQuantity * (bundleItem.quantity || 1);
+
       salesItems.push({
         sales_order_id: salesOrder.id,
         lot_id: bundleItem.lot_id,
-        qty: bundleItem.quantity,
+        qty: totalCardsSold, // Total cards sold across all bundles
         sold_price_pence: pricePerCardPence, // Same price per card for all items
       });
     }
@@ -243,7 +267,7 @@ export async function POST(
 
     if (itemError || !insertedSalesItems) {
       logger.error("Failed to create sales items for bundle", itemError, undefined, {
-        bundleId,
+        bundleId: validatedBundleId,
         salesOrderId: salesOrder.id,
         itemsCount: salesItems.length,
       });
@@ -313,24 +337,26 @@ export async function POST(
 
       if (allocError) {
         logger.warn("Failed to create purchase allocations for bundle sale", allocError, undefined, {
-          bundleId,
+          bundleId: validatedBundleId,
           salesOrderId: salesOrder.id,
           allocationsCount: purchaseAllocations.length,
         });
         // Don't fail the sale if allocations fail
       } else {
         logger.info(`Bundle sell: Successfully created ${purchaseAllocations.length} purchase allocations`, undefined, {
-          bundleId,
+          bundleId: validatedBundleId,
           salesOrderId: salesOrder.id,
         });
       }
     } else {
-      console.warn("Bundle sell: No purchase allocations created!");
+      logger.warn("Bundle sell: No purchase allocations created!", undefined, {
+        bundleId: validatedBundleId,
+      });
     }
 
     // Create sales consumables if provided
-    if (consumables && Array.isArray(consumables) && consumables.length > 0) {
-      const salesConsumables = consumables
+    if (validatedConsumables && validatedConsumables.length > 0) {
+      const salesConsumables = validatedConsumables
         .filter((c: any) => c.consumable_id && c.qty > 0)
         .map((c: any) => ({
           sales_order_id: salesOrder.id,
@@ -345,7 +371,7 @@ export async function POST(
 
         if (consumablesError) {
           logger.warn("Failed to create sales consumables for bundle", consumablesError, undefined, {
-            bundleId,
+            bundleId: validatedBundleId,
             salesOrderId: salesOrder.id,
             consumablesCount: salesConsumables.length,
           });
@@ -354,23 +380,34 @@ export async function POST(
       }
     }
 
-    // Update bundle status to sold
-    await supabase
-      .from("bundles")
-      .update({ status: "sold" })
-      .eq("id", bundleId);
+    // Update bundle quantity (decrease by sold quantity)
+    const newQuantity = bundleQuantity - validatedQuantity;
+    if (newQuantity <= 0) {
+      // If no bundles left, mark as sold
+      await supabase
+        .from("bundles")
+        .update({ status: "sold", quantity: 0 })
+        .eq("id", validatedBundleId);
+    } else {
+      // Decrease quantity
+      await supabase
+        .from("bundles")
+        .update({ quantity: newQuantity })
+        .eq("id", validatedBundleId);
+    }
 
     return NextResponse.json({
       ok: true,
       sales_order: {
         id: salesOrder.id,
-        bundle_id: bundleId,
+        bundle_id: validatedBundleId,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // ValidationErrorResponse is automatically handled by handleApiError
     return handleApiError(req, error, {
       operation: "sell_bundle",
-      metadata: { bundleId, body },
+      metadata: { bundleId: validatedBundleId },
     });
   }
 }

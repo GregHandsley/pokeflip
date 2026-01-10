@@ -330,6 +330,17 @@ export default function MarkSoldModal({ lot, onClose, onSaleCreated }: Props) {
   const profit = calculateProfit();
 
   const handleSubmit = async () => {
+    // Check if lot is available for sale
+    if (!lot.for_sale) {
+      setErrorModal({ isOpen: true, message: "This lot is not available for sale. It may be reserved in a bundle." });
+      return;
+    }
+
+    if (lot.available_qty <= 0) {
+      setErrorModal({ isOpen: true, message: "No quantity available for sale. This lot may be reserved in a bundle." });
+      return;
+    }
+
     if (!soldPrice || parseFloat(soldPrice) <= 0) {
       setErrorModal({ isOpen: true, message: "Please enter a valid sold price" });
       return;

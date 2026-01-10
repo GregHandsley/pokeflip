@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import {
+  nonEmptyString,
+  dealType,
+  optional,
+  percentage,
+  nonNegative,
+  integer,
+  boolean,
+  number,
+} from "@/lib/validation";
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
@@ -46,47 +56,45 @@ export async function POST(req: Request) {
   
   try {
     const body = await req.json();
-    const {
-      name,
-      description,
-      deal_type,
-      discount_percent,
-      discount_amount_pence,
-      buy_quantity,
-      get_quantity,
-      min_card_count,
-      max_card_count,
-      is_active,
-    } = body;
-
-    if (!name || !deal_type) {
-      return NextResponse.json(
-        { error: "Missing required fields: name, deal_type" },
-        { status: 400 }
-      );
-    }
+    
+    // Validate required fields
+    const validatedName = nonEmptyString(body.name, "name");
+    const validatedDealType = dealType(body.deal_type, "deal_type");
+    
+    // Validate optional fields
+    const validatedDescription = optional(body.description, (v) => string(v, "description"), "description");
+    const validatedDiscountPercent = optional(body.discount_percent, (v) => percentage(number(v, "discount_percent"), "discount_percent"), "discount_percent");
+    const validatedDiscountAmountPence = optional(body.discount_amount_pence, (v) => nonNegative(integer(v, "discount_amount_pence"), "discount_amount_pence"), "discount_amount_pence");
+    const validatedBuyQuantity = optional(body.buy_quantity, (v) => quantity(v, "buy_quantity"), "buy_quantity");
+    const validatedGetQuantity = optional(body.get_quantity, (v) => quantity(v, "get_quantity"), "get_quantity");
+    const validatedMinCardCount = optional(body.min_card_count, (v) => quantity(v, "min_card_count"), "min_card_count") || 1;
+    const validatedMaxCardCount = optional(body.max_card_count, (v) => quantity(v, "max_card_count"), "max_card_count");
+    const validatedIsActive = optional(body.is_active, boolean, "is_active") ?? true;
 
     const supabase = supabaseServer();
 
     const { data: deal, error } = await supabase
       .from("promotional_deals")
       .insert({
-        name,
-        description,
-        deal_type,
-        discount_percent: discount_percent ? parseFloat(discount_percent) : null,
-        discount_amount_pence: discount_amount_pence ? parseInt(discount_amount_pence, 10) : null,
-        buy_quantity: buy_quantity ? parseInt(buy_quantity, 10) : null,
-        get_quantity: get_quantity ? parseInt(get_quantity, 10) : null,
-        min_card_count: min_card_count ? parseInt(min_card_count, 10) : 1,
-        max_card_count: max_card_count ? parseInt(max_card_count, 10) : null,
-        is_active: is_active !== false,
+        name: validatedName,
+        description: validatedDescription || null,
+        deal_type: validatedDealType,
+        discount_percent: validatedDiscountPercent || null,
+        discount_amount_pence: validatedDiscountAmountPence || null,
+        buy_quantity: validatedBuyQuantity || null,
+        get_quantity: validatedGetQuantity || null,
+        min_card_count: validatedMinCardCount,
+        max_card_count: validatedMaxCardCount || null,
+        is_active: validatedIsActive,
       })
       .select()
       .single();
 
     if (error) {
-      logger.error("Failed to create promotional deal", error, undefined, { name, deal_type });
+      logger.error("Failed to create promotional deal", error, undefined, {
+        name: validatedName,
+        deal_type: validatedDealType,
+      });
       return createErrorResponse(
         error.message || "Failed to create promotional deal",
         500,

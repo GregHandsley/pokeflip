@@ -78,6 +78,48 @@ export async function GET(
       soldItemsMap.set(item.lot_id, current + (item.qty || 0));
     });
 
+    // Get quantities reserved in active bundles, and which bundles each lot is in
+    // Reserved quantity = bundle.quantity * bundle_item.quantity (total cards needed across all bundles)
+    const { data: activeBundles } = await supabase
+      .from("bundles")
+      .select("id, quantity")
+      .eq("status", "active");
+
+    const bundleReservedMap = new Map<string, number>();
+    const lotBundlesMap = new Map<string, Array<{ bundleId: string; quantity: number; bundleQuantity: number }>>();
+    if (activeBundles && activeBundles.length > 0) {
+      const activeBundleIds = activeBundles.map((b: any) => b.id);
+      const bundleQuantityMap = new Map<string, number>();
+      activeBundles.forEach((b: any) => {
+        bundleQuantityMap.set(b.id, b.quantity || 1);
+      });
+      
+      const { data: bundleItems } = await supabase
+        .from("bundle_items")
+        .select("lot_id, quantity, bundle_id")
+        .in("lot_id", lotIds)
+        .in("bundle_id", activeBundleIds);
+
+      (bundleItems || []).forEach((item: any) => {
+        const bundleQty = bundleQuantityMap.get(item.bundle_id) || 1;
+        const cardsPerBundle = item.quantity || 1;
+        const totalReserved = bundleQty * cardsPerBundle;
+        
+        const current = bundleReservedMap.get(item.lot_id) || 0;
+        bundleReservedMap.set(item.lot_id, current + totalReserved);
+        
+        // Track which bundles this lot is in
+        if (!lotBundlesMap.has(item.lot_id)) {
+          lotBundlesMap.set(item.lot_id, []);
+        }
+        lotBundlesMap.get(item.lot_id)!.push({
+          bundleId: item.bundle_id,
+          quantity: cardsPerBundle,
+          bundleQuantity: bundleQty,
+        });
+      });
+    }
+
     // Get eBay listing statuses and publish queue info
     const { data: ebayListings } = await supabase
       .from("ebay_listings")
@@ -169,7 +211,11 @@ export async function GET(
     // Format lots with available qty and related data
     const formattedLots = lots.map((lot: any) => {
       const soldQty = soldItemsMap.get(lot.id) || 0;
-      const availableQty = Math.max(0, lot.quantity - soldQty);
+      const bundleReservedQty = bundleReservedMap.get(lot.id) || 0;
+      const availableQty = Math.max(0, lot.quantity - soldQty - bundleReservedQty);
+      
+      // If all quantity is reserved in bundles, the lot should not be available for individual sale
+      const effectiveForSale = lot.for_sale && availableQty > 0;
       
       // Get purchase history for this lot
       const history = purchaseHistoryMap.get(lot.id) || [];
@@ -178,11 +224,13 @@ export async function GET(
           const purchase = purchaseMap.get(h.acquisition_id);
           return purchase ? { ...purchase, quantity: h.quantity } : null;
         })
-        .filter(Boolean) as Array<Purchase & { quantity: number }>;
+        .filter(Boolean) as Array<any>;
       
       // Fallback to single purchase if no history (for backwards compatibility)
       const purchase = lot.acquisition_id ? purchaseMap.get(lot.acquisition_id) : null;
       const singlePurchase = purchase && purchases.length === 0 ? purchase : null;
+
+      const inBundles = lotBundlesMap.get(lot.id) || [];
 
       return {
         id: lot.id,
@@ -191,7 +239,9 @@ export async function GET(
         quantity: lot.quantity,
         available_qty: availableQty,
         sold_qty: soldQty,
-        for_sale: lot.for_sale,
+        bundle_reserved_qty: bundleReservedQty, // Quantity reserved in bundles
+        in_bundles: inBundles.length > 0 ? inBundles : null, // Array of bundle IDs this lot is in
+        for_sale: effectiveForSale, // Only true if lot is marked for sale AND has available quantity
         list_price_pence: lot.list_price_pence,
         status: lot.status,
         note: lot.note,

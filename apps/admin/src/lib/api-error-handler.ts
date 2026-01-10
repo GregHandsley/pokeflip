@@ -4,6 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { createApiLogger } from "./logger";
+import { ValidationErrorResponse, formatValidationError } from "./validation";
 
 export interface ApiError {
   message: string;
@@ -46,6 +47,23 @@ export function handleApiError(
   }
 ): NextResponse {
   const logger = createApiLogger(req, context?.userId, context?.userEmail);
+
+  // Handle validation errors specially
+  if (error instanceof ValidationErrorResponse) {
+    const validationResponse = formatValidationError(error);
+    logger.warn("Validation failed", undefined, {
+      errors: error.errors,
+      operation: context?.operation,
+      ...context?.metadata,
+    });
+    return NextResponse.json(
+      {
+        ok: false,
+        ...validationResponse,
+      },
+      { status: error.statusCode }
+    );
+  }
 
   // Extract error information
   let message = "An unexpected error occurred";

@@ -2,25 +2,32 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import { nonEmptyArray, uuid, min, required } from "@/lib/validation";
 
 export async function POST(req: Request) {
   const logger = createApiLogger(req);
   
   try {
     const body = await req.json();
-    const { lot_ids, target_lot_id } = body;
-
-    if (!Array.isArray(lot_ids) || lot_ids.length < 2) {
-      return NextResponse.json(
-        { error: "Must provide at least 2 lot IDs to merge" },
-        { status: 400 }
-      );
-    }
-
-    if (!target_lot_id || !lot_ids.includes(target_lot_id)) {
-      return NextResponse.json(
-        { error: "Must specify a target lot ID that is in the list of lots to merge" },
-        { status: 400 }
+    
+    // Validate lot_ids array
+    const validatedLotIds = nonEmptyArray(body.lot_ids, "lot_ids");
+    min(validatedLotIds.length, 2, "lot_ids.length");
+    
+    // Validate each lot ID is a UUID
+    validatedLotIds.forEach((id: unknown, index: number) => {
+      uuid(id, `lot_ids[${index}]`);
+    });
+    
+    // Validate target_lot_id
+    const validatedTargetLotId = uuid(required(body.target_lot_id, "target_lot_id"), "target_lot_id");
+    
+    // Validate target is in the list
+    if (!validatedLotIds.includes(validatedTargetLotId)) {
+      return createErrorResponse(
+        "target_lot_id must be in the list of lots to merge",
+        400,
+        "INVALID_TARGET_LOT"
       );
     }
 
@@ -30,17 +37,18 @@ export async function POST(req: Request) {
     const { data: lotsToMerge, error: fetchError } = await supabase
       .from("inventory_lots")
       .select("*")
-      .in("id", lot_ids);
+      .in("id", validatedLotIds);
 
-    if (fetchError || !lotsToMerge || lotsToMerge.length !== lot_ids.length) {
-      return NextResponse.json(
-        { error: "Failed to fetch lots or some lots not found" },
-        { status: 404 }
+    if (fetchError || !lotsToMerge || lotsToMerge.length !== validatedLotIds.length) {
+      return createErrorResponse(
+        "Failed to fetch lots or some lots not found",
+        404,
+        "LOTS_NOT_FOUND"
       );
     }
 
     // Verify all lots have the same card_id and condition
-    const targetLot = lotsToMerge.find((l: any) => l.id === target_lot_id);
+    const targetLot = lotsToMerge.find((l: any) => l.id === validatedTargetLotId);
     if (!targetLot) {
       return NextResponse.json(
         { error: "Target lot not found" },
@@ -89,7 +97,7 @@ export async function POST(req: Request) {
     const { data: soldItems } = await supabase
       .from("sales_items")
       .select("lot_id, qty")
-      .in("lot_id", lot_ids);
+      .in("lot_id", validatedLotIds);
 
     const soldItemsMap = new Map<string, number>();
     (soldItems || []).forEach((item: any) => {
@@ -148,12 +156,12 @@ export async function POST(req: Request) {
     const { error: updateError } = await supabase
       .from("inventory_lots")
       .update(mergedLot)
-      .eq("id", target_lot_id);
+      .eq("id", validatedTargetLotId);
 
     if (updateError) {
       logger.error("Failed to update target lot during merge", updateError, undefined, {
-        targetLotId: target_lot_id,
-        lotIds,
+        targetLotId: validatedTargetLotId,
+        lotIds: validatedLotIds,
       });
       return NextResponse.json(
         { error: updateError.message || "Failed to update target lot" },
@@ -162,7 +170,7 @@ export async function POST(req: Request) {
     }
 
     // Get other lot IDs (excluding target) for later operations
-    const otherLotIds = lot_ids.filter((id: string) => id !== target_lot_id);
+    const otherLotIds = validatedLotIds.filter((id: string) => id !== validatedTargetLotId);
 
     // Merge purchase history from all lots into target lot
     // This preserves the original committed quantities from each purchase
@@ -170,12 +178,12 @@ export async function POST(req: Request) {
     const { data: allPurchaseHistory, error: historyError } = await supabase
       .from("lot_purchase_history")
       .select("lot_id, acquisition_id, quantity")
-      .in("lot_id", lot_ids);
+      .in("lot_id", validatedLotIds);
 
     if (historyError) {
       logger.error("Failed to fetch purchase history during merge", historyError, undefined, {
-        targetLotId: target_lot_id,
-        lotIds,
+        targetLotId: validatedTargetLotId,
+        lotIds: validatedLotIds,
       });
       return createErrorResponse(
         "Failed to fetch purchase history for merge",
@@ -221,11 +229,11 @@ export async function POST(req: Request) {
     await supabase
       .from("lot_purchase_history")
       .delete()
-      .eq("lot_id", target_lot_id);
+      .eq("lot_id", validatedTargetLotId);
 
     // Insert merged purchase history preserving original quantities from each purchase
     const historyInserts = Array.from(historyMap.entries()).map(([acquisitionId, qty]) => ({
-      lot_id: target_lot_id,
+      lot_id: validatedTargetLotId,
       acquisition_id: acquisitionId,
       quantity: qty,
     }));
@@ -237,7 +245,7 @@ export async function POST(req: Request) {
 
       if (insertHistoryError) {
         logger.error("Failed to insert merged purchase history", insertHistoryError, undefined, {
-          targetLotId: target_lot_id,
+          targetLotId: validatedTargetLotId,
           historyInsertsCount: historyInserts.length,
         });
         return createErrorResponse(
@@ -261,7 +269,7 @@ export async function POST(req: Request) {
         const { data: existingPhotos } = await supabase
           .from("lot_photos")
           .select("kind, object_key")
-          .eq("lot_id", target_lot_id);
+          .eq("lot_id", validatedTargetLotId);
 
         const existingKeys = new Set(
           (existingPhotos || []).map(
@@ -274,7 +282,7 @@ export async function POST(req: Request) {
             (p: any) => !existingKeys.has(`${p.kind}:${p.object_key}`)
           )
           .map((p: any) => ({
-            lot_id: target_lot_id,
+            lot_id: validatedTargetLotId,
             kind: p.kind,
             object_key: p.object_key,
           }));
@@ -286,7 +294,7 @@ export async function POST(req: Request) {
 
           if (photoError) {
             logger.warn("Failed to copy photos during merge", photoError, undefined, {
-              targetLotId: target_lot_id,
+              targetLotId: validatedTargetLotId,
               photosToInsertCount: photosToInsert.length,
             });
             // Don't fail the merge if photos fail
@@ -303,8 +311,8 @@ export async function POST(req: Request) {
 
     if (deleteError) {
       logger.error("Failed to delete merged lots", deleteError, undefined, {
-        targetLotId: target_lot_id,
-        lotIdsToDelete: lotIds.filter((id) => id !== target_lot_id),
+        targetLotId: validatedTargetLotId,
+        lotIdsToDelete: validatedLotIds.filter((id) => id !== validatedTargetLotId),
       });
       return NextResponse.json(
         { error: deleteError.message || "Failed to delete merged lots" },
@@ -315,15 +323,16 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       merged_lot: {
-        id: target_lot_id,
+        id: validatedTargetLotId,
         quantity: totalQuantity,
       },
-      merged_count: lot_ids.length,
+      merged_count: validatedLotIds.length,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // ValidationErrorResponse is automatically handled by handleApiError
     return handleApiError(req, error, {
       operation: "merge_lots",
-      metadata: { lotIds, targetLotId: target_lot_id },
+      metadata: { lotIds: validatedLotIds, targetLotId: validatedTargetLotId },
     });
   }
 }

@@ -51,6 +51,7 @@ export async function GET(req: Request) {
     // Get sold quantities from sales_items
     const lotIds = (lots || []).map((l: any) => l.id);
     const soldItemsMap = new Map<string, number>();
+    const bundleReservedMap = new Map<string, number>();
     
     if (lotIds.length > 0) {
       const { data: soldItems } = await supabase
@@ -62,6 +63,36 @@ export async function GET(req: Request) {
         const current = soldItemsMap.get(item.lot_id) || 0;
         soldItemsMap.set(item.lot_id, current + (item.qty || 0));
       });
+
+      // Get quantities reserved in bundles (only for active bundles)
+      // Reserved quantity = bundle.quantity * bundle_item.quantity (total cards needed)
+      const { data: activeBundles } = await supabase
+        .from("bundles")
+        .select("id, quantity")
+        .eq("status", "active");
+
+      if (activeBundles && activeBundles.length > 0) {
+        const activeBundleIds = activeBundles.map((b: any) => b.id);
+        const bundleQuantityMap = new Map<string, number>();
+        activeBundles.forEach((b: any) => {
+          bundleQuantityMap.set(b.id, b.quantity || 1);
+        });
+        
+        const { data: bundleItems } = await supabase
+          .from("bundle_items")
+          .select("lot_id, quantity, bundle_id")
+          .in("lot_id", lotIds)
+          .in("bundle_id", activeBundleIds);
+
+        (bundleItems || []).forEach((item: any) => {
+          const bundleQty = bundleQuantityMap.get(item.bundle_id) || 1;
+          const cardsPerBundle = item.quantity || 1;
+          const totalReserved = bundleQty * cardsPerBundle;
+          
+          const current = bundleReservedMap.get(item.lot_id) || 0;
+          bundleReservedMap.set(item.lot_id, current + totalReserved);
+        });
+      }
     }
 
     // Get purchase history for all lots
@@ -111,7 +142,8 @@ export async function GET(req: Request) {
     const formattedLots = (lots || [])
       .map((lot: any) => {
         const soldQty = soldItemsMap.get(lot.id) || 0;
-        const availableQty = Math.max(0, lot.quantity - soldQty);
+        const bundleReservedQty = bundleReservedMap.get(lot.id) || 0;
+        const availableQty = Math.max(0, lot.quantity - soldQty - bundleReservedQty);
         
         // Only return lots with available quantity
         if (availableQty <= 0) {

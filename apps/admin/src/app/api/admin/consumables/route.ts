@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import { nonEmptyString, optional, string } from "@/lib/validation";
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
@@ -39,28 +40,27 @@ export async function POST(req: Request) {
   
   try {
     const body = await req.json();
-    const { name, unit = "each" } = body;
-
-    if (!name) {
-      return NextResponse.json(
-        { error: "Name is required" },
-        { status: 400 }
-      );
-    }
+    
+    // Validate required fields
+    const validatedName = nonEmptyString(body.name, "name");
+    const validatedUnit = optional(body.unit, (v) => nonEmptyString(v, "unit"), "unit") || "each";
 
     const supabase = supabaseServer();
 
     const { data: consumable, error } = await supabase
       .from("consumables")
       .insert({
-        name: name.trim(),
-        unit: unit.trim() || "each",
+        name: validatedName.trim(),
+        unit: validatedUnit.trim(),
       })
       .select("*")
       .single();
 
     if (error) {
-      logger.error("Failed to create consumable", error, undefined, { name, unit });
+      logger.error("Failed to create consumable", error, undefined, {
+        name: validatedName,
+        unit: validatedUnit,
+      });
       return createErrorResponse(
         error.message || "Failed to create consumable",
         500,

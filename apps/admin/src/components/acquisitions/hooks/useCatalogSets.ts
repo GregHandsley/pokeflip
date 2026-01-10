@@ -11,7 +11,7 @@ export function useCatalogSets() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/catalog/sets");
+        const res = await fetch("/api/catalog/sets?simplified=true");
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Failed to load sets");
         setSets(json.data || []);

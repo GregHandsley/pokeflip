@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import { uuid, lotStatus } from "@/lib/validation";
 
 export async function PATCH(
   req: Request,
@@ -10,35 +11,27 @@ export async function PATCH(
   const logger = createApiLogger(req);
   
   try {
+    // Validate route parameters
     const { lotId } = await params;
+    const validatedLotId = uuid(lotId, "lotId");
+    
+    // Validate request body
     const body = await req.json();
-    const { status } = body;
-
-    if (!status) {
-      return NextResponse.json(
-        { error: "Status is required" },
-        { status: 400 }
-      );
-    }
-
-    const validStatuses = ["draft", "ready", "listed", "sold", "archived"];
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
-        { status: 400 }
-      );
-    }
+    const validatedStatus = lotStatus(body.status, "status");
 
     const supabase = supabaseServer();
 
     // Update the lot status
     const { error } = await supabase
       .from("inventory_lots")
-      .update({ status })
-      .eq("id", lotId);
+      .update({ status: validatedStatus })
+      .eq("id", validatedLotId);
 
     if (error) {
-      logger.error("Failed to update lot status", error, undefined, { lotId, status });
+      logger.error("Failed to update lot status", error, undefined, {
+        lotId: validatedLotId,
+        status: validatedStatus,
+      });
       return createErrorResponse(
         error.message || "Failed to update lot status",
         500,
@@ -49,10 +42,14 @@ export async function PATCH(
 
     return NextResponse.json({
       ok: true,
-      message: `Lot status updated to ${status}`,
+      message: `Lot status updated to ${validatedStatus}`,
     });
-  } catch (error: any) {
-    return handleApiError(req, error, { operation: "update_lot_status", metadata: { lotId } });
+  } catch (error: unknown) {
+    // ValidationErrorResponse is automatically handled by handleApiError
+    return handleApiError(req, error, {
+      operation: "update_lot_status",
+      metadata: { lotId: validatedLotId },
+    });
   }
 }
 

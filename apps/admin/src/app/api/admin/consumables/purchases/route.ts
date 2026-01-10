@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import { uuid, quantity, nonNegative, optional, string } from "@/lib/validation";
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
@@ -55,24 +56,22 @@ export async function POST(req: Request) {
   
   try {
     const body = await req.json();
-    const { consumable_id, qty, total_cost_pence, purchased_at } = body;
-
-    if (!consumable_id || !qty || total_cost_pence === undefined) {
-      return NextResponse.json(
-        { error: "consumable_id, qty, and total_cost_pence are required" },
-        { status: 400 }
-      );
-    }
+    
+    // Validate required fields
+    const validatedConsumableId = uuid(body.consumable_id, "consumable_id");
+    const validatedQty = quantity(body.qty, "qty");
+    const validatedTotalCostPence = nonNegative(integer(body.total_cost_pence, "total_cost_pence"), "total_cost_pence");
+    const validatedPurchasedAt = optional(body.purchased_at, string, "purchased_at") || new Date().toISOString();
 
     const supabase = supabaseServer();
 
     const { data: purchase, error } = await supabase
       .from("consumable_purchases")
       .insert({
-        consumable_id,
-        qty: parseInt(qty, 10),
-        total_cost_pence: Math.round(total_cost_pence),
-        purchased_at: purchased_at || new Date().toISOString(),
+        consumable_id: validatedConsumableId,
+        qty: validatedQty,
+        total_cost_pence: validatedTotalCostPence,
+        purchased_at: validatedPurchasedAt,
       })
       .select(
         `
@@ -88,9 +87,9 @@ export async function POST(req: Request) {
 
     if (error) {
       logger.error("Failed to create consumable purchase", error, undefined, {
-        consumable_id,
-        qty,
-        total_cost_pence,
+        consumable_id: validatedConsumableId,
+        qty: validatedQty,
+        total_cost_pence: validatedTotalCostPence,
       });
       return createErrorResponse(
         error.message || "Failed to create purchase",

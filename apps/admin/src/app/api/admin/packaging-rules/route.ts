@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import {
+  nonEmptyString,
+  integer,
+  min,
+  optional,
+  boolean,
+  array,
+  uuid,
+  quantity,
+} from "@/lib/validation";
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
@@ -54,19 +64,20 @@ export async function POST(req: Request) {
   
   try {
     const body = await req.json();
-    const { name, is_default, card_count_min, card_count_max, items } = body;
-
-    if (!name || card_count_min === undefined) {
-      return NextResponse.json(
-        { error: "name and card_count_min are required" },
-        { status: 400 }
-      );
-    }
+    
+    // Validate required fields
+    const validatedName = nonEmptyString(body.name, "name");
+    const validatedCardCountMin = min(integer(body.card_count_min, "card_count_min"), 1, "card_count_min");
+    
+    // Validate optional fields
+    const validatedIsDefault = optional(body.is_default, boolean, "is_default") || false;
+    const validatedCardCountMax = optional(body.card_count_max, (v) => min(integer(v, "card_count_max"), validatedCardCountMin, "card_count_max"), "card_count_max");
+    const validatedItems = optional(body.items, array, "items");
 
     const supabase = supabaseServer();
 
     // If setting as default, unset other defaults first
-    if (is_default) {
+    if (validatedIsDefault) {
       await supabase
         .from("packaging_rules")
         .update({ is_default: false })
@@ -77,16 +88,19 @@ export async function POST(req: Request) {
     const { data: rule, error: ruleError } = await supabase
       .from("packaging_rules")
       .insert({
-        name: name.trim(),
-        is_default: is_default || false,
-        card_count_min: parseInt(card_count_min, 10),
-        card_count_max: card_count_max ? parseInt(card_count_max, 10) : null,
+        name: validatedName.trim(),
+        is_default: validatedIsDefault,
+        card_count_min: validatedCardCountMin,
+        card_count_max: validatedCardCountMax || null,
       })
       .select("*")
       .single();
 
     if (ruleError || !rule) {
-      logger.error("Failed to create packaging rule", ruleError, undefined, { name, card_count_min });
+      logger.error("Failed to create packaging rule", ruleError, undefined, {
+        name: validatedName,
+        card_count_min: validatedCardCountMin,
+      });
       return createErrorResponse(
         ruleError?.message || "Failed to create packaging rule",
         500,
@@ -96,11 +110,17 @@ export async function POST(req: Request) {
     }
 
     // Add rule items if provided
-    if (items && Array.isArray(items) && items.length > 0) {
-      const ruleItems = items.map((item: any) => ({
+    if (validatedItems && validatedItems.length > 0) {
+      // Validate each item
+      validatedItems.forEach((item: any, index: number) => {
+        uuid(item.consumable_id, `items[${index}].consumable_id`);
+        quantity(item.qty || 1, `items[${index}].qty`);
+      });
+      
+      const ruleItems = validatedItems.map((item: any) => ({
         rule_id: rule.id,
         consumable_id: item.consumable_id,
-        qty: parseInt(item.qty, 10) || 1,
+        qty: item.qty || 1,
       }));
 
       const { error: itemsError } = await supabase
@@ -110,7 +130,7 @@ export async function POST(req: Request) {
       if (itemsError) {
         logger.warn("Failed to create packaging rule items", itemsError, undefined, {
           ruleId: rule.id,
-          itemsCount: items.length,
+          itemsCount: validatedItems.length,
         });
         // Don't fail the whole request, just log the error
       }

@@ -34,6 +34,7 @@ type Bundle = {
   name: string;
   description: string | null;
   price_pence: number;
+  quantity: number;
   bundle_items: Array<{
     id: string;
     quantity: number;
@@ -67,6 +68,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
   const [orderGroup, setOrderGroup] = useState("");
   const [fees, setFees] = useState("");
   const [shipping, setShipping] = useState("");
+  const [quantity, setQuantity] = useState("1");
   const [existingBuyers, setExistingBuyers] = useState<Buyer[]>([]);
   const [buyerSuggestions, setBuyerSuggestions] = useState<Buyer[]>([]);
   const [selectedBuyer, setSelectedBuyer] = useState<Buyer | null>(null);
@@ -84,6 +86,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
       setOrderGroup("");
       setFees("");
       setShipping("");
+      setQuantity("1");
       setError(null);
       setSelectedBuyer(null);
       setShowBuyerSuggestions(false);
@@ -218,6 +221,18 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
     setSubmitting(true);
     setError(null);
 
+    const sellQuantity = parseInt(quantity, 10) || 1;
+    if (sellQuantity < 1) {
+      setError("Quantity must be at least 1");
+      setSubmitting(false);
+      return;
+    }
+    if (sellQuantity > (bundle.quantity || 1)) {
+      setError(`Cannot sell more than ${bundle.quantity} bundle(s) available`);
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const res = await fetch(`/api/admin/bundles/${bundle.id}/sell`, {
         method: "POST",
@@ -225,6 +240,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
         body: JSON.stringify({
           buyerHandle: buyerHandle.trim(),
           orderGroup: orderGroup.trim() || null,
+          quantity: sellQuantity,
           feesPence: fees ? poundsToPence(fees) : null,
           shippingPence: shipping ? poundsToPence(shipping) : null,
           discountPence: null, // Bundles have fixed price
@@ -252,7 +268,8 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
 
   // Calculate profit breakdown
   const calculateTotals = () => {
-    const revenue = bundle.price_pence / 100; // Convert pence to pounds as number
+    const sellQuantity = parseInt(quantity, 10) || 1;
+    const revenue = (bundle.price_pence / 100) * sellQuantity; // Total revenue for quantity being sold
     const feesCost = parseFloat(fees) || 0;
     const shippingCost = parseFloat(shipping) || 0;
     const consumablesCost = selectedConsumables.reduce(
@@ -308,10 +325,32 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
               <span className="font-semibold">£{penceToPounds(bundle.price_pence)}</span>
             </div>
             <div className="flex justify-between">
+              <span className="text-gray-600">Available Quantity:</span>
+              <span className="font-semibold">{bundle.quantity || 1}</span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-gray-600">Total Cards:</span>
               <span className="font-semibold">{totalCards}</span>
             </div>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Quantity to Sell *
+          </label>
+          <Input
+            type="number"
+            min="1"
+            max={bundle.quantity || 1}
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            placeholder="1"
+            className="w-full"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            {bundle.quantity || 1} bundle(s) available
+          </p>
         </div>
 
         <div>

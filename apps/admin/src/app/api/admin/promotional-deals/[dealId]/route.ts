@@ -2,6 +2,18 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import {
+  uuid,
+  optional,
+  nonEmptyString,
+  dealType,
+  percentage,
+  nonNegative,
+  integer,
+  quantity,
+  boolean,
+  number,
+} from "@/lib/validation";
 
 export async function PATCH(
   req: Request,
@@ -10,44 +22,50 @@ export async function PATCH(
   const logger = createApiLogger(req);
   
   try {
+    // Validate route parameters
     const { dealId } = await params;
+    const validatedDealId = uuid(dealId, "dealId");
+    
+    // Validate request body
     const body = await req.json();
-    const {
-      name,
-      description,
-      deal_type,
-      discount_percent,
-      discount_amount_pence,
-      buy_quantity,
-      get_quantity,
-      min_card_count,
-      max_card_count,
-      is_active,
-    } = body;
+    const validatedName = optional(body.name, nonEmptyString, "name");
+    const validatedDescription = optional(body.description, (v) => string(v, "description"), "description");
+    const validatedDealType = optional(body.deal_type, dealType, "deal_type");
+    const validatedDiscountPercent = optional(body.discount_percent, (v) => percentage(number(v, "discount_percent"), "discount_percent"), "discount_percent");
+    const validatedDiscountAmountPence = optional(body.discount_amount_pence, (v) => nonNegative(integer(v, "discount_amount_pence"), "discount_amount_pence"), "discount_amount_pence");
+    const validatedBuyQuantity = optional(body.buy_quantity, (v) => quantity(v, "buy_quantity"), "buy_quantity");
+    const validatedGetQuantity = optional(body.get_quantity, (v) => quantity(v, "get_quantity"), "get_quantity");
+    const validatedMinCardCount = optional(body.min_card_count, (v) => quantity(v, "min_card_count"), "min_card_count");
+    const validatedMaxCardCount = optional(body.max_card_count, (v) => quantity(v, "max_card_count"), "max_card_count");
+    const validatedIsActive = optional(body.is_active, boolean, "is_active");
 
     const supabase = supabaseServer();
 
     const updateData: any = {};
-    if (name !== undefined) updateData.name = name;
-    if (description !== undefined) updateData.description = description;
-    if (deal_type !== undefined) updateData.deal_type = deal_type;
-    if (discount_percent !== undefined) updateData.discount_percent = discount_percent ? parseFloat(discount_percent) : null;
-    if (discount_amount_pence !== undefined) updateData.discount_amount_pence = discount_amount_pence ? parseInt(discount_amount_pence, 10) : null;
-    if (buy_quantity !== undefined) updateData.buy_quantity = buy_quantity ? parseInt(buy_quantity, 10) : null;
-    if (get_quantity !== undefined) updateData.get_quantity = get_quantity ? parseInt(get_quantity, 10) : null;
-    if (min_card_count !== undefined) updateData.min_card_count = min_card_count ? parseInt(min_card_count, 10) : 1;
-    if (max_card_count !== undefined) updateData.max_card_count = max_card_count ? parseInt(max_card_count, 10) : null;
-    if (is_active !== undefined) updateData.is_active = is_active;
+    if (validatedName !== undefined) updateData.name = validatedName;
+    if (validatedDescription !== undefined) updateData.description = validatedDescription || null;
+    if (validatedDealType !== undefined) updateData.deal_type = validatedDealType;
+    if (validatedDiscountPercent !== undefined) updateData.discount_percent = validatedDiscountPercent || null;
+    if (validatedDiscountAmountPence !== undefined) updateData.discount_amount_pence = validatedDiscountAmountPence || null;
+    if (validatedBuyQuantity !== undefined) updateData.buy_quantity = validatedBuyQuantity || null;
+    if (validatedGetQuantity !== undefined) updateData.get_quantity = validatedGetQuantity || null;
+    if (validatedMinCardCount !== undefined) updateData.min_card_count = validatedMinCardCount || 1;
+    if (validatedMaxCardCount !== undefined) updateData.max_card_count = validatedMaxCardCount || null;
+    if (validatedIsActive !== undefined) updateData.is_active = validatedIsActive;
 
     const { data: deal, error } = await supabase
       .from("promotional_deals")
       .update(updateData)
-      .eq("id", dealId)
+      .eq("id", validatedDealId)
       .select()
       .single();
 
     if (error) {
-      logger.error("Failed to update promotional deal", error, undefined, { dealId, name, deal_type });
+      logger.error("Failed to update promotional deal", error, undefined, {
+        dealId: validatedDealId,
+        name: validatedName,
+        deal_type: validatedDealType,
+      });
       return createErrorResponse(
         error.message || "Failed to update promotional deal",
         500,
@@ -60,8 +78,12 @@ export async function PATCH(
       ok: true,
       deal,
     });
-  } catch (error: any) {
-    return handleApiError(req, error, { operation: "update_promotional_deal", metadata: { dealId } });
+  } catch (error: unknown) {
+    // ValidationErrorResponse is automatically handled by handleApiError
+    return handleApiError(req, error, {
+      operation: "update_promotional_deal",
+      metadata: { dealId: validatedDealId },
+    });
   }
 }
 
@@ -72,16 +94,21 @@ export async function DELETE(
   const logger = createApiLogger(req);
   
   try {
+    // Validate route parameters
     const { dealId } = await params;
+    const validatedDealId = uuid(dealId, "dealId");
+    
     const supabase = supabaseServer();
 
     const { error } = await supabase
       .from("promotional_deals")
       .delete()
-      .eq("id", dealId);
+      .eq("id", validatedDealId);
 
     if (error) {
-      logger.error("Failed to delete promotional deal", error, undefined, { dealId });
+      logger.error("Failed to delete promotional deal", error, undefined, {
+        dealId: validatedDealId,
+      });
       return createErrorResponse(
         error.message || "Failed to delete promotional deal",
         500,
@@ -93,8 +120,12 @@ export async function DELETE(
     return NextResponse.json({
       ok: true,
     });
-  } catch (error: any) {
-    return handleApiError(req, error, { operation: "delete_promotional_deal", metadata: { dealId } });
+  } catch (error: unknown) {
+    // ValidationErrorResponse is automatically handled by handleApiError
+    return handleApiError(req, error, {
+      operation: "delete_promotional_deal",
+      metadata: { dealId: validatedDealId },
+    });
   }
 }
 

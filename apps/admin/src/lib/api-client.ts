@@ -35,12 +35,19 @@ export async function apiFetch<T = unknown>(
     if (!response.ok) {
       const errorMessage = data.error || `Request failed with status ${response.status}`;
       
+      // Check for validation errors
+      const validationErrors = data.errors || undefined;
+      
       // Log error
       logger.error("API request failed", new Error(errorMessage), {
         path: url,
         method: options?.method || "GET",
         status: response.status,
         statusText: response.statusText,
+        validationErrors: validationErrors?.map((e: any) => ({
+          field: e.field,
+          code: e.code,
+        })),
       });
 
       // Show toast if enabled
@@ -54,6 +61,7 @@ export async function apiFetch<T = unknown>(
         ok: false,
         error: errorMessage,
         code: data.code,
+        errors: validationErrors,
         details: data.details,
       };
     }

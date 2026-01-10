@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import {
+  nonEmptyString,
+  pricePence,
+  nonEmptyArray,
+  uuid,
+  quantity,
+  optional,
+  string,
+  bundleStatus,
+} from "@/lib/validation";
 
 // GET: List all bundles
 export async function GET(req: Request) {
@@ -39,8 +49,10 @@ export async function GET(req: Request) {
       `)
       .order("created_at", { ascending: false });
 
-    if (status) {
-      query = query.eq("status", status);
+    // Only filter by status if provided and not "all"
+    if (status && status !== "all") {
+      const validatedStatus = bundleStatus(status, "status");
+      query = query.eq("status", validatedStatus);
     }
 
     const { data: bundles, error } = await query;
@@ -70,22 +82,28 @@ export async function POST(req: Request) {
   
   try {
     const body = await req.json();
-    const { name, description, pricePence, items } = body;
-
-    if (!name || !pricePence || !items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json(
-        { error: "Missing required fields: name, pricePence, and items array" },
-        { status: 400 }
-      );
-    }
+    
+    // Validate required fields
+    const validatedName = nonEmptyString(body.name, "name");
+    const validatedPricePence = pricePence(body.pricePence, "pricePence");
+    const validatedItems = nonEmptyArray(body.items, "items");
+    const validatedBundleQuantity = quantity(body.quantity || 1, "quantity");
+    
+    // Validate each item in the array
+    validatedItems.forEach((item: any, index: number) => {
+      uuid(item.lotId, `items[${index}].lotId`);
+      quantity(item.quantity || 1, `items[${index}].quantity`);
+    });
+    
+    const validatedDescription = optional(body.description, string, "description");
 
     const supabase = supabaseServer();
 
     // Verify all lots exist and are for sale
-    const lotIds = items.map((item: any) => item.lotId);
+    const lotIds = validatedItems.map((item: any) => item.lotId);
     const { data: lots, error: lotsError } = await supabase
       .from("inventory_lots")
-      .select("id, for_sale")
+      .select("id, quantity, for_sale, status")
       .in("id", lotIds);
 
     if (lotsError || !lots || lots.length !== lotIds.length) {
@@ -104,20 +122,80 @@ export async function POST(req: Request) {
       );
     }
 
+    // Check available quantities - account for sold items and existing bundle reservations
+    const { data: soldItems } = await supabase
+      .from("sales_items")
+      .select("lot_id, qty")
+      .in("lot_id", lotIds);
+
+    const soldItemsMap = new Map<string, number>();
+    (soldItems || []).forEach((item: any) => {
+      const current = soldItemsMap.get(item.lot_id) || 0;
+      soldItemsMap.set(item.lot_id, current + (item.qty || 0));
+    });
+
+    // Get quantities already reserved in other active bundles
+    const { data: activeBundles } = await supabase
+      .from("bundles")
+      .select("id")
+      .eq("status", "active");
+
+    const bundleReservedMap = new Map<string, number>();
+    if (activeBundles && activeBundles.length > 0) {
+      const activeBundleIds = activeBundles.map((b: any) => b.id);
+      
+      const { data: existingBundleItems } = await supabase
+        .from("bundle_items")
+        .select("lot_id, quantity")
+        .in("lot_id", lotIds)
+        .in("bundle_id", activeBundleIds);
+
+      (existingBundleItems || []).forEach((item: any) => {
+        const current = bundleReservedMap.get(item.lot_id) || 0;
+        bundleReservedMap.set(item.lot_id, current + (item.quantity || 0));
+      });
+    }
+
+    // Validate each item has enough available quantity
+    // Total cards needed = bundle_quantity * cards_per_bundle for each item
+    for (const item of validatedItems) {
+      const lot = lots.find((l: any) => l.id === item.lotId);
+      if (!lot) continue;
+
+      const soldQty = soldItemsMap.get(item.lotId) || 0;
+      const reservedQty = bundleReservedMap.get(item.lotId) || 0;
+      const cardsPerBundle = item.quantity || 1;
+      const totalCardsNeeded = validatedBundleQuantity * cardsPerBundle;
+      const availableQty = lot.quantity - soldQty - reservedQty;
+
+      if (availableQty < totalCardsNeeded) {
+        return NextResponse.json(
+          { 
+            error: `Insufficient quantity for lot ${item.lotId}. Available: ${availableQty}, Needed for ${validatedBundleQuantity} bundle(s): ${totalCardsNeeded} (${cardsPerBundle} per bundle)` 
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Create the bundle
     const { data: bundle, error: bundleError } = await supabase
       .from("bundles")
       .insert({
-        name,
-        description: description || null,
-        price_pence: pricePence,
+        name: validatedName,
+        description: validatedDescription || null,
+        price_pence: validatedPricePence,
+        quantity: validatedBundleQuantity,
         status: "active",
       })
       .select("id")
       .single();
 
     if (bundleError || !bundle) {
-      logger.error("Failed to create bundle", bundleError, undefined, { name, pricePence });
+      logger.error("Failed to create bundle", bundleError, undefined, {
+        name: validatedName,
+        pricePence: validatedPricePence,
+      });
       return createErrorResponse(
         bundleError?.message || "Failed to create bundle",
         500,
@@ -127,7 +205,7 @@ export async function POST(req: Request) {
     }
 
     // Create bundle items
-    const bundleItems = items.map((item: any) => ({
+    const bundleItems = validatedItems.map((item: any) => ({
       bundle_id: bundle.id,
       lot_id: item.lotId,
       quantity: item.quantity || 1,
@@ -156,9 +234,10 @@ export async function POST(req: Request) {
       ok: true,
       bundle: {
         id: bundle.id,
-        name,
-        description,
-        price_pence: pricePence,
+        name: validatedName,
+        description: validatedDescription,
+        price_pence: validatedPricePence,
+        quantity: validatedBundleQuantity,
         status: "active",
       },
     });

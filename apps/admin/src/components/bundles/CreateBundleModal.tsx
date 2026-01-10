@@ -48,6 +48,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [quantity, setQuantity] = useState("1");
   const [selectedLots, setSelectedLots] = useState<Map<string, { lot: Lot; quantity: number }>>(new Map());
   const [availableLots, setAvailableLots] = useState<Lot[]>([]);
   const [filteredLots, setFilteredLots] = useState<Lot[]>([]);
@@ -67,6 +68,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
       setName("");
       setDescription("");
       setPrice("");
+      setQuantity("1");
       setSelectedLots(new Map());
       setError(null);
       setBundlePhotos([]);
@@ -113,15 +115,25 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
     }
   }, [isOpen, initialLotId, availableLots, selectedLots]);
 
-  // Filter lots based on search query
+  // Filter lots based on search query and stock availability
   useEffect(() => {
+    const bundleQuantity = parseInt(quantity, 10) || 1;
+    
+    // First filter by stock availability based on bundle quantity
+    // Only show lots that have enough stock for at least 1 card per bundle
+    const stockFiltered = availableLots.filter((lot) => {
+      const minCardsNeeded = bundleQuantity * 1; // At least 1 card per bundle
+      return lot.available_qty >= minCardsNeeded;
+    });
+
+    // Then apply search filter if query exists
     if (!searchQuery.trim()) {
-      setFilteredLots(availableLots);
+      setFilteredLots(stockFiltered);
       return;
     }
 
     const query = searchQuery.toLowerCase().trim();
-    const filtered = availableLots.filter((lot) => {
+    const filtered = stockFiltered.filter((lot) => {
       const cardName = lot.card?.name?.toLowerCase() || "";
       const cardNumber = lot.card?.number?.toLowerCase() || "";
       const setName = lot.card?.set?.name?.toLowerCase() || "";
@@ -144,7 +156,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
     });
 
     setFilteredLots(filtered);
-  }, [searchQuery, availableLots]);
+  }, [searchQuery, availableLots, quantity]);
 
   const toggleLotSelection = (lot: Lot) => {
     const newSelected = new Map(selectedLots);
@@ -156,12 +168,16 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
     setSelectedLots(newSelected);
   };
 
-  const updateQuantity = (lotId: string, quantity: number) => {
+  const updateQuantity = (lotId: string, qty: number) => {
     const newSelected = new Map(selectedLots);
     const item = newSelected.get(lotId);
     if (item) {
-      const maxQty = Math.min(item.lot.available_qty, quantity);
-      newSelected.set(lotId, { ...item, quantity: Math.max(1, maxQty) });
+      const bundleQuantity = parseInt(quantity, 10) || 1;
+      const maxCardsNeeded = bundleQuantity * qty;
+      // Available quantity must be at least bundle_quantity * cards_per_bundle
+      const maxQtyPerBundle = Math.floor(item.lot.available_qty / bundleQuantity);
+      const finalQty = Math.min(Math.max(1, qty), maxQtyPerBundle);
+      newSelected.set(lotId, { ...item, quantity: finalQty });
       setSelectedLots(newSelected);
     }
   };
@@ -191,12 +207,15 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
         quantity: item.quantity,
       }));
 
-      console.log("Creating bundle with data:", {
-        name: name.trim(),
-        description: description.trim() || null,
-        pricePence: poundsToPence(price), // poundsToPence expects a string
-        items,
-      });
+      const bundleQuantity = parseInt(quantity, 10) || 1;
+      if (bundleQuantity < 1) {
+        setError("Bundle quantity must be at least 1");
+        setSubmitting(false);
+        return;
+      }
+
+      // Ensure price is a string for poundsToPence
+      const priceString = typeof price === "string" ? price : String(price || "0");
 
       const res = await fetch("/api/admin/bundles", {
         method: "POST",
@@ -204,7 +223,8 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || null,
-          pricePence: poundsToPence(price), // poundsToPence expects a string
+          pricePence: poundsToPence(priceString),
+          quantity: bundleQuantity,
           items,
         }),
       });
@@ -213,7 +233,8 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
       console.log("Bundle creation response:", json);
 
       if (!res.ok) {
-        throw new Error(json.error || "Failed to create bundle");
+        const errorMsg = json.error || json.message || `Failed to create bundle (${res.status})`;
+        throw new Error(errorMsg);
       }
 
       // Upload bundle photos if any were added
@@ -223,13 +244,31 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
 
       onBundleCreated();
       onClose(); // Close the modal after successful creation
-    } catch (e: any) {
-      logger.error("Failed to create bundle", e, undefined, {
+    } catch (e: unknown) {
+      // Extract error message from various error types
+      let errorMessage = "Failed to create bundle";
+      if (e instanceof Error) {
+        errorMessage = e.message;
+      } else if (e && typeof e === "object" && "message" in e) {
+        errorMessage = String(e.message);
+      } else if (e && typeof e === "object" && "error" in e) {
+        errorMessage = String(e.error);
+      } else if (e) {
+        errorMessage = String(e);
+      }
+
+      const priceString = typeof price === "string" ? price : String(price || "0");
+      const errorObj = e instanceof Error ? e : new Error(errorMessage);
+      
+      logger.error("Failed to create bundle", errorObj, undefined, {
         name,
-        pricePence: poundsToPence(parseFloat(price)),
+        pricePence: poundsToPence(priceString),
         itemsCount: selectedLots.size,
+        bundleQuantity: parseInt(quantity, 10) || 1,
+        originalError: e,
       });
-      setError(e.message || "Failed to create bundle");
+      
+      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -423,6 +462,23 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
         </div>
 
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Quantity Available *
+          </label>
+          <Input
+            type="number"
+            min="1"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            placeholder="1"
+            className="w-full"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            How many of these bundles are available for sale
+          </p>
+        </div>
+
+        <div>
           <div className="flex items-center justify-between mb-3">
             <label className="block text-sm font-medium text-gray-700">
               Select Cards ({selectedLots.size} selected, {totalCards} total cards)
@@ -449,7 +505,12 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
             <div className="text-sm text-gray-500 py-4">Loading available cards...</div>
           ) : filteredLots.length === 0 ? (
             <div className="text-sm text-gray-500 py-4">
-              {searchQuery ? "No cards match your search" : "No available cards found"}
+              {searchQuery 
+                ? "No cards match your search" 
+                : availableLots.length === 0
+                ? "No available cards found"
+                : `No cards have enough stock for ${parseInt(quantity, 10) || 1} bundle(s). Try reducing the bundle quantity.`
+              }
             </div>
           ) : (
             <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
@@ -512,7 +573,11 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
                           <input
                             type="number"
                             min="1"
-                            max={selectedItem?.lot.available_qty || 1}
+                            max={(() => {
+                              const bundleQty = parseInt(quantity, 10) || 1;
+                              const maxCardsPerBundle = bundleQty > 0 ? Math.floor((selectedItem?.lot.available_qty || 0) / bundleQty) : selectedItem?.lot.available_qty || 1;
+                              return Math.max(1, maxCardsPerBundle);
+                            })()}
                             value={selectedItem?.quantity || 1}
                             onChange={(e) =>
                               updateQuantity(lot.id, parseInt(e.target.value, 10) || 1)

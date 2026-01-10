@@ -2,39 +2,50 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import {
+  nonEmptyString,
+  optional,
+  nonNegative,
+  array,
+  uuid,
+  quantity,
+  pricePence,
+  number,
+} from "@/lib/validation";
 
 export async function POST(req: Request) {
   const logger = createApiLogger(req);
   
   try {
     const body = await req.json();
-    const {
-      lotId, // Legacy support - single lot
-      lots, // New format - array of { lotId, qty }
-      qty, // Legacy support
-      soldPricePence,
-      buyerHandle,
-      orderGroup,
-      feesPence,
-      shippingPence,
-      discountPence, // Discount amount in pence (from promotional deals)
-      consumables, // Array of { consumable_id, qty }
-    } = body;
-
+    
+    // Validate buyer handle (required)
+    const validatedBuyerHandle = nonEmptyString(body.buyerHandle, "buyerHandle");
+    
     // Support both old format (lotId + qty) and new format (lots array)
     let lotsToSell: Array<{ lotId: string; qty: number }> = [];
     
-    if (lots && Array.isArray(lots)) {
-      // New format: array of lots
-      lotsToSell = lots.map((l: any) => ({
+    if (body.lots && Array.isArray(body.lots)) {
+      // New format: array of lots - validate each item
+      const validatedLots = array(body.lots, "lots");
+      validatedLots.forEach((l: any, index: number) => {
+        uuid(l.lotId, `lots[${index}].lotId`);
+        quantity(l.qty, `lots[${index}].qty`);
+        // Price is optional per lot in new format
+        if (l.pricePence !== undefined && l.pricePence !== null) {
+          pricePence(l.pricePence, `lots[${index}].pricePence`);
+        }
+      });
+      lotsToSell = validatedLots.map((l: any) => ({
         lotId: l.lotId,
         qty: l.qty,
       }));
-    } else if (lotId && qty) {
+    } else if (body.lotId && body.qty) {
       // Legacy format: single lot
-      lotsToSell = [{ lotId, qty }];
+      const validatedLotId = uuid(body.lotId, "lotId");
+      const validatedQty = quantity(body.qty, "qty");
+      lotsToSell = [{ lotId: validatedLotId, qty: validatedQty }];
     } else {
-      logger.warn("Missing required fields for sale creation", undefined, { body });
       return createErrorResponse(
         "Missing required fields: either (lotId + qty) or (lots array)",
         400,
@@ -43,25 +54,36 @@ export async function POST(req: Request) {
     }
 
     // Validate: either soldPricePence (old format) or lots with prices (new format)
-    const hasNewFormat = lots && Array.isArray(lots) && lots.some((l: any) => l.pricePence != null);
-    const hasOldFormat = soldPricePence != null;
+    const hasNewFormat = body.lots && Array.isArray(body.lots) && body.lots.some((l: any) => l.pricePence != null);
+    const hasOldFormat = body.soldPricePence != null;
     
     if (!hasNewFormat && !hasOldFormat) {
-      logger.warn("Missing price information for sale", undefined, { body });
       return createErrorResponse(
         "Missing required fields: either soldPricePence or lots with pricePence",
         400,
         "MISSING_PRICE"
       );
     }
-
-    if (!buyerHandle) {
-      logger.warn("Missing buyer handle for sale", undefined, { body });
-      return createErrorResponse(
-        "Missing required field: buyerHandle",
-        400,
-        "MISSING_BUYER"
-      );
+    
+    // Validate old format price if provided
+    let validatedSoldPricePence: number | undefined = undefined;
+    if (hasOldFormat && body.soldPricePence != null) {
+      validatedSoldPricePence = pricePence(body.soldPricePence, "soldPricePence");
+    }
+    
+    // Validate optional fields
+    const validatedOrderGroup = optional(body.orderGroup, (v) => nonEmptyString(v, "orderGroup"), "orderGroup");
+    const validatedFeesPence = optional(body.feesPence, (v) => nonNegative(number(v, "feesPence"), "feesPence"), "feesPence");
+    const validatedShippingPence = optional(body.shippingPence, (v) => nonNegative(number(v, "shippingPence"), "shippingPence"), "shippingPence");
+    const validatedDiscountPence = optional(body.discountPence, (v) => nonNegative(number(v, "discountPence"), "discountPence"), "discountPence");
+    const validatedConsumables = optional(body.consumables, array, "consumables");
+    
+    // Validate consumables if provided
+    if (validatedConsumables) {
+      validatedConsumables.forEach((c: any, index: number) => {
+        uuid(c.consumable_id, `consumables[${index}].consumable_id`);
+        quantity(c.qty, `consumables[${index}].qty`);
+      });
     }
 
     const supabase = supabaseServer();
@@ -92,6 +114,28 @@ export async function POST(req: Request) {
       soldQtyMap.set(item.lot_id, current + (item.qty || 0));
     });
 
+    // Get quantities reserved in active bundles
+    const { data: activeBundles } = await supabase
+      .from("bundles")
+      .select("id")
+      .eq("status", "active");
+
+    const bundleReservedMap = new Map<string, number>();
+    if (activeBundles && activeBundles.length > 0) {
+      const activeBundleIds = activeBundles.map((b: any) => b.id);
+      
+      const { data: bundleItems } = await supabase
+        .from("bundle_items")
+        .select("lot_id, quantity")
+        .in("lot_id", lotIds)
+        .in("bundle_id", activeBundleIds);
+
+      (bundleItems || []).forEach((item: any) => {
+        const current = bundleReservedMap.get(item.lot_id) || 0;
+        bundleReservedMap.set(item.lot_id, current + (item.quantity || 0));
+      });
+    }
+
     // Verify quantities for each lot
     for (const lotToSell of lotsToSell) {
       const lot = lotsData.find((l: any) => l.id === lotToSell.lotId);
@@ -103,11 +147,15 @@ export async function POST(req: Request) {
       }
 
       const currentSoldQty = soldQtyMap.get(lotToSell.lotId) || 0;
-      const availableQty = lot.quantity - currentSoldQty;
+      const bundleReservedQty = bundleReservedMap.get(lotToSell.lotId) || 0;
+      const availableQty = lot.quantity - currentSoldQty - bundleReservedQty;
 
       if (lotToSell.qty > availableQty) {
+        const errorMsg = bundleReservedQty > 0
+          ? `Only ${availableQty} items available for lot ${lotToSell.lotId} (${bundleReservedQty} reserved in bundles)`
+          : `Only ${availableQty} items available for lot ${lotToSell.lotId}`;
         return NextResponse.json(
-          { error: `Only ${availableQty} items available for lot ${lotToSell.lotId}` },
+          { error: errorMsg },
           { status: 400 }
         );
       }
@@ -119,7 +167,7 @@ export async function POST(req: Request) {
       .from("buyers")
       .select("id")
       .eq("platform", "ebay")
-      .eq("handle", buyerHandle.trim())
+      .eq("handle", validatedBuyerHandle.trim())
       .single();
 
     if (existingBuyer) {
@@ -129,7 +177,7 @@ export async function POST(req: Request) {
         .from("buyers")
         .insert({
           platform: "ebay",
-          handle: buyerHandle.trim(),
+          handle: validatedBuyerHandle.trim(),
         })
         .select("id")
         .single();
@@ -153,17 +201,17 @@ export async function POST(req: Request) {
     };
     
     // Only add optional fields if they have values (we'll handle column errors separately)
-    if (orderGroup && orderGroup.trim()) {
-      orderData.order_group = orderGroup.trim();
+    if (validatedOrderGroup) {
+      orderData.order_group = validatedOrderGroup;
     }
-    if (feesPence != null && feesPence > 0) {
-      orderData.fees_pence = feesPence;
+    if (validatedFeesPence !== undefined && validatedFeesPence > 0) {
+      orderData.fees_pence = validatedFeesPence;
     }
-    if (shippingPence != null && shippingPence > 0) {
-      orderData.shipping_pence = shippingPence;
+    if (validatedShippingPence !== undefined && validatedShippingPence > 0) {
+      orderData.shipping_pence = validatedShippingPence;
     }
-    if (discountPence != null && discountPence > 0) {
-      orderData.discount_pence = discountPence;
+    if (validatedDiscountPence !== undefined && validatedDiscountPence > 0) {
+      orderData.discount_pence = validatedDiscountPence;
     }
 
     let { data: salesOrder, error: orderError } = await supabase
@@ -225,11 +273,11 @@ export async function POST(req: Request) {
     let salesItems: Array<{ sales_order_id: string; lot_id: string; qty: number; sold_price_pence: number; purchase_id?: string | null }>;
     const purchaseAllocationsMap = new Map<string, Array<{ purchaseId: string; qty: number }>>();
     
-    if (lots && Array.isArray(lots) && lots.some((l: any) => l.pricePence != null)) {
+    if (body.lots && Array.isArray(body.lots) && body.lots.some((l: any) => l.pricePence != null)) {
       // New format: individual prices per lot
       salesItems = lotsToSell.map((lotToSell, index) => {
-        const lotData = lots[index];
-        const pricePence = lotData?.pricePence ?? soldPricePence ?? 0;
+        const lotData = body.lots[index];
+        const pricePence = lotData?.pricePence ?? body.soldPricePence ?? 0;
         const purchaseId = lotData?.purchaseId || null; // Legacy single purchase
         const purchaseAllocations = lotData?.purchaseAllocations || null;
         
@@ -249,8 +297,15 @@ export async function POST(req: Request) {
       });
     } else {
       // Old format: single price for all items
+      if (!validatedSoldPricePence) {
+        return createErrorResponse(
+          "soldPricePence is required for legacy format",
+          400,
+          "MISSING_PRICE"
+        );
+      }
       const totalQty = lotsToSell.reduce((sum, lot) => sum + lot.qty, 0);
-      const pricePerUnitPence = totalQty > 0 ? Math.round(soldPricePence / totalQty) : 0;
+      const pricePerUnitPence = totalQty > 0 ? Math.round(validatedSoldPricePence / totalQty) : 0;
       
       salesItems = lotsToSell.map((lotToSell) => ({
         sales_order_id: salesOrder.id,
@@ -312,14 +367,12 @@ export async function POST(req: Request) {
     }
 
     // Create sales consumables if provided
-    if (consumables && Array.isArray(consumables) && consumables.length > 0) {
-      const salesConsumables = consumables
-        .filter((c: any) => c.consumable_id && c.qty > 0)
-        .map((c: any) => ({
-          sales_order_id: salesOrder.id,
-          consumable_id: c.consumable_id,
-          qty: parseInt(c.qty, 10) || 1,
-        }));
+    if (validatedConsumables && validatedConsumables.length > 0) {
+      const salesConsumables = validatedConsumables.map((c: any) => ({
+        sales_order_id: salesOrder.id,
+        consumable_id: c.consumable_id,
+        qty: c.qty,
+      }));
 
       if (salesConsumables.length > 0) {
         const { error: consumablesError } = await supabase

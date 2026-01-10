@@ -1,20 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { penceToPounds } from "@pokeflip/shared";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import RecordSaleModal from "@/components/sales/RecordSaleModal";
 import SellBundleModal from "@/components/bundles/SellBundleModal";
+import EditBundleModal from "@/components/bundles/EditBundleModal";
 import CreateBundleModal from "@/components/bundles/CreateBundleModal";
+import SoldBundleDetailsModal from "@/components/bundles/SoldBundleDetailsModal";
 import { logger } from "@/lib/logger";
+import { useApiErrorHandler } from "@/hooks/useApiErrorHandler";
 
 type Bundle = {
   id: string;
   name: string;
   description: string | null;
   price_pence: number;
+  quantity: number;
   status: string;
   bundle_items: Array<{
     id: string;
@@ -39,17 +43,27 @@ type Bundle = {
 
 export default function RecordSalePage() {
   const router = useRouter();
+  const { handleError } = useApiErrorHandler();
   const [showMultiCardModal, setShowMultiCardModal] = useState(false);
   const [showBundleModal, setShowBundleModal] = useState(false);
   const [showCreateBundleModal, setShowCreateBundleModal] = useState(false);
+  const [bundleToEdit, setBundleToEdit] = useState<Bundle | null>(null);
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
+  const [bundleToView, setBundleToView] = useState<Bundle | null>(null);
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loadingBundles, setLoadingBundles] = useState(false);
+  const [bundleStatusFilter, setBundleStatusFilter] = useState<string>("active");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const loadBundles = async () => {
     setLoadingBundles(true);
     try {
-      const res = await fetch("/api/admin/bundles?status=active");
+      const params = new URLSearchParams();
+      if (bundleStatusFilter !== "all") {
+        params.set("status", bundleStatusFilter);
+      }
+      const res = await fetch(`/api/admin/bundles?${params}`);
       const json = await res.json();
       if (json.ok) {
         setBundles(json.bundles || []);
@@ -68,10 +82,15 @@ export default function RecordSalePage() {
 
   useEffect(() => {
     loadBundles();
-  }, []);
+  }, [bundleStatusFilter]);
 
   const handleBundleCreated = () => {
     setShowCreateBundleModal(false);
+    loadBundles();
+  };
+
+  const handleBundleUpdated = () => {
+    setBundleToEdit(null);
     loadBundles();
   };
 
@@ -79,6 +98,44 @@ export default function RecordSalePage() {
     setSelectedBundle(bundle);
     setShowBundleModal(true);
   };
+
+  const handleDeleteBundle = async (bundleId: string) => {
+    setOpenMenuId(null); // Close menu
+    if (!window.confirm("Are you sure you want to delete this bundle?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/bundles/${bundleId}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (json.ok) {
+        loadBundles();
+      } else {
+        alert(json.error || "Failed to delete bundle");
+      }
+    } catch (e) {
+      handleError(e, { title: "Failed to delete bundle" });
+    }
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openMenuId) {
+        const menuElement = menuRefs.current.get(openMenuId);
+        if (menuElement && !menuElement.contains(event.target as Node)) {
+          setOpenMenuId(null);
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [openMenuId]);
 
   return (
     <div className="space-y-6">
@@ -221,34 +278,73 @@ export default function RecordSalePage() {
         </div>
       </div>
 
-      {/* Active Bundles Section */}
-      {bundles.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-gray-900">Active Bundles</h2>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={loadBundles}
+      {/* Bundles Section */}
+      <div className="bg-white rounded-lg border border-gray-200 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <h2 className="text-base font-bold text-gray-900">
+              {bundleStatusFilter === "sold" ? "Sold Bundles" : bundleStatusFilter === "all" ? "All Bundles" : "Active Bundles"}
+            </h2>
+            <select
+              value={bundleStatusFilter}
+              onChange={(e) => setBundleStatusFilter(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent bg-white"
             >
-              Refresh
-            </Button>
+              <option value="active">Active Bundles</option>
+              <option value="draft">Draft Bundles</option>
+              <option value="all">All (including sold)</option>
+              <option value="sold">Sold Bundles</option>
+            </select>
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={loadBundles}
+          >
+            Refresh
+          </Button>
+        </div>
+        {loadingBundles ? (
+          <div className="text-sm text-gray-500 py-4 text-center">Loading bundles...</div>
+        ) : bundles.length === 0 ? (
+          <div className="text-sm text-gray-500 py-4 text-center">
+            {bundleStatusFilter === "sold" 
+              ? "No sold bundles found."
+              : bundleStatusFilter === "all"
+              ? "No bundles found."
+              : `No ${bundleStatusFilter} bundles found.`
+            }
+          </div>
+        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {bundles.map((bundle) => {
               const totalCards = bundle.bundle_items.reduce(
                 (sum, item) => sum + item.quantity,
                 0
               );
+              const isSold = bundle.status === "sold";
               return (
                 <div
                   key={bundle.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
+                  className={`border rounded-lg p-4 transition-shadow ${
+                    isSold
+                      ? "border-gray-300 bg-gray-50 opacity-75 cursor-pointer hover:bg-gray-100"
+                      : "border-gray-200 hover:shadow-sm"
+                  }`}
+                  onClick={isSold ? () => setBundleToView(bundle) : undefined}
                 >
                   <div className="flex items-start justify-between mb-2">
                     <h3 className="font-semibold text-sm text-gray-900">{bundle.name}</h3>
-                    <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-medium">
-                      Active
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        bundle.status === "active"
+                          ? "bg-green-100 text-green-800"
+                          : bundle.status === "sold"
+                          ? "bg-gray-100 text-gray-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {bundle.status}
                     </span>
                   </div>
                   {bundle.description && (
@@ -259,23 +355,103 @@ export default function RecordSalePage() {
                       <div className="text-base font-bold text-gray-900">
                         £{penceToPounds(bundle.price_pence)}
                       </div>
-                      <div className="text-xs text-gray-500">{totalCards} cards</div>
+                      <div className="text-xs text-gray-500">
+                        {isSold 
+                          ? "Sold • " 
+                          : `${bundle.quantity || 1} available • `
+                        }
+                        {totalCards} cards per bundle
+                      </div>
                     </div>
                   </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handleSellBundle(bundle)}
-                    className="w-full bg-purple-600 hover:bg-purple-700"
-                  >
-                    Sell This Bundle
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {isSold ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBundleToView(bundle);
+                        }}
+                        className="flex-1"
+                      >
+                        View Sale Details
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSellBundle(bundle);
+                          }}
+                          className="flex-1 bg-purple-600 hover:bg-purple-700"
+                        >
+                          Sell This Bundle
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBundleToEdit(bundle);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        {/* Three-dot menu for additional actions */}
+                        <div 
+                          className="relative"
+                          ref={(el) => {
+                            if (el) {
+                              menuRefs.current.set(bundle.id, el);
+                            } else {
+                              menuRefs.current.delete(bundle.id);
+                            }
+                          }}
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(openMenuId === bundle.id ? null : bundle.id);
+                            }}
+                            className="px-2 py-1 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center"
+                            aria-label="More options"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                            </svg>
+                          </button>
+                          {openMenuId === bundle.id && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-10" 
+                                onClick={() => setOpenMenuId(null)}
+                              />
+                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteBundle(bundle.id);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                >
+                                  Delete Bundle
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Modals */}
       <RecordSaleModal
@@ -303,6 +479,23 @@ export default function RecordSalePage() {
         onClose={() => setShowCreateBundleModal(false)}
         onBundleCreated={handleBundleCreated}
       />
+
+      {bundleToEdit && (
+        <EditBundleModal
+          isOpen={!!bundleToEdit}
+          onClose={() => setBundleToEdit(null)}
+          onBundleUpdated={handleBundleUpdated}
+          bundle={bundleToEdit}
+        />
+      )}
+
+      {bundleToView && (
+        <SoldBundleDetailsModal
+          bundle={bundleToView}
+          isOpen={!!bundleToView}
+          onClose={() => setBundleToView(null)}
+        />
+      )}
     </div>
   );
 }
