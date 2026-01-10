@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import { logAudit, getCurrentUser } from "@/lib/audit";
 import {
   nonEmptyString,
   sanitizedNonEmptyString,
@@ -18,6 +19,9 @@ import {
 export async function POST(req: Request) {
   const logger = createApiLogger(req);
   let body: any;
+  
+  // Get current user for audit logging
+  const userInfo = await getCurrentUser(req);
   
   try {
     body = await req.json();
@@ -95,7 +99,7 @@ export async function POST(req: Request) {
     const lotIds = lotsToSell.map((l) => l.lotId);
     const { data: lotsData, error: lotsError } = await supabase
       .from("inventory_lots")
-      .select("id, quantity, status")
+      .select("id, quantity, status, for_sale, list_price_pence")
       .in("id", lotIds);
 
     if (lotsError || !lotsData || lotsData.length !== lotIds.length) {
@@ -415,6 +419,73 @@ export async function POST(req: Request) {
           // Don't fail the request, just log the error
         }
       }
+    }
+
+    // Log audit entry for sale creation
+    try {
+      await logAudit({
+        user_id: userInfo?.userId || null,
+        user_email: userInfo?.userEmail || null,
+        action_type: "create_sale",
+        entity_type: "sales_order",
+        entity_id: salesOrder.id,
+        old_values: null, // No old state for creation
+        new_values: {
+          platform: "ebay",
+          buyer_id: buyerId,
+          buyer_handle: validatedBuyerHandle,
+          lots: lotsToSell.map((lot) => ({
+            lot_id: lot.lotId,
+            qty: lot.qty,
+          })),
+          fees_pence: validatedFeesPence,
+          shipping_pence: validatedShippingPence,
+          discount_pence: validatedDiscountPence,
+        },
+        description: `Sale recorded for ${validatedBuyerHandle} (${lotsToSell.length} item${lotsToSell.length > 1 ? "s" : ""})`,
+        ip_address: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
+        user_agent: req.headers.get("user-agent") || null,
+      });
+    } catch (auditError) {
+      // Don't fail the sale if audit logging fails
+      logger.warn("Failed to log audit entry for sale creation", auditError, undefined, {
+        salesOrderId: salesOrder.id,
+      });
+    }
+
+    // Log audit entries for each lot that was sold
+    try {
+      for (const lotToSell of lotsToSell) {
+        const lot = lotsData.find((l: any) => l.id === lotToSell.lotId);
+        if (lot) {
+          const oldSoldQty = soldQtyMap.get(lotToSell.lotId) || 0;
+          const newSoldQty = oldSoldQty + lotToSell.qty;
+          
+          await logAudit({
+            user_id: userInfo?.userId || null,
+            user_email: userInfo?.userEmail || null,
+            action_type: "create_sale",
+            entity_type: "inventory_lot",
+            entity_id: lotToSell.lotId,
+            old_values: {
+              sold_quantity: oldSoldQty,
+              status: lot.status,
+            },
+            new_values: {
+              sold_quantity: newSoldQty,
+              status: newSoldQty >= lot.quantity ? "sold" : lot.status,
+            },
+            description: `Sold ${lotToSell.qty} item${lotToSell.qty > 1 ? "s" : ""}`,
+            ip_address: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
+            user_agent: req.headers.get("user-agent") || null,
+          });
+        }
+      }
+    } catch (auditError) {
+      // Don't fail the sale if audit logging fails
+      logger.warn("Failed to log audit entries for lots", auditError, undefined, {
+        salesOrderId: salesOrder.id,
+      });
     }
 
     return NextResponse.json({

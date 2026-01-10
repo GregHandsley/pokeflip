@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import { logAudit, getCurrentUser } from "@/lib/audit";
 import { uuid, boolean, optional, pricePence, required } from "@/lib/validation";
 
 export async function PATCH(
@@ -9,6 +10,9 @@ export async function PATCH(
   { params }: { params: Promise<{ lotId: string }> }
 ) {
   const logger = createApiLogger(req);
+  
+  // Get current user for audit logging
+  const userInfo = await getCurrentUser(req);
   
   try {
     // Validate route parameters
@@ -30,6 +34,20 @@ export async function PATCH(
     }
 
     const supabase = supabaseServer();
+
+    // Get current lot state for audit logging
+    const { data: currentLot, error: fetchError } = await supabase
+      .from("inventory_lots")
+      .select("for_sale, list_price_pence")
+      .eq("id", validatedLotId)
+      .single();
+
+    if (fetchError) {
+      logger.error("Failed to fetch lot for audit", fetchError, undefined, {
+        lotId: validatedLotId,
+      });
+      // Continue anyway - audit logging is best effort
+    }
 
     // Prepare update object
     const updateData: { 
@@ -65,6 +83,37 @@ export async function PATCH(
         "UPDATE_FOR_SALE_FAILED",
         error
       );
+    }
+
+    // Log audit entry for price change
+    try {
+      await logAudit({
+        user_id: userInfo?.userId || null,
+        user_email: userInfo?.userEmail || null,
+        action_type: "update_price",
+        entity_type: "inventory_lot",
+        entity_id: validatedLotId,
+        old_values: currentLot ? {
+          for_sale: currentLot.for_sale,
+          list_price_pence: currentLot.list_price_pence,
+        } : null,
+        new_values: {
+          for_sale: validatedForSale,
+          list_price_pence: validatedPrice || null,
+        },
+        description: validatedForSale
+          ? validatedPrice
+            ? `Price set to £${(validatedPrice / 100).toFixed(2)}`
+            : `Marked for sale`
+          : `Removed from sale`,
+        ip_address: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
+        user_agent: req.headers.get("user-agent") || null,
+      });
+    } catch (auditError) {
+      // Don't fail the update if audit logging fails
+      logger.warn("Failed to log audit entry for price change", auditError, undefined, {
+        lotId: validatedLotId,
+      });
     }
 
     return NextResponse.json({
