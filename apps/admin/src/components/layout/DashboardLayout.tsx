@@ -120,6 +120,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { href: "/admin/settings/packaging-rules", label: "Packaging Rules" },
     { href: "/admin/settings/promotional-deals", label: "Promotional Deals" },
     { href: "/admin/settings/set-translations", label: "Set Translations" },
+    { href: "/admin/settings/backup", label: "Backup & Recovery" },
   ];
 
   return (

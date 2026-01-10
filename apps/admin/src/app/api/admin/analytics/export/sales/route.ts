@@ -22,6 +22,9 @@ export async function GET(req: Request) {
           order_group,
           fees_pence,
           shipping_pence,
+          discount_pence,
+          bundle_id,
+          bundles:bundle_id ( name ),
           buyers:buyer_id ( handle ),
           sales_items (
             qty,
@@ -69,6 +72,9 @@ export async function GET(req: Request) {
       order_group: string | null;
       fees_pence: number | null;
       shipping_pence: number | null;
+      discount_pence: number | null;
+      bundle_id: string | null;
+      bundles?: { name: string | null } | null;
       buyers?: { handle: string | null } | null;
       sales_items: SalesItemRow[] | null;
     };
@@ -101,6 +107,8 @@ export async function GET(req: Request) {
           platform: order.platform,
           order_group: order.order_group || "",
           buyer_handle: order.buyers?.handle || "",
+          bundle_id: order.bundle_id || "",
+          bundle_name: order.bundles?.name || "",
           card_number: item.inventory_lots?.cards?.number || "",
           card_name: item.inventory_lots?.cards?.name || "",
           set_name: item.inventory_lots?.cards?.sets?.name || "",
@@ -111,6 +119,7 @@ export async function GET(req: Request) {
           revenue_gbp: penceToPounds(revenue),
           order_fees_gbp: penceToPounds(order.fees_pence || 0),
           order_shipping_gbp: penceToPounds(order.shipping_pence || 0),
+          order_discount_gbp: penceToPounds(order.discount_pence || 0),
           order_revenue_gbp: penceToPounds(orderRevenue),
           order_net_profit_gbp: penceToPounds(orderNetProfit),
           order_margin_percent: profit?.margin_percent ?? 0,
