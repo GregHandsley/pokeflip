@@ -6,3 +6,7 @@ node_modules
 .DS_Store
 supabase/.branches
 supabase/.temp
+
+# Backup files
+backup-*.sql
+*.sql.backup
