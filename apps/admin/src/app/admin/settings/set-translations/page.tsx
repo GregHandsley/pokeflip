@@ -607,7 +607,6 @@ export default function SetTranslationsPage() {
             onChange={(e) => setSetId(e.target.value)}
             placeholder="e.g., sv1a, PCG3"
             disabled={!!editingTranslation}
-            helpText={editingTranslation ? "Set ID cannot be changed" : "TCGdex set identifier"}
           />
           <Input
             label="English Name"
