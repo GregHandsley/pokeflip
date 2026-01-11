@@ -53,7 +53,7 @@ export default function BackupPage() {
         lastExportSize: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
       });
 
-      logger.info("Full export completed successfully", undefined, undefined, {
+      logger.info("Full export completed successfully", undefined, {
         format: exportFormat,
         size: blob.size,
       });
