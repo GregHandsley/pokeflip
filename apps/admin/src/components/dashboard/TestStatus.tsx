@@ -26,10 +26,28 @@ export default function TestStatus() {
     const loadTestStatus = async () => {
       try {
         const res = await fetch("/api/admin/tests/status");
+
+        // If endpoint doesn't exist (404), silently fail - this is expected
+        if (!res.ok && res.status === 404) {
+          setLoading(false);
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+
         const data = await res.json();
         setTestStatus(data);
-      } catch (error: any) {
-        logger.error("Failed to load test status", error);
+      } catch (error: unknown) {
+        // Only log errors that aren't 404 (endpoint not found)
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage && !errorMessage.includes("404")) {
+          logger.error(
+            "Failed to load test status",
+            error instanceof Error ? error : new Error(errorMessage)
+          );
+        }
       } finally {
         setLoading(false);
       }
@@ -87,7 +105,8 @@ export default function TestStatus() {
             </div>
             {testStatus.summary.failed > 0 && (
               <div className="text-xs text-red-600 font-medium mt-1">
-                {testStatus.summary.failed} test{testStatus.summary.failed !== 1 ? "s" : ""} need attention
+                {testStatus.summary.failed} test{testStatus.summary.failed !== 1 ? "s" : ""} need
+                attention
               </div>
             )}
           </div>
@@ -96,4 +115,3 @@ export default function TestStatus() {
     </Card>
   );
 }
-
