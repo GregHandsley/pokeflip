@@ -37,7 +37,7 @@ type InboxLot = {
 type SortOption = "price_desc" | "qty_desc" | "rarity_desc" | "updated_desc";
 
 export default function InboxPage() {
-  const minPriceRef = useRef<HTMLInputElement>(null);
+  const minPriceRef = useRef<HTMLInputElement | null>(null);
   const [lots, setLots] = useState<InboxLot[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLotIds, setSelectedLotIds] = useState<Set<string>>(new Set());
@@ -187,7 +187,6 @@ export default function InboxPage() {
           selectedCount={selectedLotIds.size}
           onUpdatePrice={(price) => handleBulkAction("update_list_price", { list_price: price })}
           onMarkNotForSale={() => handleBulkAction("mark_not_for_sale", { for_sale: false })}
-          onGroupLots={() => handleBulkAction("group_lots", {})}
           onClearSelection={() => setSelectedLotIds(new Set())}
         />
       )}

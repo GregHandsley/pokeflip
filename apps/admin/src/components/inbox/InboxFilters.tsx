@@ -12,7 +12,7 @@ interface Props {
   rarity: string;
   onRarityChange: (value: string) => void;
   minPriceInputId?: string;
-  minPriceRef?: React.RefObject<HTMLInputElement>;
+  minPriceRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export default function InboxFilters({
