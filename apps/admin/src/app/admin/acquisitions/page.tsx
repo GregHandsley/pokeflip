@@ -18,7 +18,9 @@ type Acquisition = {
   status: "open" | "closed";
 };
 
-const generatePurchaseSKU = async (supabase: ReturnType<typeof supabaseBrowser>): Promise<string> => {
+const generatePurchaseSKU = async (
+  supabase: ReturnType<typeof supabaseBrowser>
+): Promise<string> => {
   // Get all existing purchases with PUR- prefix
   const { data } = await supabase
     .from("acquisitions")
@@ -28,7 +30,7 @@ const generatePurchaseSKU = async (supabase: ReturnType<typeof supabaseBrowser>)
   // Extract numbers from existing SKUs and find the highest
   let maxNum = 0;
   if (data) {
-    for (const acquisition of data) {
+    for (const acquisition of data as Array<{ source_name: string }>) {
       const match = acquisition.source_name?.match(/^PUR-(\d+)$/);
       if (match) {
         const num = parseInt(match[1], 10);
@@ -73,11 +75,14 @@ export default function AcquisitionsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { void load(); }, [filter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    void load();
+  }, [filter]);
 
   useEffect(() => {
     if (showCreateModal) {
-      generatePurchaseSKU(supabase).then(sku => {
+      generatePurchaseSKU(supabase).then((sku) => {
         setSourceName(sku);
       });
     }
@@ -88,14 +93,18 @@ export default function AcquisitionsPage() {
     setMsg(null);
     setCreating(true);
 
-    const { data, error } = await supabase.from("acquisitions").insert({
-      source_name: sourceName,
-      source_type: sourceType,
-      purchase_total_pence: poundsToPence(total),
-      purchased_at: new Date(purchasedAt + "T12:00:00Z").toISOString(),
-      notes: notes.trim() ? notes.trim() : null,
-      status: "open"
-    }).select("id").single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.from("acquisitions") as any)
+      .insert({
+        source_name: sourceName,
+        source_type: sourceType,
+        purchase_total_pence: poundsToPence(total),
+        purchased_at: new Date(purchasedAt + "T12:00:00Z").toISOString(),
+        notes: notes.trim() ? notes.trim() : null,
+        status: "open",
+      })
+      .select("id")
+      .single();
 
     if (error) {
       setMsg(error.message);
@@ -107,14 +116,13 @@ export default function AcquisitionsPage() {
       setNotes("");
       setShowCreateModal(false);
       setCreating(false);
-      
+
       // Navigate to the intake workspace for this acquisition
       if (data?.id) {
         router.push(`/admin/acquisitions/${data.id}`);
       }
     }
   };
-
 
   // Use shared format utility
   const formatDate = formatDateOnly;
@@ -128,18 +136,17 @@ export default function AcquisitionsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Purchases</h1>
-          <p className="mt-1 text-black/60">Create a purchase, add cards to draft cart, then commit to inventory.</p>
+          <p className="mt-1 text-black/60">
+            Create a purchase, add cards to draft cart, then commit to inventory.
+          </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => setShowCreateModal(true)}
-        >
+        <Button variant="primary" onClick={() => setShowCreateModal(true)}>
           Create Purchase
         </Button>
       </div>
 
       <div className="mt-5 flex gap-2">
-        {(["open", "closed"] as const).map(v => (
+        {(["open", "closed"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setFilter(v)}
@@ -173,12 +180,7 @@ export default function AcquisitionsPage() {
             >
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              form="create-purchase-form"
-              disabled={creating}
-            >
+            <Button variant="primary" type="submit" form="create-purchase-form" disabled={creating}>
               {creating ? "Creating..." : "Create & Add Cards"}
             </Button>
           </div>
@@ -188,19 +190,19 @@ export default function AcquisitionsPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-sm">
               Source (seller/shop)
-              <input 
+              <input
                 className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2"
-                value={sourceName} 
-                onChange={(e) => setSourceName(e.target.value)} 
-                required 
+                value={sourceName}
+                onChange={(e) => setSourceName(e.target.value)}
+                required
               />
             </label>
 
             <label className="text-sm">
               Type
-              <select 
+              <select
                 className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2"
-                value={sourceType} 
+                value={sourceType}
                 onChange={(e) => setSourceType(e.target.value)}
               >
                 <option value="packs">Packs</option>
@@ -215,31 +217,31 @@ export default function AcquisitionsPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-sm">
               Total cost (£)
-              <input 
+              <input
                 className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2"
-                value={total} 
-                onChange={(e) => setTotal(e.target.value)} 
-                inputMode="decimal" 
+                value={total}
+                onChange={(e) => setTotal(e.target.value)}
+                inputMode="decimal"
               />
             </label>
 
             <label className="text-sm">
               Purchase date
-              <input 
+              <input
                 className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2"
-                type="date" 
-                value={purchasedAt} 
-                onChange={(e) => setPurchasedAt(e.target.value)} 
+                type="date"
+                value={purchasedAt}
+                onChange={(e) => setPurchasedAt(e.target.value)}
               />
             </label>
           </div>
 
           <label className="text-sm">
             Notes
-            <textarea 
+            <textarea
               className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 min-h-[72px]"
-              value={notes} 
-              onChange={(e) => setNotes(e.target.value)} 
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
             />
           </label>
 
@@ -253,13 +255,13 @@ export default function AcquisitionsPage() {
           <div className="mt-3 text-sm text-black/60">Loading...</div>
         ) : (
           <ul className="mt-3 grid gap-2">
-            {rows.map(a => (
-              <li 
-                key={a.id} 
+            {rows.map((a) => (
+              <li
+                key={a.id}
                 className="rounded-xl border border-black/10 bg-white p-4 flex items-center justify-between hover:border-black/20 transition-colors cursor-pointer"
                 onClick={(e) => {
                   // Don't navigate if clicking on buttons
-                  if ((e.target as HTMLElement).closest('button, a')) {
+                  if ((e.target as HTMLElement).closest("button, a")) {
                     return;
                   }
                   router.push(`/admin/acquisitions/${a.id}/lots`);
@@ -270,30 +272,32 @@ export default function AcquisitionsPage() {
                   <div className="text-sm text-black/60 mt-1">
                     <span className="capitalize">{a.source_type}</span>
                     {" • "}
-                    <span className="font-medium">£{(a.purchase_total_pence/100).toFixed(2)}</span>
+                    <span className="font-medium">
+                      £{(a.purchase_total_pence / 100).toFixed(2)}
+                    </span>
                     {" • "}
                     {formatDate(a.purchased_at)}
                     {" • "}
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      a.status === "open" 
-                        ? "bg-green-100 text-green-800" 
-                        : "bg-gray-100 text-gray-800"
-                    }`}>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        a.status === "open"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
                       {a.status === "open" ? "Open" : "Closed"}
                     </span>
                   </div>
-                  {a.notes && (
-                    <div className="text-sm text-black/60 mt-2 italic">{a.notes}</div>
-                  )}
+                  {a.notes && <div className="text-sm text-black/60 mt-2 italic">{a.notes}</div>}
                 </div>
                 <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
-                  <a 
+                  <a
                     href={`/admin/acquisitions/${a.id}`}
                     className="px-3 py-1.5 rounded-lg border border-black/10 bg-white text-sm font-medium hover:bg-black/5 transition-colors"
                   >
                     Add Cards
                   </a>
-                  <a 
+                  <a
                     href={`/admin/acquisitions/${a.id}/lots`}
                     className="px-3 py-1.5 rounded-lg border border-black/10 bg-white text-sm font-medium hover:bg-black/5 transition-colors"
                   >
