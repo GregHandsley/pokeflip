@@ -72,7 +72,7 @@ export default function TestErrorHandlingPage() {
   };
 
   const testClientLogger = () => {
-    logger.debug("Client debug test", null, undefined, { source: "test-page" });
+    logger.debug("Client debug test", undefined, { source: "test-page" });
     logger.info("Client info test", undefined, { source: "test-page" });
     logger.warn("Client warning test", undefined, { source: "test-page" });
     logger.error("Client error test", new Error("Test client error"), undefined, {
