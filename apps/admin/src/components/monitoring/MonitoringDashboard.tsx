@@ -108,10 +108,6 @@ export default function MonitoringDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const formatPence = (pence: number) => {
-    return `£${(pence / 100).toFixed(2)}`;
-  };
-
   const formatDuration = (seconds: number) => {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
@@ -288,7 +284,7 @@ export default function MonitoringDashboard() {
                     <div className="text-sm text-gray-600 mb-1">Total Sales</div>
                     <div className="text-2xl font-bold">{businessMetrics.sales.totalSalesCount}</div>
                     <div className="text-xs text-gray-500 mt-2">
-                      Revenue: {formatPence(businessMetrics.sales.totalRevenuePence)}
+                      Revenue: {formatPrice(businessMetrics.sales.totalRevenuePence)}
                     </div>
                   </Card>
 
@@ -296,14 +292,14 @@ export default function MonitoringDashboard() {
                     <div className="text-sm text-gray-600 mb-1">Recent Sales (7 days)</div>
                     <div className="text-2xl font-bold">{businessMetrics.sales.recentSalesCount}</div>
                     <div className="text-xs text-gray-500 mt-2">
-                      Revenue: {formatPence(businessMetrics.sales.recentRevenuePence)}
+                      Revenue: {formatPrice(businessMetrics.sales.recentRevenuePence)}
                     </div>
                   </Card>
 
                   <Card>
                     <div className="text-sm text-gray-600 mb-1">Average Order Value</div>
                     <div className="text-2xl font-bold">
-                      {formatPence(businessMetrics.sales.averageOrderValuePence)}
+                      {formatPrice(businessMetrics.sales.averageOrderValuePence)}
                     </div>
                   </Card>
                 </div>

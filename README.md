@@ -201,10 +201,20 @@ pnpm test:coverage
 pnpm typecheck
 ```
 
-### Linting
+### Linting & Formatting
 
 ```bash
+# Lint code
 pnpm lint
+
+# Fix linting issues automatically
+pnpm lint:fix
+
+# Format code with Prettier
+pnpm format
+
+# Check formatting without changing files
+pnpm format:check
 ```
 
 ## Environment Variables

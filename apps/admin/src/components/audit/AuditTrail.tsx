@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { AuditLogRecord, AuditActionType, AuditEntityType } from "@/lib/audit/audit-log";
 import Button from "@/components/ui/Button";
+import { formatRelativeDate, formatEntityType as formatEntityTypeUtil, formatPrice } from "@/lib/utils/format";
 
 interface AuditTrailProps {
   entityType?: AuditEntityType;
@@ -139,49 +140,8 @@ export default function AuditTrail({
     return labels[actionType] || actionType.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
-  // User-friendly entity type labels
-  const getEntityLabel = (entityType: string): string => {
-    const labels: Record<string, string> = {
-      sales_order: "Sale",
-      sales_item: "Sale Item",
-      inventory_lot: "Inventory Item",
-      bundle: "Bundle",
-      acquisition: "Purchase",
-      intake_line: "Purchase Item",
-      other: "Item",
-    };
-    return labels[entityType] || entityType.replace(/_/g, " ");
-  };
-
-  // Format date in a relative, user-friendly way
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffSecs < 60) {
-      return "just now";
-    } else if (diffMins < 60) {
-      return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
-    } else if (diffHours < 24) {
-      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
-    } else if (diffDays < 7) {
-      return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-    } else {
-      // For older dates, show the actual date
-      return date.toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    }
-  };
+  // User-friendly entity type labels (use shared utility)
+  const getEntityLabel = formatEntityTypeUtil;
 
   // Format values in a user-friendly way instead of raw JSON
   const formatValues = (values: Record<string, unknown> | null): string => {
@@ -205,9 +165,9 @@ export default function AuditTrail({
 
     // Format price
     if (values.list_price_pence !== undefined && values.list_price_pence !== null) {
-      parts.push(`Price: £${((values.list_price_pence as number) / 100).toFixed(2)}`);
+      parts.push(`Price: ${formatPrice(values.list_price_pence as number)}`);
     } else if (values.sold_price_pence !== undefined && values.sold_price_pence !== null) {
-      parts.push(`Sale Price: £${((values.sold_price_pence as number) / 100).toFixed(2)}`);
+      parts.push(`Sale Price: ${formatPrice(values.sold_price_pence as number)}`);
     }
 
     // Format for_sale
@@ -244,13 +204,13 @@ export default function AuditTrail({
 
     // Format fees, shipping, discount
     if (values.fees_pence !== undefined && values.fees_pence !== null) {
-      parts.push(`Fees: £${((values.fees_pence as number) / 100).toFixed(2)}`);
+      parts.push(`Fees: ${formatPrice(values.fees_pence as number)}`);
     }
     if (values.shipping_pence !== undefined && values.shipping_pence !== null) {
-      parts.push(`Shipping: £${((values.shipping_pence as number) / 100).toFixed(2)}`);
+      parts.push(`Shipping: ${formatPrice(values.shipping_pence as number)}`);
     }
     if (values.discount_pence !== undefined && values.discount_pence !== null) {
-      parts.push(`Discount: £${((values.discount_pence as number) / 100).toFixed(2)}`);
+      parts.push(`Discount: ${formatPrice(values.discount_pence as number)}`);
     }
 
     // If we have formatted some values, return them
@@ -416,7 +376,7 @@ export default function AuditTrail({
                   )}
 
                   <div className="text-xs text-gray-500 mt-2">
-                    {formatDate(log.created_at)}
+                    {formatRelativeDate(log.created_at)}
                     {log.user_email && ` • ${log.user_email}`}
                   </div>
                 </div>

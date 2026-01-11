@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Button from "@/components/ui/Button";
 import type { IntegrityReport, IntegrityCheckResult, IntegrityIssue } from "@/lib/integrity/checks";
+import { formatDate, formatEntityType, formatExecutionTime } from "@/lib/utils/format";
 
 export default function IntegrityChecker() {
   const [report, setReport] = useState<IntegrityReport | null>(null);
@@ -95,32 +96,6 @@ export default function IntegrityChecker() {
       profit_calculations: "Profit Calculations",
     };
     return names[name] || name.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-  };
-
-  const formatEntityType = (type: string) => {
-    const types: Record<string, string> = {
-      sales_item: "Sales Item",
-      bundle_item: "Bundle Item",
-      inventory_lot: "Inventory Lot",
-      sales_item_purchase_allocation: "Purchase Allocation",
-      lot_photo: "Lot Photo",
-      ebay_listing: "eBay Listing",
-      sales_order: "Sales Order",
-      system: "System",
-    };
-    return types[type] || type.replace(/_/g, " ");
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  };
-
-  const formatExecutionTime = (ms: number) => {
-    if (ms < 1000) {
-      return `${ms}ms`;
-    }
-    return `${(ms / 1000).toFixed(2)}s`;
   };
 
   return (

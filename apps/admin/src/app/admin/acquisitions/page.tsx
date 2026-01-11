@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabase/browser";
 import { poundsToPence } from "@pokeflip/shared";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
+import { formatDateOnly } from "@/lib/utils/format";
 
 type Acquisition = {
   id: string;
@@ -115,10 +116,8 @@ export default function AcquisitionsPage() {
   };
 
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  };
+  // Use shared format utility
+  const formatDate = formatDateOnly;
 
   const header = useMemo(() => {
     return filter === "open" ? "Open Purchases" : "Closed Purchases";
