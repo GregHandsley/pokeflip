@@ -516,7 +516,7 @@ export default function PurchaseLotsPage() {
         quantity: lot.quantity,
         available_qty: lot.available_qty,
         photo_count: lot.photo_count,
-        use_api_image: lot.use_api_image || false,
+        use_api_image: (lot as any).use_api_image || false,
         api_image_url: apiImageUrl,
         has_front_photo: hasFrontPhoto,
         has_back_photo: hasBackPhoto,
