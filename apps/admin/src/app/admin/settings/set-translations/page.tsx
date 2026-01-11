@@ -77,6 +77,7 @@ export default function SetTranslationsPage() {
             set_id,
             name_en: name_en as string,
             source: "manual",
+            source_language: "en",
             created_at: "",
             updated_at: "",
           }));
