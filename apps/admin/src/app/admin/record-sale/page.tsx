@@ -20,6 +20,7 @@ type Bundle = {
   price_pence: number;
   quantity: number;
   status: string;
+  created_at: string;
   bundle_items: Array<{
     id: string;
     quantity: number;
@@ -150,8 +151,18 @@ export default function RecordSalePage() {
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-5 hover:shadow-md transition-all">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <svg
+                className="w-5 h-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
               </svg>
             </div>
             <div>
@@ -160,7 +171,8 @@ export default function RecordSalePage() {
             </div>
           </div>
           <p className="text-sm text-gray-700 mb-4 leading-relaxed">
-            Perfect for individual card sales. Click any listed card in your inventory to mark it as sold.
+            Perfect for individual card sales. Click any listed card in your inventory to mark it as
+            sold.
           </p>
           <Button
             variant="primary"
@@ -176,8 +188,18 @@ export default function RecordSalePage() {
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200 p-5 hover:shadow-md transition-all">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              <svg
+                className="w-5 h-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                />
               </svg>
             </div>
             <div>
@@ -186,7 +208,8 @@ export default function RecordSalePage() {
             </div>
           </div>
           <p className="text-sm text-gray-700 mb-4 leading-relaxed">
-            Combine multiple individual cards into one sale. Great for custom orders or combining different cards.
+            Combine multiple individual cards into one sale. Great for custom orders or combining
+            different cards.
           </p>
           <Button
             variant="primary"
@@ -202,8 +225,18 @@ export default function RecordSalePage() {
         <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200 p-5 hover:shadow-md transition-all">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              <svg
+                className="w-5 h-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                />
               </svg>
             </div>
             <div>
@@ -212,7 +245,8 @@ export default function RecordSalePage() {
             </div>
           </div>
           <p className="text-sm text-gray-700 mb-4 leading-relaxed">
-            Sell pre-made bundles with fixed prices. Create bundles in advance, then sell them when ready.
+            Sell pre-made bundles with fixed prices. Create bundles in advance, then sell them when
+            ready.
           </p>
           <div className="flex gap-2">
             <Button
@@ -242,10 +276,18 @@ export default function RecordSalePage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wide">Feature</th>
-                <th className="text-center py-2.5 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wide">Single Card</th>
-                <th className="text-center py-2.5 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wide">Multi-Card</th>
-                <th className="text-center py-2.5 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wide">Bundle</th>
+                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                  Feature
+                </th>
+                <th className="text-center py-2.5 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                  Single Card
+                </th>
+                <th className="text-center py-2.5 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                  Multi-Card
+                </th>
+                <th className="text-center py-2.5 px-4 text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                  Bundle
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -259,7 +301,9 @@ export default function RecordSalePage() {
                 <td className="py-2.5 px-4 text-sm text-gray-600">Price flexibility</td>
                 <td className="py-2.5 px-4 text-sm text-center text-gray-700">Per card</td>
                 <td className="py-2.5 px-4 text-sm text-center text-gray-700">Per card</td>
-                <td className="py-2.5 px-4 text-sm text-center text-gray-700">Fixed bundle price</td>
+                <td className="py-2.5 px-4 text-sm text-center text-gray-700">
+                  Fixed bundle price
+                </td>
               </tr>
               <tr>
                 <td className="py-2.5 px-4 text-sm text-gray-600">Setup required</td>
@@ -283,7 +327,11 @@ export default function RecordSalePage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <h2 className="text-base font-bold text-gray-900">
-              {bundleStatusFilter === "sold" ? "Sold Bundles" : bundleStatusFilter === "all" ? "All Bundles" : "Active Bundles"}
+              {bundleStatusFilter === "sold"
+                ? "Sold Bundles"
+                : bundleStatusFilter === "all"
+                  ? "All Bundles"
+                  : "Active Bundles"}
             </h2>
             <select
               value={bundleStatusFilter}
@@ -296,11 +344,7 @@ export default function RecordSalePage() {
               <option value="sold">Sold Bundles</option>
             </select>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={loadBundles}
-          >
+          <Button variant="secondary" size="sm" onClick={loadBundles}>
             Refresh
           </Button>
         </div>
@@ -308,20 +352,16 @@ export default function RecordSalePage() {
           <div className="text-sm text-gray-500 py-4 text-center">Loading bundles...</div>
         ) : bundles.length === 0 ? (
           <div className="text-sm text-gray-500 py-4 text-center">
-            {bundleStatusFilter === "sold" 
+            {bundleStatusFilter === "sold"
               ? "No sold bundles found."
               : bundleStatusFilter === "all"
-              ? "No bundles found."
-              : `No ${bundleStatusFilter} bundles found.`
-            }
+                ? "No bundles found."
+                : `No ${bundleStatusFilter} bundles found.`}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {bundles.map((bundle) => {
-              const totalCards = bundle.bundle_items.reduce(
-                (sum, item) => sum + item.quantity,
-                0
-              );
+              const totalCards = bundle.bundle_items.reduce((sum, item) => sum + item.quantity, 0);
               const isSold = bundle.status === "sold";
               return (
                 <div
@@ -340,8 +380,8 @@ export default function RecordSalePage() {
                         bundle.status === "active"
                           ? "bg-green-100 text-green-800"
                           : bundle.status === "sold"
-                          ? "bg-gray-100 text-gray-800"
-                          : "bg-yellow-100 text-yellow-800"
+                            ? "bg-gray-100 text-gray-800"
+                            : "bg-yellow-100 text-yellow-800"
                       }`}
                     >
                       {bundle.status}
@@ -356,10 +396,7 @@ export default function RecordSalePage() {
                         £{penceToPounds(bundle.price_pence)}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {isSold 
-                          ? "Sold • " 
-                          : `${bundle.quantity || 1} available • `
-                        }
+                        {isSold ? "Sold • " : `${bundle.quantity || 1} available • `}
                         {totalCards} cards per bundle
                       </div>
                     </div>
@@ -401,7 +438,7 @@ export default function RecordSalePage() {
                           Edit
                         </Button>
                         {/* Three-dot menu for additional actions */}
-                        <div 
+                        <div
                           className="relative"
                           ref={(el) => {
                             if (el) {
@@ -419,14 +456,24 @@ export default function RecordSalePage() {
                             className="px-2 py-1 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center"
                             aria-label="More options"
                           >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                              />
                             </svg>
                           </button>
                           {openMenuId === bundle.id && (
                             <>
-                              <div 
-                                className="fixed inset-0 z-10" 
+                              <div
+                                className="fixed inset-0 z-10"
                                 onClick={() => setOpenMenuId(null)}
                               />
                               <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
@@ -499,4 +546,3 @@ export default function RecordSalePage() {
     </div>
   );
 }
-
