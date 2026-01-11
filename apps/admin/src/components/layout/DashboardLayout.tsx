@@ -121,6 +121,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { href: "/admin/settings/promotional-deals", label: "Promotional Deals" },
     { href: "/admin/settings/set-translations", label: "Set Translations" },
     { href: "/admin/settings/audit-trail", label: "Audit Trail" },
+    { href: "/admin/settings/integrity", label: "Data Integrity" },
     { href: "/admin/settings/backup", label: "Backup & Recovery" },
     { href: "/admin/settings/performance", label: "Performance" },
   ];
