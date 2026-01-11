@@ -504,10 +504,10 @@ export default function PurchaseLotsPage() {
       const inboxLot: InboxLot = {
         lot_id: lot.id,
         card_id: lot.card_id,
-        card_number: card.number || "",
-        card_name: card.name || "",
+        card_number: (card as any)?.number || "",
+        card_name: (card as any)?.name || "",
         set_name: set?.name || "",
-        rarity: card.rarity || null,
+        rarity: (card as any)?.rarity || null,
         condition: lot.condition,
         variation: lot.variation || "standard",
         status: lot.status,
