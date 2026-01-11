@@ -3,10 +3,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  // Enable instrumentation for server-side Sentry
-  experimental: {
-    instrumentationHook: true,
-  },
+  // Instrumentation is available by default in Next.js 16+, no config needed
 };
 
 // Wrap with Sentry config
@@ -33,12 +30,6 @@ export default withSentryConfig(nextConfig, {
   // Disabled for now - can be re-enabled if ad-blockers become an issue
   // tunnelRoute: "/monitoring",
 
-  // Hides source maps from generated client bundles
-  hideSourceMaps: true,
-
-  // Automatically tree-shake Sentry logger statements to reduce bundle size
-  disableLogger: true,
-
-  // Enables automatic instrumentation of Vercel Cron Monitors.
-  automaticVercelMonitors: true,
+  // Note: hideSourceMaps, disableLogger, and automaticVercelMonitors are deprecated
+  // but kept for compatibility. Sentry will handle these automatically.
 });

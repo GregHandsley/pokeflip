@@ -102,19 +102,20 @@ export async function PATCH(
           qty: item.qty || 1,
         }));
 
-      const { error: itemsError } = await supabase
-        .from("packaging_rule_items")
-        .insert(ruleItems);
+        const { error: itemsError } = await supabase
+          .from("packaging_rule_items")
+          .insert(ruleItems);
 
         if (itemsError) {
           logger.error("Failed to update packaging rule items", itemsError, undefined, {
             ruleId: validatedRuleId,
             itemsCount: validatedItems.length,
           });
-        return NextResponse.json(
-          { error: itemsError.message || "Failed to update rule items" },
-          { status: 500 }
-        );
+          return NextResponse.json(
+            { error: itemsError.message || "Failed to update rule items" },
+            { status: 500 }
+          );
+        }
       }
     }
 
@@ -145,9 +146,17 @@ export async function PATCH(
     });
   } catch (error: unknown) {
     // ValidationErrorResponse is automatically handled by handleApiError
+    // Extract ruleId from params if available, otherwise use unknown
+    let ruleIdForError = "unknown";
+    try {
+      const { ruleId } = await params;
+      ruleIdForError = ruleId;
+    } catch {
+      // If we can't get ruleId, use unknown
+    }
     return handleApiError(req, error, {
       operation: "update_packaging_rule",
-      metadata: { ruleId: validatedRuleId },
+      metadata: { ruleId: ruleIdForError },
     });
   }
 }
@@ -194,9 +203,17 @@ export async function DELETE(
     });
   } catch (error: unknown) {
     // ValidationErrorResponse is automatically handled by handleApiError
+    // Extract ruleId from params if available, otherwise use unknown
+    let ruleIdForError = "unknown";
+    try {
+      const { ruleId } = await params;
+      ruleIdForError = ruleId;
+    } catch {
+      // If we can't get ruleId, use unknown
+    }
     return handleApiError(req, error, {
       operation: "delete_packaging_rule",
-      metadata: { ruleId: validatedRuleId },
+      metadata: { ruleId: ruleIdForError },
     });
   }
 }

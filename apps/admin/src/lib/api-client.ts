@@ -11,6 +11,7 @@ export interface ApiResponse<T = unknown> {
   error?: string;
   code?: string;
   details?: unknown;
+  errors?: Array<{ field: string; message: string; code?: string }>;
 }
 
 /**
@@ -90,12 +91,7 @@ export async function apiFetch<T = unknown>(
  * Note: This must be used within a component that has ToastProvider
  */
 export function useApiClient() {
-  // This will be called from components, so we can use hooks
-  // For now, we'll export a simpler version that accepts toast functions
-  return {
-    fetch: apiFetch,
-  };
-}
+  const { showError, showSuccess } = useToast();
 
   const fetch = async <T = unknown>(
     url: string,

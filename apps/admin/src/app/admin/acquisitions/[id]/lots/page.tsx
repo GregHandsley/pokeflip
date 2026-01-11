@@ -18,6 +18,7 @@ import { InboxLot } from "@/components/inbox/sales-flow/types";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { logger } from "@/lib/logger";
 
 type Purchase = {
   id: string;
