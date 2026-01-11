@@ -182,9 +182,10 @@ export async function POST(req: Request) {
               .insert(photosToInsert);
 
             if (insertPhotosError) {
-              logger.warn("Failed to transfer photos during bulk group", insertPhotosError, undefined, {
+              logger.warn("Failed to transfer photos during bulk group", undefined, {
                 lotIds: body.lotIds,
                 photosCount: photosToInsert.length,
+                error: insertPhotosError,
               });
               // Continue even if photos fail - we'll still group the lots
             }

@@ -54,7 +54,7 @@ export async function GET(
       .eq("acquisition_id", acquisitionId);
 
     if (directLotsError) {
-      logger.warn("Failed to fetch direct lots (legacy)", directLotsError, undefined, { acquisitionId });
+      logger.warn("Failed to fetch direct lots (legacy)", undefined, { acquisitionId, error: directLotsError });
     }
 
     const directLotIds = (directLots || []).map((l: any) => l.id);
