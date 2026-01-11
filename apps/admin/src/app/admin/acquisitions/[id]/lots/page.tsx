@@ -258,7 +258,7 @@ export default function PurchaseLotsPage() {
   const handleReopenClick = async () => {
     setShowMenu(false);
     setToast(null);
-    const { error } = await supabase.from("acquisitions").update({ status: "open" }).eq("id", purchaseId);
+    const { error } = await supabase.from("acquisitions").update({ status: "open" } as any).eq("id", purchaseId);
     if (error) {
       setToast(error.message || "Failed to reopen purchase");
     } else {
