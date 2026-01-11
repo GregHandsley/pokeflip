@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { logger } from "@/lib/logger";
+import { formatPrice } from "@/lib/utils/format";
 
 type HealthCheck = {
   status: "healthy" | "degraded" | "unhealthy";
@@ -61,9 +62,10 @@ export default function MonitoringDashboard() {
         throw new Error(json.error || "Failed to load health check");
       }
       setHealthCheck(json);
-    } catch (e: any) {
-      logger.error("Failed to load health check", e);
-      setError(e.message || "Failed to load health check");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      logger.error("Failed to load health check", error);
+      setError(error.message || "Failed to load health check");
     } finally {
       setLoadingHealth(false);
     }
@@ -83,9 +85,10 @@ export default function MonitoringDashboard() {
         throw new Error("Invalid response: metrics data missing");
       }
       setBusinessMetrics(json.metrics);
-    } catch (e: any) {
-      const errorMessage = e?.message || String(e) || "Failed to load business metrics";
-      logger.error("Failed to load business metrics", e instanceof Error ? e : new Error(errorMessage), undefined, {
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      const errorMessage = error.message || "Failed to load business metrics";
+      logger.error("Failed to load business metrics", error, undefined, {
         operation: "load_business_metrics",
         days,
       });
@@ -98,7 +101,7 @@ export default function MonitoringDashboard() {
   useEffect(() => {
     void loadHealthCheck();
     void loadBusinessMetrics();
-    
+
     // Auto-refresh every 30 seconds
     const interval = setInterval(() => {
       void loadHealthCheck();
@@ -170,7 +173,12 @@ export default function MonitoringDashboard() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-lg">System Health</h3>
-            <Button onClick={loadHealthCheck} disabled={loadingHealth} variant="secondary" size="sm">
+            <Button
+              onClick={loadHealthCheck}
+              disabled={loadingHealth}
+              variant="secondary"
+              size="sm"
+            >
               {loadingHealth ? "Refreshing..." : "Refresh"}
             </Button>
           </div>
@@ -265,7 +273,12 @@ export default function MonitoringDashboard() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-lg">Business Metrics</h3>
-            <Button onClick={() => loadBusinessMetrics()} disabled={loadingMetrics} variant="secondary" size="sm">
+            <Button
+              onClick={() => loadBusinessMetrics()}
+              disabled={loadingMetrics}
+              variant="secondary"
+              size="sm"
+            >
               {loadingMetrics ? "Refreshing..." : "Refresh"}
             </Button>
           </div>
@@ -282,7 +295,9 @@ export default function MonitoringDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <Card>
                     <div className="text-sm text-gray-600 mb-1">Total Sales</div>
-                    <div className="text-2xl font-bold">{businessMetrics.sales.totalSalesCount}</div>
+                    <div className="text-2xl font-bold">
+                      {businessMetrics.sales.totalSalesCount}
+                    </div>
                     <div className="text-xs text-gray-500 mt-2">
                       Revenue: {formatPrice(businessMetrics.sales.totalRevenuePence)}
                     </div>
@@ -290,7 +305,9 @@ export default function MonitoringDashboard() {
 
                   <Card>
                     <div className="text-sm text-gray-600 mb-1">Recent Sales (7 days)</div>
-                    <div className="text-2xl font-bold">{businessMetrics.sales.recentSalesCount}</div>
+                    <div className="text-2xl font-bold">
+                      {businessMetrics.sales.recentSalesCount}
+                    </div>
                     <div className="text-xs text-gray-500 mt-2">
                       Revenue: {formatPrice(businessMetrics.sales.recentRevenuePence)}
                     </div>
@@ -341,9 +358,7 @@ export default function MonitoringDashboard() {
                     </div>
                     {businessMetrics.inventory.availableQuantity <
                       businessMetrics.inventory.lowStockThreshold && (
-                      <div className="text-xs text-red-600 mt-2 font-medium">
-                        ⚠ Low Stock Alert
-                      </div>
+                      <div className="text-xs text-red-600 mt-2 font-medium">⚠ Low Stock Alert</div>
                     )}
                   </Card>
 
@@ -372,4 +387,3 @@ export default function MonitoringDashboard() {
     </div>
   );
 }
-
