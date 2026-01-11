@@ -117,7 +117,7 @@ export async function GET(
       .eq("acquisition_id", acquisitionId);
 
     if (allocError) {
-      logger.warn("Failed to fetch purchase allocations", allocError, undefined, { acquisitionId });
+      logger.warn("Failed to fetch purchase allocations", undefined, { acquisitionId, error: allocError });
     }
 
     // Create a map of sales_item_id -> qty from this purchase
@@ -150,7 +150,7 @@ export async function GET(
         .in("id", salesItemIdsArray);
 
       if (salesError) {
-        logger.warn("Failed to fetch sales items", salesError, undefined, { acquisitionId });
+        logger.warn("Failed to fetch sales items", undefined, { acquisitionId, error: salesError });
         return NextResponse.json(
           { error: salesError.message || "Failed to fetch sales" },
           { status: 500 }

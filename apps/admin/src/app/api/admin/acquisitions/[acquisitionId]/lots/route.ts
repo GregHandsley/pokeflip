@@ -279,7 +279,7 @@ export async function GET(
       .order("created_at", { ascending: false });
 
     if (draftError) {
-      logger.warn("Failed to fetch draft lines", draftError, undefined, { acquisitionId });
+      logger.warn("Failed to fetch draft lines", undefined, { acquisitionId, error: draftError });
     }
 
     // Format draft lines to match lot structure
