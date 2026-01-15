@@ -3,14 +3,13 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ lineId: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ lineId: string }> }) {
   const logger = createApiLogger(req);
-  
+
+  // Extract lineId outside try block so it's available in catch
+  const { lineId } = await params;
+
   try {
-    const { lineId } = await params;
     const supabase = supabaseServer();
 
     // Fetch all photos for this intake line
@@ -52,8 +51,10 @@ export async function GET(
       ok: true,
       photos: photosWithUrls,
     });
-  } catch (error: any) {
-    return handleApiError(req, error, { operation: "get_intake_line_photos", metadata: { lineId } });
+  } catch (error: unknown) {
+    return handleApiError(req, error, {
+      operation: "get_intake_line_photos",
+      metadata: { lineId },
+    });
   }
 }
-

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/api-error-handler";
-import { createApiLogger } from "@/lib/logger";
 
 /**
  * Worker endpoint to process queued jobs
@@ -9,8 +8,6 @@ import { createApiLogger } from "@/lib/logger";
  * For v1, we'll call this manually or via a simple cron
  */
 export async function POST(req: Request) {
-  const logger = createApiLogger(req);
-  
   try {
     const body = await req.json();
     const maxJobs = body.maxJobs || 5;
@@ -66,10 +63,10 @@ export async function POST(req: Request) {
             })
             .eq("id", job.id);
 
-          results.push({ 
-            jobId: job.id, 
-            success: false, 
-            error: "eBay integration has been removed" 
+          results.push({
+            jobId: job.id,
+            success: false,
+            error: "eBay integration has been removed",
           });
         } else {
           // Unknown job type
@@ -85,7 +82,7 @@ export async function POST(req: Request) {
 
           results.push({ jobId: job.id, success: false, error: "Unknown job type" });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Job processing error
         const newAttempts = job.attempts + 1;
         const shouldRetry = newAttempts < job.max_attempts;
@@ -95,7 +92,7 @@ export async function POST(req: Request) {
           .update({
             status: shouldRetry ? "queued" : "failed",
             attempts: newAttempts,
-            last_error: error.message || "Processing error",
+            last_error: error instanceof Error ? error.message : "Processing error",
             locked_at: null,
             locked_by: null,
           })
@@ -104,14 +101,14 @@ export async function POST(req: Request) {
         await supabase.rpc("log_job_event", {
           p_job_id: job.id,
           p_level: "error",
-          p_message: `Processing error: ${error.message}`,
+          p_message: `Processing error: ${error instanceof Error ? error.message : String(error)}`,
         });
 
-        results.push({ 
-          jobId: job.id, 
-          success: false, 
-          error: error.message || "Processing error",
-          lotId: job.payload?.lotId 
+        results.push({
+          jobId: job.id,
+          success: false,
+          error: error instanceof Error ? error.message : "Processing error",
+          lotId: job.payload?.lotId,
         });
       }
     }
@@ -121,8 +118,7 @@ export async function POST(req: Request) {
       processed: jobs.length,
       results,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "process_jobs" });
   }
 }
-

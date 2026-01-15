@@ -4,8 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 // Use direct env access with fallbacks for early initialization
 const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN || null;
 const enabled =
-  process.env.NODE_ENV === "production" ||
-  process.env.NEXT_PUBLIC_SENTRY_ENABLED === "true";
+  process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_SENTRY_ENABLED === "true";
 const environment = (process.env.NODE_ENV || "development") as
   | "development"
   | "staging"
@@ -30,4 +29,3 @@ Sentry.init({
 if (enabled) {
   console.log("[Sentry Server] Server-side Sentry initialized successfully");
 }
-

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import Image from "next/image";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { penceToPounds, poundsToPence } from "@pokeflip/shared";
+import { poundsToPence } from "@pokeflip/shared";
 import { logger } from "@/lib/logger";
 
 type Purchase = {
@@ -44,19 +45,28 @@ type Props = {
   initialLotId?: string; // Optional lot ID to pre-select when modal opens
 };
 
-export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, initialLotId }: Props) {
+export default function CreateBundleModal({
+  isOpen,
+  onClose,
+  onBundleCreated,
+  initialLotId,
+}: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("1");
-  const [selectedLots, setSelectedLots] = useState<Map<string, { lot: Lot; quantity: number }>>(new Map());
+  const [selectedLots, setSelectedLots] = useState<Map<string, { lot: Lot; quantity: number }>>(
+    new Map()
+  );
   const [availableLots, setAvailableLots] = useState<Lot[]>([]);
   const [filteredLots, setFilteredLots] = useState<Lot[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [bundlePhotos, setBundlePhotos] = useState<Array<{ id: string; signedUrl: string | null; file?: File }>>([]);
+  const [bundlePhotos, setBundlePhotos] = useState<
+    Array<{ id: string; signedUrl: string | null; file?: File }>
+  >([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [createdBundleId, setCreatedBundleId] = useState<string | null>(null);
 
@@ -89,7 +99,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
         const lots = (json.lots || []).filter((lot: Lot) => {
           // Ensure available quantity > 0
           // Explicitly check for_sale field if it exists (defensive programming)
-          return lot.available_qty > 0 && (lot.for_sale !== false);
+          return lot.available_qty > 0 && lot.for_sale !== false;
         });
         setAvailableLots(lots);
         setFilteredLots(lots);
@@ -118,7 +128,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
   // Filter lots based on search query and stock availability
   useEffect(() => {
     const bundleQuantity = parseInt(quantity, 10) || 1;
-    
+
     // First filter by stock availability based on bundle quantity
     // Only show lots that have enough stock for at least 1 card per bundle
     const stockFiltered = availableLots.filter((lot) => {
@@ -139,7 +149,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
       const setName = lot.card?.set?.name?.toLowerCase() || "";
       const condition = lot.condition?.toLowerCase() || "";
       const variation = lot.variation?.toLowerCase() || "";
-      
+
       // Search in purchase names
       const purchaseNames = (lot.purchases || [])
         .map((p) => p.source_name?.toLowerCase() || "")
@@ -173,7 +183,6 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
     const item = newSelected.get(lotId);
     if (item) {
       const bundleQuantity = parseInt(quantity, 10) || 1;
-      const maxCardsNeeded = bundleQuantity * qty;
       // Available quantity must be at least bundle_quantity * cards_per_bundle
       const maxQtyPerBundle = Math.floor(item.lot.available_qty / bundleQuantity);
       const finalQty = Math.min(Math.max(1, qty), maxQtyPerBundle);
@@ -234,6 +243,13 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
 
       if (!res.ok) {
         const errorMsg = json.error || json.message || `Failed to create bundle (${res.status})`;
+        console.error("Bundle creation failed:", {
+          status: res.status,
+          statusText: res.statusText,
+          error: json.error,
+          message: json.message,
+          response: json,
+        });
         throw new Error(errorMsg);
       }
 
@@ -259,15 +275,22 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
 
       const priceString = typeof price === "string" ? price : String(price || "0");
       const errorObj = e instanceof Error ? e : new Error(errorMessage);
-      
-      logger.error("Failed to create bundle", errorObj, undefined, {
-        name,
+
+      // Log detailed error information
+      const logMetadata = {
+        bundleName: name,
         pricePence: poundsToPence(priceString),
         itemsCount: selectedLots.size,
         bundleQuantity: parseInt(quantity, 10) || 1,
-        originalError: e,
-      });
-      
+        errorMessage,
+        errorType: e instanceof Error ? e.name : typeof e,
+      };
+
+      console.error("Failed to create bundle - details:", logMetadata);
+      console.error("Original error:", e);
+
+      logger.error("Failed to create bundle", errorObj, undefined, logMetadata);
+
       setError(errorMessage);
     } finally {
       setSubmitting(false);
@@ -293,15 +316,18 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
       const reader = new FileReader();
       reader.onload = (e) => {
         const result = e.target?.result as string;
-        setBundlePhotos((prev) => [...prev, {
-          id: `temp-${Date.now()}-${Math.random()}`,
-          signedUrl: result,
-          file, // Store file for later upload
-        }]);
+        setBundlePhotos((prev) => [
+          ...prev,
+          {
+            id: `temp-${Date.now()}-${Math.random()}`,
+            signedUrl: result,
+            file, // Store file for later upload
+          },
+        ]);
       };
       reader.readAsDataURL(file);
-    } catch (e: any) {
-      setError(e.message || "Failed to process photo");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to process photo");
     } finally {
       setUploadingPhoto(false);
     }
@@ -309,10 +335,10 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
 
   const uploadBundlePhotos = async (bundleId: string) => {
     const photosToUpload = bundlePhotos.filter((p) => p.file);
-    
+
     for (const photo of photosToUpload) {
       if (!photo.file) continue;
-      
+
       try {
         const formData = new FormData();
         formData.append("file", photo.file);
@@ -334,14 +360,16 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
 
         // Update photo with real ID and signed URL
         if (uploadJson.photo) {
-          setBundlePhotos((prev) => prev.map((p) =>
-            p.id === photo.id
-              ? {
-                  id: uploadJson.photo.id,
-                  signedUrl: uploadJson.photo.signedUrl || null,
-                }
-              : p
-          ));
+          setBundlePhotos((prev) =>
+            prev.map((p) =>
+              p.id === photo.id
+                ? {
+                    id: uploadJson.photo.id,
+                    signedUrl: uploadJson.photo.signedUrl || null,
+                  }
+                : p
+            )
+          );
         }
       } catch (e) {
         logger.error("Error uploading bundle photo", e, undefined, {
@@ -379,7 +407,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
       isOpen={isOpen}
       onClose={onClose}
       title="Create Bundle"
-      maxWidth="4xl"
+      maxWidth="6xl"
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={onClose} disabled={submitting}>
@@ -390,8 +418,8 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log("Create Bundle button clicked", { 
-                submitting, 
+              console.log("Create Bundle button clicked", {
+                submitting,
                 selectedLotsSize: selectedLots.size,
                 name: name.trim(),
                 price: price.trim(),
@@ -421,9 +449,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Bundle Name *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Bundle Name *</label>
           <Input
             type="text"
             value={name}
@@ -447,9 +473,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Bundle Price (£) *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Bundle Price (£) *</label>
           <Input
             type="number"
             step="0.01"
@@ -483,9 +507,7 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
             <label className="block text-sm font-medium text-gray-700">
               Select Cards ({selectedLots.size} selected, {totalCards} total cards)
               {selectedLots.size < 2 && (
-                <span className="ml-2 text-xs text-yellow-600">
-                  (Need at least 2 cards)
-                </span>
+                <span className="ml-2 text-xs text-yellow-600">(Need at least 2 cards)</span>
               )}
             </label>
           </div>
@@ -505,12 +527,11 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
             <div className="text-sm text-gray-500 py-4">Loading available cards...</div>
           ) : filteredLots.length === 0 ? (
             <div className="text-sm text-gray-500 py-4">
-              {searchQuery 
-                ? "No cards match your search" 
+              {searchQuery
+                ? "No cards match your search"
                 : availableLots.length === 0
-                ? "No available cards found"
-                : `No cards have enough stock for ${parseInt(quantity, 10) || 1} bundle(s). Try reducing the bundle quantity.`
-              }
+                  ? "No available cards found"
+                  : `No cards have enough stock for ${parseInt(quantity, 10) || 1} bundle(s). Try reducing the bundle quantity.`}
             </div>
           ) : (
             <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
@@ -532,11 +553,15 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
                         className="w-4 h-4 text-blue-600 rounded border-gray-300"
                       />
                       {lot.card?.api_image_url && (
-                        <img
-                          src={`${lot.card.api_image_url}/low.webp`}
-                          alt=""
-                          className="h-12 w-auto rounded border border-gray-200"
-                        />
+                        <div className="relative h-12 w-auto rounded border border-gray-200 overflow-hidden">
+                          <Image
+                            src={`${lot.card.api_image_url}/low.webp`}
+                            alt=""
+                            fill
+                            className="object-contain"
+                            unoptimized
+                          />
+                        </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">
@@ -575,7 +600,10 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
                             min="1"
                             max={(() => {
                               const bundleQty = parseInt(quantity, 10) || 1;
-                              const maxCardsPerBundle = bundleQty > 0 ? Math.floor((selectedItem?.lot.available_qty || 0) / bundleQty) : selectedItem?.lot.available_qty || 1;
+                              const maxCardsPerBundle =
+                                bundleQty > 0
+                                  ? Math.floor((selectedItem?.lot.available_qty || 0) / bundleQty)
+                                  : selectedItem?.lot.available_qty || 1;
                               return Math.max(1, maxCardsPerBundle);
                             })()}
                             value={selectedItem?.quantity || 1}
@@ -599,17 +627,23 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
             Bundle Photos (optional)
           </label>
           <p className="text-xs text-gray-500 mb-3">
-            Add photos of the bundle (e.g., all cards together). Individual card photos are already available.
+            Add photos of the bundle (e.g., all cards together). Individual card photos are already
+            available.
           </p>
-          
+
           {bundlePhotos.length > 0 && (
             <div className="grid grid-cols-3 gap-3 mb-3">
               {bundlePhotos.map((photo) => (
-                <div key={photo.id} className="relative group">
-                  <img
+                <div
+                  key={photo.id}
+                  className="relative group h-32 w-full rounded border border-gray-200 overflow-hidden"
+                >
+                  <Image
                     src={photo.signedUrl || ""}
                     alt="Bundle"
-                    className="h-32 w-full object-cover rounded border border-gray-200"
+                    fill
+                    className="object-cover"
+                    unoptimized
                   />
                   <button
                     onClick={() => handleDeletePhoto(photo.id)}
@@ -636,13 +670,10 @@ export default function CreateBundleModal({ isOpen, onClose, onBundleCreated, in
               disabled={uploadingPhoto || submitting}
               className="text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-50"
             />
-            {uploadingPhoto && (
-              <span className="ml-2 text-xs text-gray-500">Processing...</span>
-            )}
+            {uploadingPhoto && <span className="ml-2 text-xs text-gray-500">Processing...</span>}
           </div>
         </div>
       </div>
     </Modal>
   );
 }
-

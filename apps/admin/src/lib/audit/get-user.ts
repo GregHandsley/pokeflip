@@ -1,4 +1,3 @@
-import { supabaseServer } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseConfigForServer } from "@/lib/config/env";
 
@@ -15,10 +14,10 @@ export async function getCurrentUser(req: Request): Promise<{
     const authHeader = req.headers.get("authorization");
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
-      
+
       // Create a Supabase client with the user's token
       const config = getSupabaseConfigForServer();
-      const supabase = createClient(config.supabase.url, config.supabase.anonKey, {
+      const supabase = createClient(config.url, config.anonKey, {
         global: {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -30,8 +29,11 @@ export async function getCurrentUser(req: Request): Promise<{
       });
 
       // Get user from token
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser(token);
+
       if (!error && user) {
         return {
           userId: user.id,
@@ -51,7 +53,7 @@ export async function getCurrentUser(req: Request): Promise<{
     }
 
     return null;
-  } catch (error) {
+  } catch {
     // If we can't get user, return null (not an error - might be public endpoint)
     return null;
   }
@@ -61,7 +63,10 @@ export async function getCurrentUser(req: Request): Promise<{
  * Helper to create user info from explicit userId and userEmail
  * Use this when the client explicitly passes user information
  */
-export function createUserInfo(userId?: string, userEmail?: string): {
+export function createUserInfo(
+  userId?: string,
+  userEmail?: string
+): {
   userId: string | null;
   userEmail: string | null;
 } | null {
@@ -74,4 +79,3 @@ export function createUserInfo(userId?: string, userEmail?: string): {
     userEmail: userEmail || null,
   };
 }
-

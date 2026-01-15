@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import Image from "next/image";
 import { InboxLot, Photo } from "./types";
 import PhotoDropZone from "./PhotoDropZone";
 import PhotoGallery from "./PhotoGallery";
@@ -85,17 +85,25 @@ export default function PhotosStep({
                 className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50"
               />
               <span className="text-sm font-medium">
-                {updatingApiImage ? "Updating..." : useApiImage ? "Using API Image" : "Use API Image"}
+                {updatingApiImage
+                  ? "Updating..."
+                  : useApiImage
+                    ? "Using API Image"
+                    : "Use API Image"}
               </span>
             </label>
           </div>
           {useApiImage && (
             <div className="mt-3 space-y-2">
-              <img
-                src={`${lot.api_image_url}/low.webp`}
-                alt="API card image"
-                className="h-32 w-auto rounded border border-gray-200"
-              />
+              <div className="relative h-32 w-[91px] rounded border border-gray-200 overflow-hidden">
+                <Image
+                  src={`${lot.api_image_url}/low.webp`}
+                  alt="API card image"
+                  fill
+                  className="object-contain"
+                  unoptimized
+                />
+              </div>
               <p className="text-xs text-gray-600">
                 Right-click on the image above to save it for your eBay listing.
               </p>
@@ -138,9 +146,7 @@ export default function PhotosStep({
             </svg>
             <div className="flex-1">
               <div className="text-sm font-medium">
-                {hasRequiredPhotos
-                  ? "Ready to proceed"
-                  : "Missing required photos"}
+                {hasRequiredPhotos ? "Ready to proceed" : "Missing required photos"}
               </div>
               <div className="text-xs text-gray-600 mt-1">
                 {hasRequiredPhotos
@@ -157,7 +163,7 @@ export default function PhotosStep({
         <div className="space-y-4">
           <div>
             <h3 className="font-medium text-sm mb-3">Upload Photos</h3>
-            
+
             {/* Drag and Drop Zones - Three in a row */}
             <div className="grid grid-cols-3 gap-4 mb-4">
               <PhotoDropZone
@@ -205,7 +211,6 @@ export default function PhotosStep({
           <PhotoGallery
             photos={photos}
             loadingPhotos={loadingPhotos}
-            lot={lot}
             onDownloadImage={onDownloadImage}
             onDownloadAllImages={onDownloadAllImages}
             onDeletePhoto={onDeletePhoto}
@@ -216,5 +221,3 @@ export default function PhotosStep({
     </div>
   );
 }
-
-

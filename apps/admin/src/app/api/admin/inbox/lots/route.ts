@@ -4,6 +4,55 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
 type SortOption = "price_desc" | "qty_desc" | "rarity_desc" | "updated_desc";
+
+type VebayInboxLotRow = {
+  lot_id: string;
+  card_id: string;
+  list_price_pence: number | null;
+  available_qty: number;
+  rarity: string | null;
+  rarity_rank: number | null;
+  updated_at: string;
+  status: string;
+  [key: string]: unknown;
+};
+
+type LotWithCardRow = {
+  id: string;
+  use_api_image: boolean;
+  variation: string | null;
+  card_id: string;
+  cards:
+    | {
+        api_image_url: string | null;
+      }
+    | {
+        api_image_url: string | null;
+      }[]
+    | null;
+};
+
+type PhotoRow = {
+  lot_id: string;
+  kind: string;
+};
+
+type MarketSnapshotRow = {
+  card_id: string;
+  source: string;
+  price_pence: number | null;
+  captured_at: string;
+  raw: unknown;
+};
+
+type EnrichedSnapshot = {
+  card_id: string;
+  price_pence: number | null;
+  source: string;
+  captured_at: string;
+  raw: unknown;
+};
+
 import { app } from "@/lib/config/env";
 
 const FLOOR_GBP = app().priceFloorGbp;
@@ -11,7 +60,7 @@ const ORIGIN = app().siteUrl;
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const { searchParams } = new URL(req.url);
     const includeDraft = searchParams.get("includeDraft") === "true";
@@ -24,9 +73,7 @@ export async function GET(req: Request) {
     const supabase = supabaseServer();
 
     // Build query from view
-    let query = supabase
-      .from("v_ebay_inbox_lots")
-      .select("*", { count: "exact" });
+    let query = supabase.from("v_ebay_inbox_lots").select("*", { count: "exact" });
 
     // Filter by draft status - view includes both, so filter if excluding draft
     if (!includeDraft) {
@@ -46,7 +93,7 @@ export async function GET(req: Request) {
     // Apply sorting
     switch (sort) {
       case "price_desc":
-        query = query.order("list_price_pence", { ascending: false, nullsLast: true });
+        query = query.order("list_price_pence", { ascending: false, nullsFirst: false });
         break;
       case "qty_desc":
         query = query.order("available_qty", { ascending: false });
@@ -82,8 +129,8 @@ export async function GET(req: Request) {
     }
 
     // Fetch additional data: use_api_image flag and card API image URL
-    const lotIds = (data || []).map((lot: any) => lot.lot_id);
-    const cardIds = [...new Set((data || []).map((lot: any) => lot.card_id))];
+    const lotIds = (data || []).map((lot: VebayInboxLotRow) => lot.lot_id);
+    const cardIds = [...new Set((data || []).map((lot: VebayInboxLotRow) => lot.card_id))];
 
     // Get use_api_image flags and card API image URLs
     const { data: lotsData } = await supabase
@@ -91,11 +138,17 @@ export async function GET(req: Request) {
       .select("id, use_api_image, variation, card_id, cards!inner(api_image_url)")
       .in("id", lotIds);
 
-    const lotMetadataMap = new Map();
-    (lotsData || []).forEach((lot: any) => {
+    type LotMetadata = {
+      use_api_image: boolean;
+      api_image_url: string | null;
+      variation: string;
+    };
+    const lotMetadataMap = new Map<string, LotMetadata>();
+    (lotsData || []).forEach((lot: LotWithCardRow) => {
+      const cards = Array.isArray(lot.cards) ? lot.cards[0] : lot.cards;
       lotMetadataMap.set(lot.id, {
         use_api_image: lot.use_api_image || false,
-        api_image_url: lot.cards?.api_image_url || null,
+        api_image_url: cards?.api_image_url || null,
         variation: lot.variation || "standard",
       });
     });
@@ -108,7 +161,7 @@ export async function GET(req: Request) {
       .in("kind", ["front", "back"]);
 
     const photoKindsMap = new Map<string, Set<string>>();
-    (photosData || []).forEach((photo: any) => {
+    (photosData || []).forEach((photo: PhotoRow) => {
       if (!photoKindsMap.has(photo.lot_id)) {
         photoKindsMap.set(photo.lot_id, new Set());
       }
@@ -116,7 +169,7 @@ export async function GET(req: Request) {
     });
 
     // Latest market snapshots per card (prefer most recent regardless of source; pricing step picks provider)
-    let snapshotsMap = new Map<string, any>();
+    const snapshotsMap = new Map<string, EnrichedSnapshot>();
     if (cardIds.length > 0) {
       const { data: snaps } = await supabase
         .from("market_snapshots")
@@ -124,9 +177,15 @@ export async function GET(req: Request) {
         .in("card_id", cardIds)
         .order("captured_at", { ascending: false });
 
-      (snaps || []).forEach((s: any) => {
+      (snaps || []).forEach((s: MarketSnapshotRow) => {
         if (!snapshotsMap.has(s.card_id)) {
-          snapshotsMap.set(s.card_id, s);
+          snapshotsMap.set(s.card_id, {
+            card_id: s.card_id,
+            price_pence: s.price_pence,
+            source: s.source,
+            captured_at: s.captured_at,
+            raw: s.raw,
+          });
         }
       });
 
@@ -139,13 +198,17 @@ export async function GET(req: Request) {
               const res = await fetch(`${ORIGIN}/api/admin/market/prices/${cid}`, {
                 method: "GET",
               });
-              const json = await res.json();
+              const json = (await res.json()) as {
+                chosen?: { price_pence?: number; source?: string };
+                captured_at?: string;
+                [key: string]: unknown;
+              };
               if (res.ok && json?.chosen?.price_pence != null) {
                 snapshotsMap.set(cid, {
                   card_id: cid,
                   price_pence: json.chosen.price_pence,
-                  source: json.chosen.source,
-                  captured_at: json.captured_at,
+                  source: json.chosen.source || "unknown",
+                  captured_at: json.captured_at || new Date().toISOString(),
                   raw: json,
                 });
               }
@@ -158,8 +221,12 @@ export async function GET(req: Request) {
     }
 
     // Enrich inbox lots with metadata + snapshot
-    const enrichedData = (data || []).map((lot: any) => {
-      const metadata = lotMetadataMap.get(lot.lot_id) || { use_api_image: false, api_image_url: null };
+    const enrichedData = (data || []).map((lot: VebayInboxLotRow) => {
+      const metadata: LotMetadata = lotMetadataMap.get(lot.lot_id) || {
+        use_api_image: false,
+        api_image_url: null,
+        variation: "standard",
+      };
       const photoKinds = photoKindsMap.get(lot.lot_id) || new Set();
       const hasFront = photoKinds.has("front");
       const hasBack = photoKinds.has("back");
@@ -190,8 +257,7 @@ export async function GET(req: Request) {
       pageSize,
       totalCount: count || 0,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "get_inbox_lots" });
   }
 }
-

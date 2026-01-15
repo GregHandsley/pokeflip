@@ -103,7 +103,7 @@ export function sanitizeUrl(url: string): string | null {
     return null;
   }
 
-  let sanitized = url.trim();
+  const sanitized = url.trim();
 
   // Remove dangerous protocols
   const dangerousProtocols = ["javascript:", "vbscript:", "data:", "file:"];
@@ -130,10 +130,10 @@ export function sanitizeEmail(email: string): string | null {
   }
 
   const sanitized = email.trim().toLowerCase();
-  
+
   // Basic email validation regex
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  
+
   if (!emailRegex.test(sanitized)) {
     return null;
   }
@@ -145,4 +145,3 @@ export function sanitizeEmail(email: string): string | null {
 
   return sanitized;
 }
-

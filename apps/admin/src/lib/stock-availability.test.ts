@@ -23,7 +23,7 @@ function validateStockForBundle(
 ): { available: number; needed: number; isValid: boolean } {
   const availableQty = lotQuantity - soldQty - bundleReservedQty;
   const totalCardsNeeded = bundleQuantity * cardsPerBundle;
-  
+
   return {
     available: availableQty,
     needed: totalCardsNeeded,
@@ -162,4 +162,3 @@ describe("Stock Availability Calculation", () => {
     });
   });
 });
-

@@ -4,18 +4,46 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import { uuid, quantity } from "@/lib/validation";
 
+type InventoryLotRow = {
+  id: string;
+  quantity: number;
+  for_sale: boolean;
+};
+
+type BundleItemWithLot = {
+  id: string;
+  lot_id: string;
+  quantity: number;
+  inventory_lots: InventoryLotRow | InventoryLotRow[] | null;
+};
+
+type SoldItemRow = {
+  lot_id: string;
+  qty: number;
+};
+
+type BundleRow = {
+  id: string;
+  quantity: number;
+};
+
+type BundleItemRow = {
+  quantity: number;
+  bundle_id: string;
+};
+
 // PATCH: Update bundle item quantity
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ bundleId: string; itemId: string }> }
 ) {
   const logger = createApiLogger(req);
-  
+  const { bundleId, itemId } = await params;
+
   try {
-    const { bundleId, itemId } = await params;
     const validatedBundleId = uuid(bundleId, "bundleId");
     const validatedItemId = uuid(itemId, "itemId");
-    
+
     const body = await req.json();
     const validatedQuantity = quantity(body.quantity, "quantity");
 
@@ -29,17 +57,11 @@ export async function PATCH(
       .single();
 
     if (bundleError || !bundle) {
-      return NextResponse.json(
-        { error: "Bundle not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Bundle not found" }, { status: 404 });
     }
 
     if (bundle.status === "sold") {
-      return NextResponse.json(
-        { error: "Cannot modify items in a sold bundle" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Cannot modify items in a sold bundle" }, { status: 400 });
     }
 
     const bundleQuantity = bundle.quantity || 1;
@@ -53,13 +75,14 @@ export async function PATCH(
       .single();
 
     if (itemError || !bundleItem) {
-      return NextResponse.json(
-        { error: "Bundle item not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Bundle item not found" }, { status: 404 });
     }
 
-    const lot = bundleItem.inventory_lots;
+    const bundleItemData = bundleItem as BundleItemWithLot;
+    const lots = Array.isArray(bundleItemData.inventory_lots)
+      ? bundleItemData.inventory_lots[0]
+      : bundleItemData.inventory_lots;
+    const lot = lots || null;
     if (!lot || !lot.for_sale) {
       return NextResponse.json(
         { error: "Cannot update items that are not for sale" },
@@ -73,7 +96,10 @@ export async function PATCH(
       .select("lot_id, qty")
       .eq("lot_id", bundleItem.lot_id);
 
-    const soldQty = (soldItems || []).reduce((sum: number, item: any) => sum + (item.qty || 0), 0);
+    const soldQty = (soldItems || []).reduce(
+      (sum: number, item: SoldItemRow) => sum + (item.qty || 0),
+      0
+    );
 
     // Get quantities already reserved in other active bundles (excluding this bundle)
     // Reserved = bundle.quantity * bundle_item.quantity
@@ -85,26 +111,26 @@ export async function PATCH(
     let reservedQty = 0;
     if (activeBundles && activeBundles.length > 0) {
       const otherBundleIds = activeBundles
-        .filter((b: any) => b.id !== validatedBundleId)
-        .map((b: any) => b.id);
-      
+        .filter((b: BundleRow) => b.id !== validatedBundleId)
+        .map((b: BundleRow) => b.id);
+
       if (otherBundleIds.length > 0) {
         const bundleQtyMap = new Map<string, number>();
-        activeBundles.forEach((b: any) => {
+        activeBundles.forEach((b: BundleRow) => {
           if (b.id !== validatedBundleId) {
             bundleQtyMap.set(b.id, b.quantity || 1);
           }
         });
-        
+
         const { data: existingBundleItems } = await supabase
           .from("bundle_items")
           .select("quantity, bundle_id")
           .eq("lot_id", bundleItem.lot_id)
           .in("bundle_id", otherBundleIds);
 
-        reservedQty = (existingBundleItems || []).reduce((sum: number, item: any) => {
+        reservedQty = (existingBundleItems || []).reduce((sum: number, item: BundleItemRow) => {
           const bundleQty = bundleQtyMap.get(item.bundle_id) || 1;
-          return sum + (bundleQty * (item.quantity || 1));
+          return sum + bundleQty * (item.quantity || 1);
         }, 0);
       }
     }
@@ -119,7 +145,9 @@ export async function PATCH(
 
     if (newTotalNeeded > totalAvailable) {
       return NextResponse.json(
-        { error: `Insufficient quantity. Available: ${totalAvailable}, Needed for ${bundleQuantity} bundle(s) with ${validatedQuantity} per bundle: ${newTotalNeeded}` },
+        {
+          error: `Insufficient quantity. Available: ${totalAvailable}, Needed for ${bundleQuantity} bundle(s) with ${validatedQuantity} per bundle: ${newTotalNeeded}`,
+        },
         { status: 400 }
       );
     }
@@ -162,9 +190,9 @@ export async function DELETE(
   { params }: { params: Promise<{ bundleId: string; itemId: string }> }
 ) {
   const logger = createApiLogger(req);
-  
+  const { bundleId, itemId } = await params;
+
   try {
-    const { bundleId, itemId } = await params;
     const validatedBundleId = uuid(bundleId, "bundleId");
     const validatedItemId = uuid(itemId, "itemId");
 
@@ -178,10 +206,7 @@ export async function DELETE(
       .single();
 
     if (bundleError || !bundle) {
-      return NextResponse.json(
-        { error: "Bundle not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Bundle not found" }, { status: 404 });
     }
 
     if (bundle.status === "sold") {
@@ -200,10 +225,7 @@ export async function DELETE(
       .single();
 
     if (itemError || !bundleItem) {
-      return NextResponse.json(
-        { error: "Bundle item not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Bundle item not found" }, { status: 404 });
     }
 
     // Delete the bundle item
@@ -236,4 +258,3 @@ export async function DELETE(
     });
   }
 }
-

@@ -3,14 +3,13 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
-  
+
+  // Extract lotId outside try block so it's available in catch
+  const { lotId } = await params;
+
   try {
-    const { lotId } = await params;
     const body = await req.json();
     const { objectKey, kind } = body as {
       objectKey?: string;
@@ -18,10 +17,7 @@ export async function POST(
     };
 
     if (!objectKey) {
-      return NextResponse.json(
-        { error: "objectKey is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "objectKey is required" }, { status: 400 });
     }
 
     if (!kind || !["front", "back", "extra"].includes(kind)) {
@@ -40,10 +36,7 @@ export async function POST(
       .single();
 
     if (lotError || !lot) {
-      return NextResponse.json(
-        { error: "Lot not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Lot not found" }, { status: 404 });
     }
 
     // Verify the file exists in storage
@@ -72,7 +65,11 @@ export async function POST(
       .single();
 
     if (insertError) {
-      logger.error("Failed to insert lot_photo", insertError, undefined, { lotId, objectKey, kind });
+      logger.error("Failed to insert lot_photo", insertError, undefined, {
+        lotId,
+        objectKey,
+        kind,
+      });
       return createErrorResponse(
         insertError.message || "Failed to save photo record",
         500,
@@ -91,8 +88,7 @@ export async function POST(
         created_at: photo.created_at,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "commit_lot_photo", metadata: { lotId } });
   }
 }
-

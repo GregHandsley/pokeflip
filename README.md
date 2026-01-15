@@ -5,6 +5,7 @@ A comprehensive Pokemon card inventory and sales management system built with Ne
 ## Overview
 
 Pokeflip is a full-featured inventory management system for Pokemon card collections, enabling:
+
 - **Inventory Management**: Track cards, lots, variations, and quantities
 - **Sales Processing**: Record sales, calculate profits, and manage orders
 - **Acquisitions**: Add new purchases and process intake lines
@@ -46,36 +47,41 @@ pokeflip/
 ### Installation
 
 1. **Clone the repository:**
+
    ```bash
    git clone <repository-url>
    cd pokeflip
    ```
 
 2. **Install dependencies:**
+
    ```bash
    pnpm install
    ```
 
 3. **Set up environment variables:**
+
    ```bash
    cd apps/admin
    cp .env.example .env.local
    ```
-   
+
    Edit `.env.local` and add your Supabase credentials:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
 
 4. **Set up the database:**
+
    ```bash
    # If using Supabase CLI
    supabase migration up
-   
+
    # Or apply migrations manually via Supabase dashboard
    ```
 
 5. **Start the development server:**
+
    ```bash
    pnpm dev
    ```
@@ -125,12 +131,14 @@ For detailed setup instructions, see [apps/admin/README.md](./apps/admin/README.
 ## Key Features
 
 ### Inventory Management
+
 - Track individual cards with variations (condition, language, etc.)
 - Manage inventory lots (quantity, status, pricing)
 - Bulk operations (merge, split lots)
 - Photo uploads for physical cards
 
 ### Sales Processing
+
 - Record sales orders with buyers
 - Calculate profits (revenue, costs, margins)
 - Handle discounts and promotional deals
@@ -138,29 +146,34 @@ For detailed setup instructions, see [apps/admin/README.md](./apps/admin/README.
 - Export sales data to CSV
 
 ### Acquisitions
+
 - Add new card purchases
 - Process intake lines with photos
 - Commit acquisitions to inventory
 - Track purchase costs and profitability
 
 ### Bundles
+
 - Create bundles of multiple cards
 - Set bundle prices
 - Track bundle inventory
 - Record bundle sales
 
 ### Analytics & Reporting
+
 - Sales volume tracking
 - Inventory level monitoring
 - Profit analysis
 - Performance metrics
 
 ### Integrations
+
 - eBay inbox synchronization
 - eBay order management
 - OAuth authentication
 
 ### Monitoring & Alerts
+
 - Health check endpoint (`/api/health`)
 - API response time tracking
 - Error alerting (Sentry integration)
@@ -222,11 +235,13 @@ pnpm format:check
 See [apps/admin/ENV_CONFIG.md](./apps/admin/ENV_CONFIG.md) for complete environment variable documentation.
 
 **Required:**
+
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
 **Optional:**
+
 - Sentry configuration
 - Site URL
 - Price floor settings
@@ -242,6 +257,7 @@ Database migrations are in `supabase/migrations/` and are applied sequentially b
 ### Schema Overview
 
 Key tables:
+
 - `cards` - Card catalog data
 - `sets` - Pokemon card sets
 - `inventory_lots` - Inventory lots
@@ -284,6 +300,7 @@ See [docs/USER_GUIDE.md](./docs/USER_GUIDE.md) for user workflows and guides.
 ### Other Platforms
 
 The application can be deployed to any platform supporting Next.js:
+
 - Railway
 - Docker containers
 - Self-hosted servers
@@ -314,4 +331,3 @@ Ensure all required environment variables are set in your deployment platform.
 ## Support
 
 For issues and questions, please open an issue on GitHub.
-

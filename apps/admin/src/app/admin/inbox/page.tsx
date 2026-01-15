@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { penceToPounds } from "@pokeflip/shared";
+// import { penceToPounds } from "@pokeflip/shared";
 import PageHeader from "@/components/ui/PageHeader";
 import InboxTable from "@/components/inbox/InboxTable";
 import InboxFilters from "@/components/inbox/InboxFilters";
@@ -74,7 +74,7 @@ export default function InboxPage() {
 
       setLots(json.data || []);
       setTotalCount(json.totalCount || 0);
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error("Failed to load inbox lots", e);
     } finally {
       setLoading(false);
@@ -123,7 +123,7 @@ export default function InboxPage() {
     return () => window.removeEventListener("keydown", handler);
   }, [lots, selectedLotIds, selectedLot, showShortcuts]);
 
-  const handleBulkAction = async (action: string, payload?: any) => {
+  const handleBulkAction = async (action: string, payload?: Record<string, unknown>) => {
     if (selectedLotIds.size === 0) {
       alert("Please select at least one lot");
       return;
@@ -136,7 +136,7 @@ export default function InboxPage() {
         body: JSON.stringify({
           action,
           lotIds: Array.from(selectedLotIds),
-          ...payload,
+          ...(payload || {}),
         }),
       });
 
@@ -155,8 +155,8 @@ export default function InboxPage() {
       await loadLots();
       // Dispatch event to update inbox count in sidebar
       window.dispatchEvent(new CustomEvent("inboxUpdated"));
-    } catch (e: any) {
-      alert(e.message || "Failed to perform bulk action");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to perform bulk action");
     }
   };
 
@@ -212,7 +212,10 @@ export default function InboxPage() {
       )}
 
       {showShortcuts && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowShortcuts(false)}>
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+          onClick={() => setShowShortcuts(false)}
+        >
           <div
             className="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
@@ -228,12 +231,24 @@ export default function InboxPage() {
               </button>
             </div>
             <ul className="space-y-2 text-sm text-gray-700">
-              <li><span className="font-semibold">/</span> Focus min price filter</li>
-              <li><span className="font-semibold">e</span> Expand first selected lot</li>
-              <li><span className="font-semibold">m</span> Quick open selected lot (mark/list)</li>
-              <li><span className="font-semibold">c</span> Close open modal</li>
-              <li><span className="font-semibold">Esc</span> Close modal or shortcuts</li>
-              <li><span className="font-semibold">?</span> Toggle this help</li>
+              <li>
+                <span className="font-semibold">/</span> Focus min price filter
+              </li>
+              <li>
+                <span className="font-semibold">e</span> Expand first selected lot
+              </li>
+              <li>
+                <span className="font-semibold">m</span> Quick open selected lot (mark/list)
+              </li>
+              <li>
+                <span className="font-semibold">c</span> Close open modal
+              </li>
+              <li>
+                <span className="font-semibold">Esc</span> Close modal or shortcuts
+              </li>
+              <li>
+                <span className="font-semibold">?</span> Toggle this help
+              </li>
             </ul>
           </div>
         </div>
@@ -241,4 +256,3 @@ export default function InboxPage() {
     </div>
   );
 }
-

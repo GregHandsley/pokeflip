@@ -7,4 +7,3 @@ export const supabaseServer = () => {
     auth: { persistSession: false },
   });
 };
-

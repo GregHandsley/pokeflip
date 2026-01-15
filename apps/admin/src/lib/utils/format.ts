@@ -103,7 +103,9 @@ export function formatEntityType(entityType: string): string {
     ebay_listing: "eBay Listing",
     system: "System",
   };
-  return types[entityType] || entityType.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  return (
+    types[entityType] || entityType.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+  );
 }
 
 /**
@@ -123,4 +125,3 @@ export function formatStatus(status: string): string {
   };
   return statusLabels[status] || status;
 }
-

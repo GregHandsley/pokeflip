@@ -24,6 +24,7 @@ Complete guide to using the Pokeflip application for inventory and sales managem
 ### Dashboard Overview
 
 The dashboard provides an at-a-glance view of:
+
 - **Inbox Summary**: Items ready to list, items needing photos
 - **Quick Stats**: Open purchases, inventory totals, listed items
 - **Financial Overview**: Recent sales, total revenue, profit margins
@@ -44,6 +45,7 @@ The dashboard provides an at-a-glance view of:
 ### Managing Lots
 
 #### Viewing Lot Details
+
 1. Click on a card from the inventory list
 2. View all lots for that card
 3. See lot details:
@@ -55,6 +57,7 @@ The dashboard provides an at-a-glance view of:
    - Photos
 
 #### Updating Lot Status
+
 1. Open a lot detail view
 2. Click **Update Status**
 3. Select new status:
@@ -65,12 +68,14 @@ The dashboard provides an at-a-glance view of:
    - **Archived**: Hidden from inventory
 
 #### Marking Lots for Sale
+
 1. Open a lot detail view
 2. Toggle **For Sale** switch
 3. Set list price (in pence)
 4. Save changes
 
 #### Merging Lots
+
 1. Select multiple lots with the same card
 2. Click **Merge Lots**
 3. Choose the target lot to merge into
@@ -79,17 +84,20 @@ The dashboard provides an at-a-glance view of:
 **Note**: Lots can only be merged if they have the same card, condition, and variation.
 
 #### Splitting Lots
+
 1. Open a lot detail view
 2. Click **Split Lot**
 3. Define split quantities and statuses
 4. Confirm split
 
 Example: Split a lot of 10 cards into:
+
 - 5 cards → Listed status
 - 3 cards → Ready status
 - 2 cards → Draft status
 
 #### Adding Photos to Lots
+
 1. Open a lot detail view
 2. Click **Upload Photos**
 3. Select up to 2 photos (or use API image)
@@ -98,6 +106,7 @@ Example: Split a lot of 10 cards into:
 ### Bulk Operations
 
 From the inventory page, you can:
+
 - Bulk update status
 - Bulk toggle for sale
 - Bulk set list prices
@@ -134,6 +143,7 @@ From the inventory page, you can:
 ### Viewing Sales
 
 Navigate to **Sales** to see:
+
 - All sales orders
 - Order details (buyer, items, dates)
 - Profit breakdown
@@ -142,6 +152,7 @@ Navigate to **Sales** to see:
 ### Applying Promotional Deals
 
 When recording a sale:
+
 1. Select a promotional deal from the dropdown
 2. Deal is automatically applied to eligible items
 3. Discount is calculated and shown in summary
@@ -149,8 +160,9 @@ When recording a sale:
 ### Profit Calculation
 
 Profits are calculated as:
+
 - **Revenue**: Sum of (sold_price × quantity) for all items, minus discounts
-- **Costs**: 
+- **Costs**:
   - Purchase cost (from acquisitions)
   - Consumables cost (packaging materials)
   - Fees and shipping
@@ -222,6 +234,7 @@ Profits are calculated as:
 6. Confirm sale
 
 When a bundle is sold:
+
 - Bundle quantity decreases
 - Individual lot quantities decrease
 - Sale order is created
@@ -232,6 +245,7 @@ When a bundle is sold:
 ### Dashboard Analytics
 
 View operational analytics:
+
 - Items added/listed/sold over time
 - Revenue trends
 - Profit trends
@@ -269,6 +283,7 @@ View operational analytics:
 ### Consumables
 
 Manage packaging materials:
+
 1. Navigate to **Settings** → **Consumables**
 2. Add consumables (e.g., bubble mailers, boxes)
 3. Record purchases (cost, quantity)
@@ -277,18 +292,21 @@ Manage packaging materials:
 ### Packaging Rules
 
 Define packaging templates:
+
 1. Navigate to **Settings** → **Packaging Rules**
 2. Create rules based on card count ranges
 3. Specify consumables for each rule
 4. Set default rule
 
-Example: 
+Example:
+
 - 1-5 cards → 1 bubble mailer, 1 toploader
 - 6-20 cards → 1 box, 2 bubble wraps
 
 ### Promotional Deals
 
 Create sales promotions:
+
 1. Navigate to **Settings** → **Promotional Deals**
 2. Create deal:
    - **Buy X Get Y**: Buy 2 get 1 free
@@ -301,6 +319,7 @@ Create sales promotions:
 ### Set Translations
 
 Manage card set translations:
+
 1. Navigate to **Settings** → **Set Translations**
 2. Import translations for non-English sets
 3. Bulk import from CSV
@@ -377,30 +396,35 @@ Manage card set translations:
 ## Tips & Best Practices
 
 ### Inventory Management
+
 - Take photos when adding intake lines (saves time later)
 - Use consistent condition ratings (Near Mint, Lightly Played, etc.)
 - Keep variations consistent (e.g., always use "English" not "EN")
 - Regularly merge duplicate lots
 
 ### Sales Processing
+
 - Record consumables for accurate profit calculations
 - Apply discounts through the promotional deals system
 - Verify buyer information before saving sale
 - Review profit summary before finalizing sale
 
 ### Photography
+
 - Use good lighting
 - Show card condition clearly
 - Take multiple angles for high-value cards
 - Use API images when appropriate (faster, consistent quality)
 
 ### Pricing
+
 - Research market prices before setting list prices
 - Consider condition when pricing
 - Use bulk pricing for multiple cards
 - Review and adjust prices regularly
 
 ### Reporting
+
 - Export sales data regularly for backup
 - Review analytics monthly for trends
 - Monitor inventory levels to avoid stockouts
@@ -409,26 +433,31 @@ Manage card set translations:
 ## Troubleshooting
 
 ### Items Not Showing in Inventory
+
 - Check lot status (must be draft, ready, or listed)
 - Verify card is correct
 - Check for archived lots
 
 ### Sale Not Recording
+
 - Verify all required fields are filled
 - Check buyer exists or create new buyer
 - Ensure lots have sufficient quantity
 
 ### Profit Calculation Issues
+
 - Verify acquisition costs are recorded
 - Check consumables are properly tracked
 - Review discount calculations
 
 ### Photo Upload Issues
+
 - Check file size (too large will fail)
 - Verify file format (JPEG, PNG)
 - Ensure stable internet connection
 
 For technical issues, check:
+
 - Health check endpoint (`/api/health`)
 - Performance metrics page
 - Error logs in browser console
@@ -442,8 +471,8 @@ For technical issues, check:
 ## Support
 
 For questions or issues:
+
 1. Check this user guide
 2. Review API documentation for technical details
 3. Check error logs for specific errors
 4. Contact system administrator
-

@@ -34,4 +34,3 @@ export const variationLabel = (v?: string | null) => {
       return "Standard";
   }
 };
-

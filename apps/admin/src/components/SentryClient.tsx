@@ -10,13 +10,12 @@ export default function SentryClient() {
       // Use direct env var access (client-safe, avoids validation issues)
       const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN || null;
       const enabled =
-        process.env.NODE_ENV === "production" ||
-        process.env.NEXT_PUBLIC_SENTRY_ENABLED === "true";
+        process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_SENTRY_ENABLED === "true";
       const environment = (process.env.NODE_ENV || "development") as
         | "development"
         | "staging"
         | "production";
-      
+
       const config = { dsn, enabled, environment };
 
       // Debug logging
@@ -48,4 +47,3 @@ export default function SentryClient() {
 
   return null;
 }
-

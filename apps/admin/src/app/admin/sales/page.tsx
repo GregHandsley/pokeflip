@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { penceToPounds } from "@pokeflip/shared";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
@@ -57,9 +57,51 @@ export default function SalesPage() {
   const [orderProfit, setOrderProfit] = useState<ProfitData | null>(null);
   const [showRecordSaleModal, setShowRecordSaleModal] = useState(false);
 
+  const loadSales = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Get all sales orders
+      const ordersRes = await fetch("/api/admin/sales/orders");
+      const ordersJson = await ordersRes.json();
+      if (ordersJson.ok) {
+        setSalesOrders(ordersJson.orders || []);
+
+        // Get profit data for all orders
+        const profitPromises = (ordersJson.orders || []).map(async (order: SalesOrder) => {
+          const profitRes = await fetch(`/api/admin/sales/${order.id}/profit`);
+          const profitJson = await profitRes.json();
+          return profitJson.ok ? profitJson.profit : null;
+        });
+
+        const profits = await Promise.all(profitPromises);
+        setProfitData(profits.filter(Boolean));
+      }
+    } catch (e) {
+      handleError(e, { title: "Failed to load sales" });
+    } finally {
+      setLoading(false);
+    }
+  }, [handleError]);
+
+  const handleViewOrder = useCallback(
+    async (orderId: string) => {
+      setSelectedOrder(orderId);
+      try {
+        const res = await fetch(`/api/admin/sales/${orderId}/profit`);
+        const json = await res.json();
+        if (json.ok) {
+          setOrderProfit(json.profit);
+        }
+      } catch (e) {
+        handleError(e, { title: "Failed to load order profit" });
+      }
+    },
+    [handleError]
+  );
+
   useEffect(() => {
     loadSales();
-    
+
     // Check for orderId in URL params
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -70,46 +112,7 @@ export default function SalesPage() {
         window.history.replaceState({}, "", "/admin/sales");
       }
     }
-  }, []);
-
-  const loadSales = async () => {
-    setLoading(true);
-    try {
-      // Get all sales orders
-      const ordersRes = await fetch("/api/admin/sales/orders");
-      const ordersJson = await ordersRes.json();
-      if (ordersJson.ok) {
-        setSalesOrders(ordersJson.orders || []);
-        
-        // Get profit data for all orders
-        const profitPromises = (ordersJson.orders || []).map(async (order: SalesOrder) => {
-          const profitRes = await fetch(`/api/admin/sales/${order.id}/profit`);
-          const profitJson = await profitRes.json();
-          return profitJson.ok ? profitJson.profit : null;
-        });
-        
-        const profits = await Promise.all(profitPromises);
-        setProfitData(profits.filter(Boolean));
-      }
-    } catch (e) {
-      handleError(e, { title: "Failed to load sales" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleViewOrder = async (orderId: string) => {
-    setSelectedOrder(orderId);
-    try {
-      const res = await fetch(`/api/admin/sales/${orderId}/profit`);
-      const json = await res.json();
-      if (json.ok) {
-        setOrderProfit(json.profit);
-      }
-    } catch (e) {
-      handleError(e, { title: "Failed to load order profit" });
-    }
-  };
+  }, [loadSales, handleViewOrder]);
 
   const [overallProfit, setOverallProfit] = useState<{
     purchase_cost_pence: number;
@@ -120,11 +123,7 @@ export default function SalesPage() {
     margin_percent: number;
   } | null>(null);
 
-  useEffect(() => {
-    loadOverallProfit();
-  }, []);
-
-  const loadOverallProfit = async () => {
+  const loadOverallProfit = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/sales/overall-profit");
       const json = await res.json();
@@ -134,14 +133,22 @@ export default function SalesPage() {
     } catch (e) {
       handleError(e, { title: "Failed to load overall profit" });
     }
-  };
+  }, [handleError]);
 
-  const totalRevenue = profitData.reduce((sum, p) => sum + ((p.revenue_after_discount_pence ?? p.revenue_pence) || 0), 0);
+  useEffect(() => {
+    loadOverallProfit();
+  }, [loadOverallProfit]);
+
+  const totalRevenue = profitData.reduce(
+    (sum, p) => sum + ((p.revenue_after_discount_pence ?? p.revenue_pence) || 0),
+    0
+  );
   const totalCosts = profitData.reduce((sum, p) => sum + (p.total_costs_pence || 0), 0);
   const totalProfit = profitData.reduce((sum, p) => sum + (p.net_profit_pence || 0), 0);
-  const avgMargin = profitData.length > 0
-    ? profitData.reduce((sum, p) => sum + (p.margin_percent || 0), 0) / profitData.length
-    : 0;
+  const avgMargin =
+    profitData.length > 0
+      ? profitData.reduce((sum, p) => sum + (p.margin_percent || 0), 0) / profitData.length
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -175,7 +182,7 @@ export default function SalesPage() {
 
       {/* Overall Profit & Loss */}
       {overallProfit && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6 mb-6">
+        <div className="bg-linear-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6 mb-6">
           <h2 className="text-xl font-bold mb-4">Overall Profit & Loss</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div>
@@ -204,15 +211,20 @@ export default function SalesPage() {
             </div>
             <div>
               <div className="text-xs text-gray-600 mb-1">Net Profit/Loss</div>
-              <div className={`text-2xl font-bold ${
-                overallProfit.net_profit_pence >= 0 ? "text-green-600" : "text-red-600"
-              }`}>
+              <div
+                className={`text-2xl font-bold ${
+                  overallProfit.net_profit_pence >= 0 ? "text-green-600" : "text-red-600"
+                }`}
+              >
                 £{penceToPounds(overallProfit.net_profit_pence)}
               </div>
-              <div className={`text-sm mt-1 ${
-                overallProfit.margin_percent >= 0 ? "text-green-600" : "text-red-600"
-              }`}>
-                {overallProfit.margin_percent >= 0 ? "+" : ""}{overallProfit.margin_percent.toFixed(1)}% margin
+              <div
+                className={`text-sm mt-1 ${
+                  overallProfit.margin_percent >= 0 ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {overallProfit.margin_percent >= 0 ? "+" : ""}
+                {overallProfit.margin_percent.toFixed(1)}% margin
               </div>
             </div>
           </div>
@@ -235,13 +247,17 @@ export default function SalesPage() {
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="text-sm text-gray-600">Avg Profit per Order</div>
-          <div className={`text-2xl font-bold mt-1 ${totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+          <div
+            className={`text-2xl font-bold mt-1 ${totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}
+          >
             £{penceToPounds(profitData.length > 0 ? totalProfit / profitData.length : 0)}
           </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="text-sm text-gray-600">Avg Margin</div>
-          <div className={`text-2xl font-bold mt-1 ${avgMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
+          <div
+            className={`text-2xl font-bold mt-1 ${avgMargin >= 0 ? "text-green-600" : "text-red-600"}`}
+          >
             {avgMargin.toFixed(1)}%
           </div>
         </div>
@@ -261,13 +277,27 @@ export default function SalesPage() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Buyer</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Revenue</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Costs</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Profit</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Margin</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Buyer
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Revenue
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Costs
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Profit
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Margin
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -298,19 +328,24 @@ export default function SalesPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm font-medium">
-                        £{penceToPounds(profit.revenue_after_discount_pence ?? profit.revenue_pence)}
+                        £
+                        {penceToPounds(profit.revenue_after_discount_pence ?? profit.revenue_pence)}
                       </td>
                       <td className="px-4 py-3 text-sm text-red-600">
                         £{penceToPounds(profit.total_costs_pence)}
                       </td>
-                      <td className={`px-4 py-3 text-sm font-medium ${
-                        profit.net_profit_pence >= 0 ? "text-green-600" : "text-red-600"
-                      }`}>
+                      <td
+                        className={`px-4 py-3 text-sm font-medium ${
+                          profit.net_profit_pence >= 0 ? "text-green-600" : "text-red-600"
+                        }`}
+                      >
                         £{penceToPounds(profit.net_profit_pence)}
                       </td>
-                      <td className={`px-4 py-3 text-sm font-medium ${
-                        profit.margin_percent >= 0 ? "text-green-600" : "text-red-600"
-                      }`}>
+                      <td
+                        className={`px-4 py-3 text-sm font-medium ${
+                          profit.margin_percent >= 0 ? "text-green-600" : "text-red-600"
+                        }`}
+                      >
                         {profit.margin_percent.toFixed(1)}%
                       </td>
                       <td className="px-4 py-3">
@@ -351,9 +386,11 @@ export default function SalesPage() {
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="text-sm text-gray-600">Net Profit</div>
-                <div className={`text-2xl font-bold mt-1 ${
-                  orderProfit.net_profit_pence >= 0 ? "text-green-600" : "text-red-600"
-                }`}>
+                <div
+                  className={`text-2xl font-bold mt-1 ${
+                    orderProfit.net_profit_pence >= 0 ? "text-green-600" : "text-red-600"
+                  }`}
+                >
                   £{penceToPounds(orderProfit.net_profit_pence)}
                 </div>
               </div>
@@ -369,12 +406,19 @@ export default function SalesPage() {
                 {(orderProfit.discount_pence || 0) > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>Discount:</span>
-                    <span className="font-medium">-£{penceToPounds(orderProfit.discount_pence || 0)}</span>
+                    <span className="font-medium">
+                      -£{penceToPounds(orderProfit.discount_pence || 0)}
+                    </span>
                   </div>
                 )}
                 <div className="border-t border-gray-200 pt-2 flex justify-between font-medium">
                   <span>Total Revenue:</span>
-                  <span className="text-green-600">£{penceToPounds(orderProfit.revenue_after_discount_pence ?? orderProfit.revenue_pence)}</span>
+                  <span className="text-green-600">
+                    £
+                    {penceToPounds(
+                      orderProfit.revenue_after_discount_pence ?? orderProfit.revenue_pence
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -396,43 +440,49 @@ export default function SalesPage() {
                 </div>
                 <div className="border-t border-gray-200 pt-2 flex justify-between font-medium">
                   <span>Total Costs:</span>
-                  <span className="text-red-600">£{penceToPounds(orderProfit.total_costs_pence)}</span>
+                  <span className="text-red-600">
+                    £{penceToPounds(orderProfit.total_costs_pence)}
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Card Details */}
-            {selectedOrder && (() => {
-              const order = salesOrders.find((o) => o.id === selectedOrder);
-              return order && order.sales_items && order.sales_items.length > 0 ? (
-                <div>
-                  <h3 className="font-semibold text-sm mb-2">Cards Sold</h3>
-                  <div className="space-y-2 text-sm">
-                    {order.sales_items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                        <div>
-                          {item.lot?.card ? (
-                            <>
-                              <div className="font-medium">
-                                #{item.lot.card.number} {item.lot.card.name}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                Quantity: {item.qty} × £{penceToPounds(item.sold_price_pence)}
-                              </div>
-                            </>
-                          ) : (
-                            <div className="text-gray-500">Unknown card</div>
-                          )}
+            {selectedOrder &&
+              (() => {
+                const order = salesOrders.find((o) => o.id === selectedOrder);
+                return order && order.sales_items && order.sales_items.length > 0 ? (
+                  <div>
+                    <h3 className="font-semibold text-sm mb-2">Cards Sold</h3>
+                    <div className="space-y-2 text-sm">
+                      {order.sales_items.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between items-center p-2 bg-gray-50 rounded"
+                        >
+                          <div>
+                            {item.lot?.card ? (
+                              <>
+                                <div className="font-medium">
+                                  #{item.lot.card.number} {item.lot.card.name}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  Quantity: {item.qty} × £{penceToPounds(item.sold_price_pence)}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-gray-500">Unknown card</div>
+                            )}
+                          </div>
+                          <div className="font-medium">
+                            £{penceToPounds(item.qty * item.sold_price_pence)}
+                          </div>
                         </div>
-                        <div className="font-medium">
-                          £{penceToPounds(item.qty * item.sold_price_pence)}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : null;
-            })()}
+                ) : null;
+              })()}
 
             {orderProfit.consumables_breakdown && orderProfit.consumables_breakdown.length > 0 && (
               <div>
@@ -440,7 +490,9 @@ export default function SalesPage() {
                 <div className="space-y-1 text-sm">
                   {orderProfit.consumables_breakdown.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-gray-600">
-                      <span>{item.consumable_name} × {item.qty} {item.unit}</span>
+                      <span>
+                        {item.consumable_name} × {item.qty} {item.unit}
+                      </span>
                       <span>£{penceToPounds(item.total_cost_pence)}</span>
                     </div>
                   ))}
@@ -451,9 +503,11 @@ export default function SalesPage() {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-blue-900">Margin:</span>
-                <span className={`text-lg font-bold ${
-                  orderProfit.margin_percent >= 0 ? "text-green-600" : "text-red-600"
-                }`}>
+                <span
+                  className={`text-lg font-bold ${
+                    orderProfit.margin_percent >= 0 ? "text-green-600" : "text-red-600"
+                  }`}
+                >
                   {orderProfit.margin_percent.toFixed(1)}%
                 </span>
               </div>
@@ -474,4 +528,3 @@ export default function SalesPage() {
     </div>
   );
 }
-

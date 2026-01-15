@@ -70,13 +70,13 @@ function classifyErrorSeverity(message: string, error?: Error): ErrorSeverity {
 /**
  * Send alert for critical errors
  */
-export function sendCriticalAlert(
-  message: string,
-  error: Error | unknown,
-  context?: AlertContext
-) {
-  const logger = createApiLogger(context as unknown as Request, context?.userId, context?.userEmail);
-  
+export function sendCriticalAlert(message: string, error: Error | unknown, context?: AlertContext) {
+  const logger = createApiLogger(
+    context as unknown as Request,
+    context?.userId,
+    context?.userEmail
+  );
+
   const err = error instanceof Error ? error : new Error(String(error));
   const severity = context?.severity || classifyErrorSeverity(message, err);
 
@@ -93,7 +93,7 @@ export function sendCriticalAlert(
       Sentry.withScope((scope) => {
         // Set severity level
         scope.setLevel(severity === "critical" ? "fatal" : "error");
-        
+
         // Add tags for filtering
         scope.setTag("error_severity", severity);
         scope.setTag("alert", "true");
@@ -169,14 +169,16 @@ export function trackMetric(
 ) {
   // Only track metrics if we have a valid context or create a minimal one
   try {
-    const logger = context ? createApiLogger(context as unknown as Request, context?.userId) : createApiLogger(new Request("http://localhost"));
+    const logger = context
+      ? createApiLogger(context as unknown as Request, context?.userId)
+      : createApiLogger(new Request("http://localhost"));
 
     // Check thresholds and alert if exceeded
     if (threshold) {
-      const isCritical = 
+      const isCritical =
         (threshold.criticalMin !== undefined && value < threshold.criticalMin) ||
         (threshold.criticalMax !== undefined && value > threshold.criticalMax);
-      
+
       const isWarning =
         (threshold.min !== undefined && value < threshold.min) ||
         (threshold.max !== undefined && value > threshold.max);
@@ -208,7 +210,7 @@ export function trackMetric(
               context,
             },
           });
-        } catch (error) {
+        } catch {
           // Ignore Sentry errors
         }
       } else if (isWarning) {
@@ -232,4 +234,3 @@ export function trackMetric(
     console.error(`Failed to track metric ${metricName}:`, error);
   }
 }
-

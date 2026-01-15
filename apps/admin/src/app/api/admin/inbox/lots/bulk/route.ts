@@ -8,64 +8,70 @@ type BulkAction =
   | { action: "mark_not_for_sale"; lotIds: string[]; for_sale: boolean }
   | { action: "group_lots"; lotIds: string[] };
 
+type BulkActionResult = {
+  ok: true;
+  message: string;
+  affected: number;
+  newLotId?: string;
+};
+
 export async function POST(req: Request) {
   const logger = createApiLogger(req);
-  
+  let body: unknown;
+
   try {
-    const body = await req.json() as BulkAction;
+    body = (await req.json()) as BulkAction;
+    const validatedBody = body as BulkAction;
     const supabase = supabaseServer();
 
-    if (!body.action || !body.lotIds || body.lotIds.length === 0) {
-      return NextResponse.json(
-        { error: "Action and lotIds are required" },
-        { status: 400 }
-      );
+    if (!validatedBody.action || !validatedBody.lotIds || validatedBody.lotIds.length === 0) {
+      return NextResponse.json({ error: "Action and lotIds are required" }, { status: 400 });
     }
 
-    let result: any = { ok: true, message: "", affected: 0 };
+    const result: BulkActionResult = { ok: true, message: "", affected: 0 };
 
-    switch (body.action) {
+    switch (validatedBody.action) {
       case "update_list_price": {
-        if (body.list_price === undefined || body.list_price === null) {
+        if (validatedBody.list_price === undefined || validatedBody.list_price === null) {
           return NextResponse.json(
             { error: "list_price is required for update_list_price action" },
             { status: 400 }
           );
         }
 
-        const listPricePence = Math.round(body.list_price * 100);
+        const listPricePence = Math.round(validatedBody.list_price * 100);
 
         const { error: updateError } = await supabase
           .from("inventory_lots")
           .update({ list_price_pence: listPricePence })
-          .in("id", body.lotIds);
+          .in("id", validatedBody.lotIds);
 
         if (updateError) {
           throw new Error(updateError.message || "Failed to update list prices");
         }
 
-        result.affected = body.lotIds.length;
-        result.message = `Updated list price for ${body.lotIds.length} lot(s)`;
+        result.affected = validatedBody.lotIds.length;
+        result.message = `Updated list price for ${validatedBody.lotIds.length} lot(s)`;
         break;
       }
 
       case "mark_not_for_sale": {
         const { error: updateError } = await supabase
           .from("inventory_lots")
-          .update({ for_sale: body.for_sale })
-          .in("id", body.lotIds);
+          .update({ for_sale: validatedBody.for_sale })
+          .in("id", validatedBody.lotIds);
 
         if (updateError) {
           throw new Error(updateError.message || "Failed to update for_sale status");
         }
 
-        result.affected = body.lotIds.length;
-        result.message = `Updated for_sale status for ${body.lotIds.length} lot(s)`;
+        result.affected = validatedBody.lotIds.length;
+        result.message = `Updated for_sale status for ${validatedBody.lotIds.length} lot(s)`;
         break;
       }
 
       case "group_lots": {
-        if (body.lotIds.length < 2) {
+        if (validatedBody.lotIds.length < 2) {
           return NextResponse.json(
             { error: "At least 2 lots are required to group" },
             { status: 400 }
@@ -75,14 +81,16 @@ export async function POST(req: Request) {
         // Fetch all lots to validate they can be grouped
         const { data: lots, error: fetchError } = await supabase
           .from("inventory_lots")
-          .select("id, card_id, condition, quantity, for_sale, list_price_pence, status, note, acquisition_id, use_api_image")
-          .in("id", body.lotIds);
+          .select(
+            "id, card_id, condition, quantity, for_sale, list_price_pence, status, note, acquisition_id, use_api_image"
+          )
+          .in("id", validatedBody.lotIds);
 
         if (fetchError || !lots || lots.length === 0) {
           throw new Error(fetchError?.message || "Failed to fetch lots");
         }
 
-        if (lots.length !== body.lotIds.length) {
+        if (lots.length !== validatedBody.lotIds.length) {
           throw new Error("Some lots were not found");
         }
 
@@ -137,11 +145,12 @@ export async function POST(req: Request) {
         const { data: allPhotos, error: photosError } = await supabase
           .from("lot_photos")
           .select("kind, object_key")
-          .in("lot_id", body.lotIds);
+          .in("lot_id", validatedBody.lotIds);
 
         if (photosError) {
-          logger.warn("Failed to fetch photos during bulk group", photosError, undefined, {
-            lotIds: body.lotIds,
+          logger.warn("Failed to fetch photos during bulk group", undefined, {
+            lotIds: validatedBody.lotIds,
+            error: photosError,
           });
           // Continue even if photos fail - we'll still group the lots
         } else if (allPhotos && allPhotos.length > 0) {
@@ -150,7 +159,7 @@ export async function POST(req: Request) {
           // For extra photos, keep all unique ones
           const photosByKind = new Map<string, { kind: string; object_key: string }>();
           const extraPhotos: { kind: string; object_key: string }[] = [];
-          
+
           for (const photo of allPhotos) {
             if (photo.kind === "front" || photo.kind === "back") {
               // Only keep first front/back photo
@@ -167,14 +176,13 @@ export async function POST(req: Request) {
           }
 
           // Combine front/back photos with extra photos
-          const photosToInsert = [
-            ...Array.from(photosByKind.values()),
-            ...extraPhotos,
-          ].map((photo) => ({
-            lot_id: newLot.id,
-            kind: photo.kind,
-            object_key: photo.object_key,
-          }));
+          const photosToInsert = [...Array.from(photosByKind.values()), ...extraPhotos].map(
+            (photo) => ({
+              lot_id: newLot.id,
+              kind: photo.kind,
+              object_key: photo.object_key,
+            })
+          );
 
           if (photosToInsert.length > 0) {
             const { error: insertPhotosError } = await supabase
@@ -183,7 +191,7 @@ export async function POST(req: Request) {
 
             if (insertPhotosError) {
               logger.warn("Failed to transfer photos during bulk group", undefined, {
-                lotIds: body.lotIds,
+                lotIds: validatedBody.lotIds,
                 photosCount: photosToInsert.length,
                 error: insertPhotosError,
               });
@@ -196,7 +204,7 @@ export async function POST(req: Request) {
         const { error: deleteError } = await supabase
           .from("inventory_lots")
           .delete()
-          .in("id", body.lotIds);
+          .in("id", validatedBody.lotIds);
 
         if (deleteError) {
           // If deletion fails, try to delete the new lot we created
@@ -204,25 +212,24 @@ export async function POST(req: Request) {
           throw new Error(deleteError.message || "Failed to delete original lots");
         }
 
-        result.affected = body.lotIds.length;
-        result.message = `Grouped ${body.lotIds.length} lot(s) into 1 lot with quantity ${totalQuantity}`;
+        result.affected = validatedBody.lotIds.length;
+        result.message = `Grouped ${validatedBody.lotIds.length} lot(s) into 1 lot with quantity ${totalQuantity}`;
         result.newLotId = newLot.id;
         break;
       }
 
       default:
         return NextResponse.json(
-          { error: `Unknown action: ${(body as any).action}` },
+          { error: `Unknown action: ${(body as BulkAction)?.action ?? "unknown"}` },
           { status: 400 }
         );
     }
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, {
       operation: "bulk_inbox_action",
       metadata: { action: (body as BulkAction)?.action },
     });
   }
 }
-

@@ -56,7 +56,8 @@ export default function BuyerOrderForm({
             <div className="mt-1 text-xs text-gray-600">
               {selectedBuyer.order_count ? (
                 <>
-                  Repeat buyer: {selectedBuyer.order_count} order{selectedBuyer.order_count !== 1 ? "s" : ""}
+                  Repeat buyer: {selectedBuyer.order_count} order
+                  {selectedBuyer.order_count !== 1 ? "s" : ""}
                   {selectedBuyer.total_spend_pence != null && (
                     <> • Total spend: £{penceToPounds(selectedBuyer.total_spend_pence)}</>
                   )}
@@ -150,4 +151,3 @@ export default function BuyerOrderForm({
     </>
   );
 }
-

@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AuditLogRecord, AuditActionType, AuditEntityType } from "@/lib/audit/audit-log";
 import Button from "@/components/ui/Button";
-import { formatRelativeDate, formatEntityType as formatEntityTypeUtil, formatPrice } from "@/lib/utils/format";
+import {
+  formatRelativeDate,
+  formatEntityType as formatEntityTypeUtil,
+  formatPrice,
+} from "@/lib/utils/format";
 
 interface AuditTrailProps {
   entityType?: AuditEntityType;
@@ -33,13 +37,13 @@ export default function AuditTrail({
   });
   const [undoingIds, setUndoingIds] = useState<Set<string>>(new Set());
 
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
       const params = new URLSearchParams();
-      
+
       if (filters.entityType) {
         params.append("entityType", filters.entityType);
       }
@@ -59,8 +63,8 @@ export default function AuditTrail({
         if (data.error === "AUDIT_TABLE_NOT_FOUND" || data.message?.includes("does not exist")) {
           throw new Error(
             "Audit log table does not exist. Please run the migration:\n" +
-            "supabase/migrations/20260111000000_add_audit_log.sql\n\n" +
-            "Run: supabase migration up or apply the migration manually via Supabase dashboard"
+              "supabase/migrations/20260111000000_add_audit_log.sql\n\n" +
+              "Run: supabase migration up or apply the migration manually via Supabase dashboard"
           );
         }
         throw new Error(data.message || data.error || "Failed to load audit logs");
@@ -72,11 +76,11 @@ export default function AuditTrail({
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
   useEffect(() => {
     loadLogs();
-  }, [filters]);
+  }, [loadLogs]);
 
   const handleUndo = async (auditLogId: string) => {
     if (undoingIds.has(auditLogId)) {
@@ -122,7 +126,7 @@ export default function AuditTrail({
     if (actionType === "other" && description?.startsWith("Reverted:")) {
       return "Action Reverted";
     }
-    
+
     const labels: Record<string, string> = {
       create_sale: "Sale Created",
       update_price: "Price Updated",
@@ -137,7 +141,9 @@ export default function AuditTrail({
       update_acquisition: "Purchase Updated",
       other: "Action Performed",
     };
-    return labels[actionType] || actionType.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+    return (
+      labels[actionType] || actionType.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+    );
   };
 
   // User-friendly entity type labels (use shared utility)
@@ -198,8 +204,13 @@ export default function AuditTrail({
 
     // Format lots array (for sales)
     if (Array.isArray(values.lots) && values.lots.length > 0) {
-      const totalQty = values.lots.reduce((sum: number, lot: any) => sum + (lot.qty || 0), 0);
-      parts.push(`${values.lots.length} item${values.lots.length > 1 ? "s" : ""} (${totalQty} total)`);
+      const totalQty = values.lots.reduce((sum: number, lot: unknown) => {
+        const lotObj = lot as { qty?: number };
+        return sum + (lotObj.qty || 0);
+      }, 0);
+      parts.push(
+        `${values.lots.length} item${values.lots.length > 1 ? "s" : ""} (${totalQty} total)`
+      );
     }
 
     // Format fees, shipping, discount
@@ -221,7 +232,19 @@ export default function AuditTrail({
     // Fallback: format as readable JSON for other fields
     const remaining: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(values)) {
-      if (!["status", "list_price_pence", "sold_price_pence", "for_sale", "sold_quantity", "quantity", "qty", "buyer_handle", "platform"].includes(key)) {
+      if (
+        ![
+          "status",
+          "list_price_pence",
+          "sold_price_pence",
+          "for_sale",
+          "sold_quantity",
+          "quantity",
+          "qty",
+          "buyer_handle",
+          "platform",
+        ].includes(key)
+      ) {
         remaining[key] = value;
       }
     }
@@ -273,14 +296,16 @@ export default function AuditTrail({
         <div className="bg-gray-50 p-4 rounded-lg space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Item Type
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Item Type</label>
               <select
                 className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
                 value={filters.entityType || ""}
                 onChange={(e) =>
-                  setFilters({ ...filters, entityType: e.target.value as AuditEntityType || undefined, entityId: undefined })
+                  setFilters({
+                    ...filters,
+                    entityType: (e.target.value as AuditEntityType) || undefined,
+                    entityId: undefined,
+                  })
                 }
               >
                 <option value="">All Types</option>
@@ -291,14 +316,15 @@ export default function AuditTrail({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Action
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Action</label>
               <select
                 className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
                 value={filters.actionType || ""}
                 onChange={(e) =>
-                  setFilters({ ...filters, actionType: e.target.value as AuditActionType || undefined })
+                  setFilters({
+                    ...filters,
+                    actionType: (e.target.value as AuditActionType) || undefined,
+                  })
                 }
               >
                 <option value="">All Actions</option>
@@ -319,9 +345,7 @@ export default function AuditTrail({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
                 placeholder="Enter specific item ID to filter"
                 value={filters.entityId || ""}
-                onChange={(e) =>
-                  setFilters({ ...filters, entityId: e.target.value || undefined })
-                }
+                onChange={(e) => setFilters({ ...filters, entityId: e.target.value || undefined })}
               />
             </div>
           )}
@@ -332,15 +356,14 @@ export default function AuditTrail({
       {logs.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <div className="text-lg font-medium mb-2">No activity found</div>
-          <div className="text-sm">Try adjusting your filters or perform some actions to see audit logs.</div>
+          <div className="text-sm">
+            Try adjusting your filters or perform some actions to see audit logs.
+          </div>
         </div>
       ) : (
         <div className="space-y-2">
           {logs.map((log) => (
-            <div
-              key={log.id}
-              className="bg-white border border-gray-200 rounded-lg p-4 space-y-2"
-            >
+            <div key={log.id} className="bg-white border border-gray-200 rounded-lg p-4 space-y-2">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="mb-2">
@@ -356,20 +379,24 @@ export default function AuditTrail({
                       {log.description}
                     </div>
                   )}
-                  
+
                   {/* Changes Summary */}
                   {(log.old_values || log.new_values) && (
                     <div className="mt-2 space-y-1 text-sm">
                       {log.old_values && Object.keys(log.old_values).length > 0 && (
                         <div className="flex items-start gap-2">
                           <span className="font-medium text-red-600 min-w-[50px]">Before:</span>
-                          <span className="text-gray-700 flex-1">{formatValues(log.old_values)}</span>
+                          <span className="text-gray-700 flex-1">
+                            {formatValues(log.old_values)}
+                          </span>
                         </div>
                       )}
                       {log.new_values && Object.keys(log.new_values).length > 0 && (
                         <div className="flex items-start gap-2">
                           <span className="font-medium text-green-600 min-w-[50px]">After:</span>
-                          <span className="text-gray-700 flex-1">{formatValues(log.new_values)}</span>
+                          <span className="text-gray-700 flex-1">
+                            {formatValues(log.new_values)}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -399,4 +426,3 @@ export default function AuditTrail({
     </div>
   );
 }
-

@@ -11,14 +11,9 @@ export default function SentryExamplePage() {
     // Check if Sentry is initialized
     const checkSentry = () => {
       try {
-        // @ts-expect-error - checking internal Sentry state
         const isInitialized = Sentry.getClient() !== undefined;
-        setSentryStatus(
-          isInitialized
-            ? "✓ Sentry is initialized"
-            : "✗ Sentry is not initialized"
-        );
-      } catch (e) {
+        setSentryStatus(isInitialized ? "✓ Sentry is initialized" : "✗ Sentry is not initialized");
+      } catch {
         setSentryStatus("✗ Error checking Sentry status");
       }
     };
@@ -53,9 +48,7 @@ export default function SentryExamplePage() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-8">
       <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg w-full">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
-          Sentry Example Page
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">Sentry Example Page</h1>
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm font-medium text-blue-900">
             Status: <span className="font-mono">{sentryStatus}</span>
@@ -105,9 +98,7 @@ export default function SentryExamplePage() {
         )}
 
         <div className="mt-8 pt-6 border-t border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800 mb-2">
-            What to expect
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">What to expect</h2>
           <ul className="text-sm text-gray-600 space-y-2">
             <li>• Errors should appear in your Sentry dashboard within seconds</li>
             <li>• Each error includes stack traces and context</li>
@@ -116,10 +107,7 @@ export default function SentryExamplePage() {
         </div>
 
         <div className="mt-6">
-          <a
-            href="/admin"
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-          >
+          <a href="/admin" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
             ← Back to Admin
           </a>
         </div>
@@ -127,4 +115,3 @@ export default function SentryExamplePage() {
     </div>
   );
 }
-

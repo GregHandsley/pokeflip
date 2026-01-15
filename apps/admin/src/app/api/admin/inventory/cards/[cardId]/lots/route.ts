@@ -3,20 +3,100 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ cardId: string }> }
-) {
+type InventoryLotRow = {
+  id: string;
+  card_id: string;
+  condition: string;
+  variation: string | null;
+  quantity: number;
+  for_sale: boolean;
+  list_price_pence: number | null;
+  status: string;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  sku: string | null;
+  ebay_publish_queued_at: string | null;
+  use_api_image: boolean;
+  acquisition_id: string | null;
+};
+
+type SoldItemRow = {
+  lot_id: string;
+  qty: number;
+};
+
+type BundleRow = {
+  id: string;
+  quantity: number;
+};
+
+type BundleItemRow = {
+  lot_id: string;
+  quantity: number;
+  bundle_id: string;
+};
+
+type EbayListingRow = {
+  lot_id: string;
+  status: string;
+};
+
+type PhotoRow = {
+  lot_id: string;
+};
+
+type PurchaseHistoryRow = {
+  lot_id: string;
+  acquisition_id: string;
+  quantity: number;
+};
+
+type PurchaseHistoryAcquisitionRow = {
+  acquisition_id: string;
+};
+
+type AcquisitionRow = {
+  id: string;
+  source_name: string;
+  source_type: string;
+  purchased_at: string;
+  status: string;
+};
+
+type PurchaseWithQuantity = {
+  id: string;
+  source_name: string;
+  source_type: string;
+  purchased_at: string;
+  status: string;
+  quantity: number;
+};
+
+type JobPayload = {
+  lotId?: string;
+  [key: string]: unknown;
+};
+
+type JobRow = {
+  payload: JobPayload | null;
+  status: string;
+};
+
+export async function GET(req: Request, { params }: { params: Promise<{ cardId: string }> }) {
   const logger = createApiLogger(req);
-  
+
+  // Extract cardId outside try block so it's available in catch
+  const { cardId } = await params;
+
   try {
-    const { cardId } = await params;
     const supabase = supabaseServer();
 
     // Fetch card data first
     const { data: card, error: cardError } = await supabase
       .from("cards")
-      .select(`
+      .select(
+        `
         id,
         number,
         name,
@@ -26,7 +106,8 @@ export async function GET(
           id,
           name
         )
-      `)
+      `
+      )
       .eq("id", cardId)
       .single();
 
@@ -66,14 +147,14 @@ export async function GET(
     }
 
     // Get sold quantities from sales_items
-    const lotIds = lots.map((l: any) => l.id);
+    const lotIds = lots.map((l: InventoryLotRow) => l.id);
     const { data: soldItems } = await supabase
       .from("sales_items")
       .select("lot_id, qty")
       .in("lot_id", lotIds);
 
     const soldItemsMap = new Map<string, number>();
-    (soldItems || []).forEach((item: any) => {
+    (soldItems || []).forEach((item: SoldItemRow) => {
       const current = soldItemsMap.get(item.lot_id) || 0;
       soldItemsMap.set(item.lot_id, current + (item.qty || 0));
     });
@@ -86,28 +167,31 @@ export async function GET(
       .eq("status", "active");
 
     const bundleReservedMap = new Map<string, number>();
-    const lotBundlesMap = new Map<string, Array<{ bundleId: string; quantity: number; bundleQuantity: number }>>();
+    const lotBundlesMap = new Map<
+      string,
+      Array<{ bundleId: string; quantity: number; bundleQuantity: number }>
+    >();
     if (activeBundles && activeBundles.length > 0) {
-      const activeBundleIds = activeBundles.map((b: any) => b.id);
+      const activeBundleIds = activeBundles.map((b: BundleRow) => b.id);
       const bundleQuantityMap = new Map<string, number>();
-      activeBundles.forEach((b: any) => {
+      activeBundles.forEach((b: BundleRow) => {
         bundleQuantityMap.set(b.id, b.quantity || 1);
       });
-      
+
       const { data: bundleItems } = await supabase
         .from("bundle_items")
         .select("lot_id, quantity, bundle_id")
         .in("lot_id", lotIds)
         .in("bundle_id", activeBundleIds);
 
-      (bundleItems || []).forEach((item: any) => {
+      (bundleItems || []).forEach((item: BundleItemRow) => {
         const bundleQty = bundleQuantityMap.get(item.bundle_id) || 1;
         const cardsPerBundle = item.quantity || 1;
         const totalReserved = bundleQty * cardsPerBundle;
-        
+
         const current = bundleReservedMap.get(item.lot_id) || 0;
         bundleReservedMap.set(item.lot_id, current + totalReserved);
-        
+
         // Track which bundles this lot is in
         if (!lotBundlesMap.has(item.lot_id)) {
           lotBundlesMap.set(item.lot_id, []);
@@ -127,7 +211,7 @@ export async function GET(
       .in("lot_id", lotIds);
 
     const ebayMap = new Map<string, string>();
-    (ebayListings || []).forEach((listing: any) => {
+    (ebayListings || []).forEach((listing: EbayListingRow) => {
       ebayMap.set(listing.lot_id, listing.status);
     });
 
@@ -140,8 +224,8 @@ export async function GET(
 
     const queuedLotIds = new Set(
       (publishJobs || [])
-        .map((job: any) => job.payload?.lotId)
-        .filter((id: any) => id != null && lotIds.includes(id))
+        .map((job: JobRow) => job.payload?.lotId)
+        .filter((id): id is string => id != null && typeof id === "string" && lotIds.includes(id))
     );
 
     // Get photo counts
@@ -151,36 +235,40 @@ export async function GET(
       .in("lot_id", lotIds);
 
     const photoCountsMap = new Map<string, number>();
-    (photoCounts || []).forEach((photo: any) => {
+    (photoCounts || []).forEach((photo: PhotoRow) => {
       const current = photoCountsMap.get(photo.lot_id) || 0;
       photoCountsMap.set(photo.lot_id, current + 1);
     });
 
     // Get purchase (acquisition) info for lots that have it
     const acquisitionIds = lots
-      .map((l: any) => l.acquisition_id)
-      .filter((id: any) => id != null) as string[];
-    
+      .map((l: InventoryLotRow) => l.acquisition_id)
+      .filter((id): id is string => id != null);
+
     // Also get acquisition IDs from purchase history
     const { data: purchaseHistory } = await supabase
       .from("lot_purchase_history")
       .select("acquisition_id")
       .in("lot_id", lotIds);
-    
+
     const historyAcquisitionIds = [
-      ...new Set((purchaseHistory || []).map((ph: any) => ph.acquisition_id).filter(Boolean)),
+      ...new Set(
+        (purchaseHistory || [])
+          .map((ph: PurchaseHistoryAcquisitionRow) => ph.acquisition_id)
+          .filter(Boolean)
+      ),
     ];
-    
+
     const allAcquisitionIds = [...new Set([...acquisitionIds, ...historyAcquisitionIds])];
-    
-    const purchaseMap = new Map<string, any>();
+
+    const purchaseMap = new Map<string, AcquisitionRow>();
     if (allAcquisitionIds.length > 0) {
       const { data: acquisitions } = await supabase
         .from("acquisitions")
         .select("id, source_name, source_type, purchased_at, status")
         .in("id", allAcquisitionIds);
-      
-      (acquisitions || []).forEach((acq: any) => {
+
+      (acquisitions || []).forEach((acq: AcquisitionRow) => {
         purchaseMap.set(acq.id, {
           id: acq.id,
           source_name: acq.source_name,
@@ -197,8 +285,11 @@ export async function GET(
       .select("lot_id, acquisition_id, quantity")
       .in("lot_id", lotIds);
 
-    const purchaseHistoryMap = new Map<string, Array<{ acquisition_id: string; quantity: number }>>();
-    (allPurchaseHistory || []).forEach((ph: any) => {
+    const purchaseHistoryMap = new Map<
+      string,
+      Array<{ acquisition_id: string; quantity: number }>
+    >();
+    (allPurchaseHistory || []).forEach((ph: PurchaseHistoryRow) => {
       if (!purchaseHistoryMap.has(ph.lot_id)) {
         purchaseHistoryMap.set(ph.lot_id, []);
       }
@@ -209,14 +300,14 @@ export async function GET(
     });
 
     // Format lots with available qty and related data
-    const formattedLots = lots.map((lot: any) => {
+    const formattedLots = lots.map((lot: InventoryLotRow) => {
       const soldQty = soldItemsMap.get(lot.id) || 0;
       const bundleReservedQty = bundleReservedMap.get(lot.id) || 0;
       const availableQty = Math.max(0, lot.quantity - soldQty - bundleReservedQty);
-      
+
       // If all quantity is reserved in bundles, the lot should not be available for individual sale
       const effectiveForSale = lot.for_sale && availableQty > 0;
-      
+
       // Get purchase history for this lot
       const history = purchaseHistoryMap.get(lot.id) || [];
       const purchases = history
@@ -224,8 +315,8 @@ export async function GET(
           const purchase = purchaseMap.get(h.acquisition_id);
           return purchase ? { ...purchase, quantity: h.quantity } : null;
         })
-        .filter(Boolean) as Array<any>;
-      
+        .filter((p): p is PurchaseWithQuantity => p !== null);
+
       // Fallback to single purchase if no history (for backwards compatibility)
       const purchase = lot.acquisition_id ? purchaseMap.get(lot.acquisition_id) : null;
       const singlePurchase = purchase && purchases.length === 0 ? purchase : null;
@@ -254,27 +345,36 @@ export async function GET(
         photo_count: photoCountsMap.get(lot.id) || 0,
         use_api_image: lot.use_api_image || false,
         purchase: singlePurchase, // Keep for backwards compatibility
-        purchases: purchases.length > 0 ? purchases : (singlePurchase ? [{ ...singlePurchase, quantity: lot.quantity }] : []), // New field with all purchases
+        purchases:
+          purchases.length > 0
+            ? purchases
+            : singlePurchase
+              ? [{ ...singlePurchase, quantity: lot.quantity }]
+              : [], // New field with all purchases
       };
     });
 
     return NextResponse.json({
       ok: true,
       lots: formattedLots,
-      card: card ? {
-        id: card.id,
-        number: card.number,
-        name: card.name,
-        rarity: card.rarity,
-        image_url: card.api_image_url, // Use api_image_url as image_url for compatibility
-        set: card.sets ? {
-          id: (card.sets as any).id,
-          name: (card.sets as any).name,
-        } : null,
-      } : null,
+      card: card
+        ? {
+            id: card.id,
+            number: card.number,
+            name: card.name,
+            rarity: card.rarity,
+            image_url: card.api_image_url, // Use api_image_url as image_url for compatibility
+            set:
+              card.sets && Array.isArray(card.sets) && card.sets.length > 0
+                ? {
+                    id: card.sets[0].id,
+                    name: card.sets[0].name,
+                  }
+                : null,
+          }
+        : null,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "fetch_card_lots", metadata: { cardId } });
   }
 }
-

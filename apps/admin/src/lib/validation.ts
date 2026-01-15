@@ -159,7 +159,12 @@ export function max(value: number, maxValue: number, fieldName: string): number 
 /**
  * Validates that a number is within a range
  */
-export function range(value: number, minValue: number, maxValue: number, fieldName: string): number {
+export function range(
+  value: number,
+  minValue: number,
+  maxValue: number,
+  fieldName: string
+): number {
   min(value, minValue, fieldName);
   max(value, maxValue, fieldName);
   return value;
@@ -414,4 +419,3 @@ export function handleValidationError(error: unknown): Response | null {
   }
   return null;
 }
-

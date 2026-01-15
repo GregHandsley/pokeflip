@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import Image from "next/image";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import SearchInput from "@/components/ui/SearchInput";
 import CardLotsView from "./CardLotsView";
@@ -55,15 +56,15 @@ export default function InventoryBySet() {
         .order("card_number", { ascending: true });
 
       if (fetchError) throw fetchError;
-      
+
       // Filter out cards with no inventory (0 on hand and 0 sold)
       const cardsWithInventory = (data || []).filter(
         (card: CardInventoryData) => card.qty_on_hand > 0 || card.qty_sold > 0
       ) as CardInventoryData[];
-      
+
       setCards(cardsWithInventory);
-    } catch (e: any) {
-      setError(e.message || "Failed to load inventory");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load inventory");
     } finally {
       setLoading(false);
     }
@@ -133,8 +134,9 @@ export default function InventoryBySet() {
       await loadCards();
       setShowDeleteConfirm(false);
       setCardToDelete(null);
-    } catch (e: any) {
-      alert(e.message || "Failed to delete inventory");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      alert(error.message || "Failed to delete inventory");
     } finally {
       setDeletingCardId(null);
     }
@@ -213,7 +215,8 @@ export default function InventoryBySet() {
                       <div className="text-left">
                         <div className="font-medium text-gray-900">{set.set_name}</div>
                         <div className="text-xs text-gray-500">
-                          {setCards.length} card{setCards.length !== 1 ? "s" : ""} • Total: {totalQty} • For sale: {totalForSale} • Sold: {totalSold}
+                          {setCards.length} card{setCards.length !== 1 ? "s" : ""} • Total:{" "}
+                          {totalQty} • For sale: {totalForSale} • Sold: {totalSold}
                         </div>
                       </div>
                     </div>
@@ -249,15 +252,21 @@ export default function InventoryBySet() {
                                 </svg>
                               </button>
                               {card.image_url && (
-                                <img
-                                  src={`${card.image_url}/low.webp`}
-                                  alt={`${card.card_name} card`}
-                                  className="h-16 w-auto rounded border border-gray-200"
-                                />
+                                <div className="relative h-16 w-[46px] rounded border border-gray-200 overflow-hidden shrink-0">
+                                  <Image
+                                    src={`${card.image_url}/low.webp`}
+                                    alt={`${card.card_name} card`}
+                                    fill
+                                    className="object-contain"
+                                    unoptimized
+                                  />
+                                </div>
                               )}
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium text-sm">
-                                  <span className="text-gray-500 font-normal">#{card.card_number}</span>{" "}
+                                  <span className="text-gray-500 font-normal">
+                                    #{card.card_number}
+                                  </span>{" "}
                                   {card.card_name}
                                 </div>
                                 {card.rarity && (
@@ -377,7 +386,8 @@ export default function InventoryBySet() {
         {cardToDelete && (
           <div className="space-y-3">
             <p className="text-gray-700">
-              Are you sure you want to delete all inventory for <strong>"{cardToDelete.name}"</strong>? This action cannot be undone.
+              Are you sure you want to delete all inventory for{" "}
+              <strong>&quot;{cardToDelete.name}&quot;</strong>? This action cannot be undone.
             </p>
             <div className="bg-red-50 border border-red-200 rounded p-3">
               <p className="text-sm text-red-800">
@@ -396,4 +406,3 @@ export default function InventoryBySet() {
     </div>
   );
 }
-

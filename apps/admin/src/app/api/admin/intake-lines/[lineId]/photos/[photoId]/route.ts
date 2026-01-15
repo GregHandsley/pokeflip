@@ -8,9 +8,11 @@ export async function DELETE(
   { params }: { params: Promise<{ lineId: string; photoId: string }> }
 ) {
   const logger = createApiLogger(req);
-  
+
+  // Extract lineId and photoId outside try block so they're available in catch
+  const { lineId, photoId } = await params;
+
   try {
-    const { lineId, photoId } = await params;
     const supabase = supabaseServer();
 
     // Get the photo record to get the object_key
@@ -22,10 +24,7 @@ export async function DELETE(
       .single();
 
     if (photoError || !photo) {
-      return NextResponse.json(
-        { error: "Photo not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Photo not found" }, { status: 404 });
     }
 
     // Delete from storage
@@ -34,10 +33,11 @@ export async function DELETE(
       .remove([photo.object_key]);
 
     if (storageError) {
-      logger.warn("Failed to delete intake photo from storage", storageError, undefined, {
+      logger.warn("Failed to delete intake photo from storage", undefined, {
         lineId,
         photoId,
         objectKey: photo.object_key,
+        error: storageError,
       });
       // Continue to delete the record even if storage deletion fails
     }
@@ -50,7 +50,10 @@ export async function DELETE(
       .eq("intake_line_id", lineId);
 
     if (deleteError) {
-      logger.error("Failed to delete intake photo record", deleteError, undefined, { lineId, photoId });
+      logger.error("Failed to delete intake photo record", deleteError, undefined, {
+        lineId,
+        photoId,
+      });
       return createErrorResponse(
         deleteError.message || "Failed to delete photo",
         500,
@@ -63,11 +66,10 @@ export async function DELETE(
       ok: true,
       message: "Photo deleted successfully",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, {
       operation: "delete_intake_line_photo",
       metadata: { lineId, photoId },
     });
   }
 }
-

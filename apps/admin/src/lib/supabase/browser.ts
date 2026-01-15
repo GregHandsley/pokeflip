@@ -28,12 +28,12 @@ export const supabaseBrowser = () => {
       "  2. Fill in your Supabase credentials\n" +
       "  3. Restart the development server\n\n" +
       "See ENV_CONFIG.md for detailed setup instructions.";
-    
+
     // In development, show helpful error
     if (process.env.NODE_ENV === "development") {
       console.error("❌ " + errorMessage);
     }
-    
+
     throw new Error(errorMessage);
   }
 
@@ -48,4 +48,3 @@ export const supabaseBrowser = () => {
 
   return supabaseClient;
 };
-

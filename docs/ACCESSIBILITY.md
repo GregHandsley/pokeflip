@@ -15,7 +15,7 @@ This document outlines the accessibility features implemented in Pokeflip and ho
 
 ### Keyboard Navigation
 
-- **Focus Management**: 
+- **Focus Management**:
   - Tab order follows logical document flow
   - Focus is trapped within modals when open
   - Focus returns to trigger element when modals close
@@ -173,6 +173,7 @@ This document outlines the accessibility features implemented in Pokeflip and ho
 **Issue**: Button or link has icon but no text label
 
 **Solution**: Add `aria-label` attribute
+
 ```tsx
 <button aria-label="Close modal">
   <svg aria-hidden="true">...</svg>
@@ -184,6 +185,7 @@ This document outlines the accessibility features implemented in Pokeflip and ho
 **Issue**: Input field label is not read by screen reader
 
 **Solution**: Use `htmlFor` and `id` attributes
+
 ```tsx
 <label htmlFor="email">Email</label>
 <input id="email" type="email" />
@@ -194,6 +196,7 @@ This document outlines the accessibility features implemented in Pokeflip and ho
 **Issue**: Can't see which element has focus
 
 **Solution**: Add focus styles
+
 ```css
 button:focus-visible {
   outline: 2px solid #000;
@@ -205,7 +208,8 @@ button:focus-visible {
 
 **Issue**: Screen reader can't access modal content, focus not trapped
 
-**Solution**: 
+**Solution**:
+
 - Add `role="dialog"` and `aria-modal="true"`
 - Trap focus within modal
 - Return focus when modal closes
@@ -220,13 +224,14 @@ button:focus-visible {
 ## Browser Support
 
 Accessibility features are tested in:
+
 - Chrome (latest)
 - Firefox (latest)
 - Safari (latest)
 - Edge (latest)
 
 Screen readers tested:
+
 - VoiceOver (macOS/iOS)
 - NVDA (Windows)
 - JAWS (Windows)
-

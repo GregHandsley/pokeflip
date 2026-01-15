@@ -33,4 +33,3 @@ export type SalesData = {
 };
 
 export type SalesFlowStep = "photos" | "details" | "pricing";
-

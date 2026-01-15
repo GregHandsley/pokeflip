@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { TcgdxCard } from "@/lib/tcgdx/types";
 
 interface CardStepProps {
@@ -26,10 +27,7 @@ export default function CardStep({
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="text-blue-600 hover:underline text-sm"
-        >
+        <button onClick={onBack} className="text-blue-600 hover:underline text-sm">
           ← Back to Sets
         </button>
         <div className="text-sm text-gray-600">
@@ -52,24 +50,24 @@ export default function CardStep({
               }`}
             >
               {imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt={card.name}
-                  className="w-full h-auto rounded mb-2"
-                />
+                <div className="relative w-full aspect-245/337 rounded mb-2 overflow-hidden">
+                  <Image
+                    src={imageUrl}
+                    alt={card.name}
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
               ) : (
-                <div className="w-full aspect-[245/337] bg-gray-100 rounded flex items-center justify-center mb-2">
+                <div className="w-full aspect-245/337 bg-gray-100 rounded flex items-center justify-center mb-2">
                   <span className="text-gray-400 text-xs">No Image</span>
                 </div>
               )}
               <div className="text-xs font-medium truncate">{card.name}</div>
-              {card.number && (
-                <div className="text-xs text-gray-500">#{card.number}</div>
-              )}
+              {card.number && <div className="text-xs text-gray-500">#{card.number}</div>}
               {isSelected && (
-                <div className="text-xs text-blue-600 font-semibold mt-1">
-                  ✓ Selected
-                </div>
+                <div className="text-xs text-blue-600 font-semibold mt-1">✓ Selected</div>
               )}
             </button>
           );
@@ -78,4 +76,3 @@ export default function CardStep({
     </div>
   );
 }
-

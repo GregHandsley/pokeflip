@@ -1,16 +1,24 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
-import { createApiLogger } from "@/lib/logger";
+import { handleApiError } from "@/lib/api-error-handler";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
-  const logger = createApiLogger(req);
-  
+type SetRow = {
+  id: string;
+  name: string;
+};
+
+type CardRow = {
+  id: string;
+  number: string;
+  name: string;
+  sets: SetRow | SetRow[] | null;
+};
+
+export async function GET(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
+  // Extract lotId outside try block so it's available in catch
+  const { lotId } = await params;
+
   try {
-    const { lotId } = await params;
     const supabase = supabaseServer();
 
     const { data: lot, error: lotError } = await supabase
@@ -33,14 +41,14 @@ export async function GET(
       .single();
 
     if (lotError || !lot) {
-      return NextResponse.json(
-        { error: "Lot not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Lot not found" }, { status: 404 });
     }
 
-    const card = lot.cards as any;
-    const set = card?.sets as any;
+    // Handle Supabase relation which may return array or single object
+    const cardsData = Array.isArray(lot.cards) ? lot.cards[0] : lot.cards;
+    const card = cardsData as CardRow | null;
+    const setsData = Array.isArray(card?.sets) ? card.sets[0] : card?.sets;
+    const set = setsData as SetRow | null;
 
     return NextResponse.json({
       ok: true,
@@ -50,9 +58,7 @@ export async function GET(
         set: set ? { name: set.name } : null,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "fetch_card_info", metadata: { lotId } });
   }
 }
-
-

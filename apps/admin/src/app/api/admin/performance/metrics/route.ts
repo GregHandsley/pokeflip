@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/api-error-handler";
-import { createApiLogger } from "@/lib/logger";
 
 /**
  * GET: Fetch performance metrics
  * Simple metrics showing database index status and basic performance info
  */
 export async function GET(req: Request) {
-  const logger = createApiLogger(req);
-
   try {
     const supabase = supabaseServer();
 
@@ -24,15 +21,15 @@ export async function GET(req: Request) {
       { name: "idx_lots_card_status", description: "Inventory lots by card and status" },
       { name: "idx_bundle_items_bundle_lot", description: "Bundle items by bundle and lot" },
       { name: "idx_acquisitions_purchased_at", description: "Date-based acquisition queries" },
-      { name: "idx_intake_lines_acq_status", description: "Intake lines by acquisition and status" },
+      {
+        name: "idx_intake_lines_acq_status",
+        description: "Intake lines by acquisition and status",
+      },
     ];
 
     // Test database connection with a simple query
     const startTime = Date.now();
-    const { error: testError } = await supabase
-      .from("inventory_lots")
-      .select("id")
-      .limit(1);
+    const { error: testError } = await supabase.from("inventory_lots").select("id").limit(1);
     const queryTime = Date.now() - startTime;
 
     // Verify indexes exist by checking if we can query tables they're on
@@ -86,4 +83,3 @@ export async function GET(req: Request) {
     });
   }
 }
-

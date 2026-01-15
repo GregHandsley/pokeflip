@@ -27,7 +27,8 @@ export default function AcquisitionList({ acquisitions }: AcquisitionListProps) 
             <div>
               <div className="font-medium">{acquisition.source_name}</div>
               <div className="text-sm text-gray-600">
-                {acquisition.source_type} • £{penceToPounds(acquisition.purchase_total_pence)} • {acquisition.status}
+                {acquisition.source_type} • £{penceToPounds(acquisition.purchase_total_pence)} •{" "}
+                {acquisition.status}
               </div>
             </div>
             <a
@@ -42,4 +43,3 @@ export default function AcquisitionList({ acquisitions }: AcquisitionListProps) 
     </div>
   );
 }
-

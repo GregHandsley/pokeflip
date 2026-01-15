@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { penceToPounds } from "@pokeflip/shared";
 import PageHeader from "@/components/ui/PageHeader";
@@ -57,7 +57,7 @@ export default function RecordSalePage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const loadBundles = async () => {
+  const loadBundles = useCallback(async () => {
     setLoadingBundles(true);
     try {
       const params = new URLSearchParams();
@@ -74,7 +74,7 @@ export default function RecordSalePage() {
     } finally {
       setLoadingBundles(false);
     }
-  };
+  }, [bundleStatusFilter]);
 
   const handleBundleSold = () => {
     setSelectedBundle(null);
@@ -83,7 +83,7 @@ export default function RecordSalePage() {
 
   useEffect(() => {
     loadBundles();
-  }, [bundleStatusFilter]);
+  }, [loadBundles]);
 
   const handleBundleCreated = () => {
     setShowCreateBundleModal(false);
@@ -148,9 +148,9 @@ export default function RecordSalePage() {
       {/* Sale Method Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Single Card Sale */}
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-5 hover:shadow-md transition-all">
+        <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-5 hover:shadow-md transition-all">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
               <svg
                 className="w-5 h-5 text-white"
                 fill="none"
@@ -185,9 +185,9 @@ export default function RecordSalePage() {
         </div>
 
         {/* Multi-Card Sale */}
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200 p-5 hover:shadow-md transition-all">
+        <div className="bg-linear-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200 p-5 hover:shadow-md transition-all">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center shrink-0">
               <svg
                 className="w-5 h-5 text-white"
                 fill="none"
@@ -222,9 +222,9 @@ export default function RecordSalePage() {
         </div>
 
         {/* Bundle Sale */}
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200 p-5 hover:shadow-md transition-all">
+        <div className="bg-linear-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200 p-5 hover:shadow-md transition-all">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center shrink-0">
               <svg
                 className="w-5 h-5 text-white"
                 fill="none"
@@ -250,20 +250,12 @@ export default function RecordSalePage() {
           </p>
           <div className="flex gap-2">
             <Button
-              variant="secondary"
-              onClick={() => setShowCreateBundleModal(true)}
-              className="flex-1"
-              size="sm"
-            >
-              Create Bundle
-            </Button>
-            <Button
               variant="primary"
-              onClick={loadBundles}
+              onClick={() => setShowCreateBundleModal(true)}
               className="flex-1 bg-purple-600 hover:bg-purple-700"
               size="sm"
             >
-              Sell Bundle
+              Create Bundle
             </Button>
           </div>
         </div>

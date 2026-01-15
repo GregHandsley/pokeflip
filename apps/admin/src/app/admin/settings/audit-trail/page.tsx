@@ -8,8 +8,8 @@ export default function AuditTrailPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Audit Trail</h1>
         <p className="text-gray-600">
-          Track all important actions including sales, price changes, and status updates.
-          Use the undo button to revert critical operations.
+          Track all important actions including sales, price changes, and status updates. Use the
+          undo button to revert critical operations.
         </p>
       </div>
 
@@ -19,4 +19,3 @@ export default function AuditTrailPage() {
     </div>
   );
 }
-

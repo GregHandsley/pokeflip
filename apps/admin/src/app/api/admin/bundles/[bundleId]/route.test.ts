@@ -9,7 +9,8 @@ vi.mock("@/lib/validation", async () => {
     ...actual,
     nonEmptyString: (val: string) => val,
     string: (val: string) => val,
-    optional: (val: any, fn: any) => val === undefined ? undefined : fn(val, "field"),
+    optional: (val: unknown, fn: (v: unknown, field: string) => unknown) =>
+      val === undefined ? undefined : fn(val, "field"),
     pricePence: (val: number) => val,
     quantity: (val: number) => val,
     bundleStatus: (val: string) => val,
@@ -29,7 +30,9 @@ describe("PATCH /api/admin/bundles/[bundleId]", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (supabaseServer as any).mockReturnValue(mockSupabase);
+    (supabaseServer as unknown as { mockReturnValue: (value: unknown) => void }).mockReturnValue(
+      mockSupabase
+    );
   });
 
   it("Updates bundle name and description", async () => {
@@ -177,7 +180,9 @@ describe.skip("DELETE /api/admin/bundles/[bundleId]", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (supabaseServer as any).mockReturnValue(mockSupabase);
+    (supabaseServer as unknown as { mockReturnValue: (value: unknown) => void }).mockReturnValue(
+      mockSupabase
+    );
   });
 
   it("Deletes active bundle", async () => {
@@ -230,4 +235,3 @@ describe.skip("DELETE /api/admin/bundles/[bundleId]", () => {
     expect(json.error).toContain("sold");
   });
 });
-

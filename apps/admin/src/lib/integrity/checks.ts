@@ -25,6 +25,57 @@ export interface IntegrityReport {
   execution_time_ms: number;
 }
 
+// Database row types
+type IdRow = {
+  id: string;
+};
+
+type SalesItemRow = {
+  id: string;
+  lot_id: string;
+  qty?: number;
+  sold_price_pence?: number;
+  sales_order_id?: string;
+};
+
+type BundleItemRow = {
+  id: string;
+  bundle_id: string;
+  lot_id: string;
+  quantity?: number;
+};
+
+type PurchaseAllocationRow = {
+  id: string;
+  sales_item_id: string;
+  acquisition_id: string;
+};
+
+type LotPhotoRow = {
+  id: string;
+  lot_id: string;
+};
+
+type EbayListingRow = {
+  id: string;
+  lot_id: string;
+};
+
+type InventoryLotRow = {
+  id: string;
+  quantity: number;
+};
+
+type SalesConsumableRow = {
+  consumable_id: string;
+  qty?: number;
+};
+
+type ConsumableCostRow = {
+  consumable_id: string;
+  avg_cost_pence_per_unit?: number;
+};
+
 /**
  * Check for orphaned records across all tables
  */
@@ -36,33 +87,23 @@ export async function checkOrphanedRecords(): Promise<IntegrityCheckResult> {
 
   try {
     // Get all valid IDs first
-    const { data: validLotIds } = await supabase
-      .from("inventory_lots")
-      .select("id");
-    const lotIdSet = new Set((validLotIds || []).map((l: any) => l.id));
+    const { data: validLotIds } = await supabase.from("inventory_lots").select("id");
+    const lotIdSet = new Set(((validLotIds || []) as IdRow[]).map((l) => l.id));
 
-    const { data: validBundleIds } = await supabase
-      .from("bundles")
-      .select("id");
-    const bundleIdSet = new Set((validBundleIds || []).map((b: any) => b.id));
+    const { data: validBundleIds } = await supabase.from("bundles").select("id");
+    const bundleIdSet = new Set(((validBundleIds || []) as IdRow[]).map((b) => b.id));
 
-    const { data: validSalesItemIds } = await supabase
-      .from("sales_items")
-      .select("id");
-    const salesItemIdSet = new Set((validSalesItemIds || []).map((s: any) => s.id));
+    const { data: validSalesItemIds } = await supabase.from("sales_items").select("id");
+    const salesItemIdSet = new Set(((validSalesItemIds || []) as IdRow[]).map((s) => s.id));
 
-    const { data: validAcquisitionIds } = await supabase
-      .from("acquisitions")
-      .select("id");
-    const acquisitionIdSet = new Set((validAcquisitionIds || []).map((a: any) => a.id));
+    const { data: validAcquisitionIds } = await supabase.from("acquisitions").select("id");
+    const acquisitionIdSet = new Set(((validAcquisitionIds || []) as IdRow[]).map((a) => a.id));
 
     // Check sales_items with invalid lot_id
-    const { data: allSalesItems } = await supabase
-      .from("sales_items")
-      .select("id, lot_id");
+    const { data: allSalesItems } = await supabase.from("sales_items").select("id, lot_id");
 
     if (allSalesItems) {
-      allSalesItems.forEach((item: any) => {
+      ((allSalesItems || []) as SalesItemRow[]).forEach((item) => {
         if (!lotIdSet.has(item.lot_id)) {
           issues.push({
             type: "orphaned_record",
@@ -82,7 +123,7 @@ export async function checkOrphanedRecords(): Promise<IntegrityCheckResult> {
       .select("id, bundle_id, lot_id");
 
     if (allBundleItems) {
-      allBundleItems.forEach((item: any) => {
+      ((allBundleItems || []) as BundleItemRow[]).forEach((item) => {
         if (!bundleIdSet.has(item.bundle_id)) {
           issues.push({
             type: "orphaned_record",
@@ -112,7 +153,7 @@ export async function checkOrphanedRecords(): Promise<IntegrityCheckResult> {
       .select("id, sales_item_id, acquisition_id");
 
     if (allAllocations) {
-      allAllocations.forEach((item: any) => {
+      ((allAllocations || []) as PurchaseAllocationRow[]).forEach((item) => {
         if (!salesItemIdSet.has(item.sales_item_id)) {
           issues.push({
             type: "orphaned_record",
@@ -137,12 +178,10 @@ export async function checkOrphanedRecords(): Promise<IntegrityCheckResult> {
     }
 
     // Check lot_photos with invalid lot_id
-    const { data: allPhotos } = await supabase
-      .from("lot_photos")
-      .select("id, lot_id");
+    const { data: allPhotos } = await supabase.from("lot_photos").select("id, lot_id");
 
     if (allPhotos) {
-      allPhotos.forEach((item: any) => {
+      ((allPhotos || []) as LotPhotoRow[]).forEach((item) => {
         if (!lotIdSet.has(item.lot_id)) {
           issues.push({
             type: "orphaned_record",
@@ -157,12 +196,10 @@ export async function checkOrphanedRecords(): Promise<IntegrityCheckResult> {
     }
 
     // Check eBay listings with invalid lot_id
-    const { data: allListings } = await supabase
-      .from("ebay_listings")
-      .select("id, lot_id");
+    const { data: allListings } = await supabase.from("ebay_listings").select("id, lot_id");
 
     if (allListings) {
-      allListings.forEach((item: any) => {
+      ((allListings || []) as EbayListingRow[]).forEach((item) => {
         if (!lotIdSet.has(item.lot_id)) {
           issues.push({
             type: "orphaned_record",
@@ -179,14 +216,24 @@ export async function checkOrphanedRecords(): Promise<IntegrityCheckResult> {
     const executionTime = Date.now() - startTime;
     return {
       check_name: "orphaned_records",
-      status: issues.length === 0 ? "pass" : issues.some((i) => i.severity === "error") ? "fail" : "warning",
+      status:
+        issues.length === 0
+          ? "pass"
+          : issues.some((i) => i.severity === "error")
+            ? "fail"
+            : "warning",
       issues,
       execution_time_ms: executionTime,
     };
   } catch (error) {
-    logger.error("Error checking orphaned records", error instanceof Error ? error : new Error(String(error)), undefined, {
-      operation: "check_orphaned_records",
-    });
+    logger.error(
+      "Error checking orphaned records",
+      error instanceof Error ? error : new Error(String(error)),
+      undefined,
+      {
+        operation: "check_orphaned_records",
+      }
+    );
 
     const executionTime = Date.now() - startTime;
     return {
@@ -223,19 +270,17 @@ export async function checkQuantityConsistency(): Promise<IntegrityCheckResult> 
 
     if (!lotsError && lots) {
       // Get all sold quantities in one query
-      const { data: allSoldItems } = await supabase
-        .from("sales_items")
-        .select("lot_id, qty");
+      const { data: allSoldItems } = await supabase.from("sales_items").select("lot_id, qty");
 
       const soldQtyMap = new Map<string, number>();
       if (allSoldItems) {
-        allSoldItems.forEach((item: any) => {
+        ((allSoldItems || []) as SalesItemRow[]).forEach((item) => {
           const current = soldQtyMap.get(item.lot_id) || 0;
           soldQtyMap.set(item.lot_id, current + (item.qty || 0));
         });
       }
 
-      lots.forEach((lot: any) => {
+      ((lots || []) as InventoryLotRow[]).forEach((lot) => {
         const totalSold = soldQtyMap.get(lot.id) || 0;
         if (totalSold > lot.quantity) {
           issues.push({
@@ -255,9 +300,7 @@ export async function checkQuantityConsistency(): Promise<IntegrityCheckResult> 
     }
 
     // Check bundle item quantities match lot quantities
-    const { data: bundles, error: bundlesError } = await supabase
-      .from("bundles")
-      .select("id");
+    const { data: bundles, error: bundlesError } = await supabase.from("bundles").select("id");
 
     if (!bundlesError && bundles) {
       for (const bundle of bundles) {
@@ -299,14 +342,24 @@ export async function checkQuantityConsistency(): Promise<IntegrityCheckResult> 
     const executionTime = Date.now() - startTime;
     return {
       check_name: "quantity_consistency",
-      status: issues.length === 0 ? "pass" : issues.some((i) => i.severity === "error") ? "fail" : "warning",
+      status:
+        issues.length === 0
+          ? "pass"
+          : issues.some((i) => i.severity === "error")
+            ? "fail"
+            : "warning",
       issues,
       execution_time_ms: executionTime,
     };
   } catch (error) {
-    logger.error("Error checking quantity consistency", error instanceof Error ? error : new Error(String(error)), undefined, {
-      operation: "check_quantity_consistency",
-    });
+    logger.error(
+      "Error checking quantity consistency",
+      error instanceof Error ? error : new Error(String(error)),
+      undefined,
+      {
+        operation: "check_quantity_consistency",
+      }
+    );
 
     const executionTime = Date.now() - startTime;
     return {
@@ -383,20 +436,30 @@ export async function validateProfitCalculations(): Promise<IntegrityCheckResult
       let consumablesCostPence = 0;
       if (!consumablesError && salesConsumables && salesConsumables.length > 0) {
         // Get consumable costs from view
-        const consumableIds = [...new Set(salesConsumables.map((c: any) => c.consumable_id))];
+        const consumableIds = [
+          ...new Set(
+            ((salesConsumables || []) as SalesConsumableRow[]).map((c) => c.consumable_id)
+          ),
+        ];
         const { data: consumableCosts } = await supabase
           .from("v_consumable_costs")
           .select("consumable_id, avg_cost_pence_per_unit")
           .in("consumable_id", consumableIds);
 
         const costMap = new Map(
-          (consumableCosts || []).map((c: any) => [c.consumable_id, c.avg_cost_pence_per_unit || 0])
+          ((consumableCosts || []) as ConsumableCostRow[]).map((c) => [
+            c.consumable_id,
+            c.avg_cost_pence_per_unit || 0,
+          ])
         );
 
-        consumablesCostPence = salesConsumables.reduce((sum: number, sc: any) => {
-          const unitCost = costMap.get(sc.consumable_id) || 0;
-          return sum + (sc.qty || 0) * unitCost;
-        }, 0);
+        consumablesCostPence = ((salesConsumables || []) as SalesConsumableRow[]).reduce(
+          (sum: number, sc) => {
+            const unitCost = costMap.get(sc.consumable_id) || 0;
+            return sum + (sc.qty || 0) * unitCost;
+          },
+          0
+        );
       }
 
       // Calculate expected values
@@ -466,7 +529,7 @@ export async function validateProfitCalculations(): Promise<IntegrityCheckResult
             actual: profitData.net_profit_pence,
             difference: netProfitDiff,
             expected_costs: totalCostsPence,
-            actual_costs: (profitData.total_costs_pence || 0),
+            actual_costs: profitData.total_costs_pence || 0,
           },
         });
       }
@@ -480,9 +543,14 @@ export async function validateProfitCalculations(): Promise<IntegrityCheckResult
       execution_time_ms: executionTime,
     };
   } catch (error) {
-    logger.error("Error validating profit calculations", error instanceof Error ? error : new Error(String(error)), undefined, {
-      operation: "validate_profit_calculations",
-    });
+    logger.error(
+      "Error validating profit calculations",
+      error instanceof Error ? error : new Error(String(error)),
+      undefined,
+      {
+        operation: "validate_profit_calculations",
+      }
+    );
 
     const executionTime = Date.now() - startTime;
     return {
@@ -536,9 +604,14 @@ export async function runAllIntegrityChecks(): Promise<IntegrityReport> {
       execution_time_ms: executionTime,
     };
   } catch (error) {
-    logger.error("Error running integrity checks", error instanceof Error ? error : new Error(String(error)), undefined, {
-      operation: "run_all_integrity_checks",
-    });
+    logger.error(
+      "Error running integrity checks",
+      error instanceof Error ? error : new Error(String(error)),
+      undefined,
+      {
+        operation: "run_all_integrity_checks",
+      }
+    );
 
     const executionTime = Date.now() - startTime;
     return {
@@ -550,4 +623,3 @@ export async function runAllIntegrityChecks(): Promise<IntegrityReport> {
     };
   }
 }
-

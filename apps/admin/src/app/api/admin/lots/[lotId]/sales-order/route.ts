@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/api-error-handler";
-import { createApiLogger } from "@/lib/logger";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
-  const logger = createApiLogger(req);
-  
+export async function GET(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
+  // Extract lotId outside try block so it's available in catch
+  const { lotId } = await params;
+
   try {
-    const { lotId } = await params;
     const supabase = supabaseServer();
 
     // Find the sales order that contains this lot
@@ -33,9 +29,7 @@ export async function GET(
       ok: true,
       salesOrderId: salesItem.sales_order_id,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "get_lot_sales_order", metadata: { lotId } });
   }
 }
-
-

@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import Card from "@/components/ui/Card";
-import Alert from "@/components/ui/Alert";
+// import Alert from "@/components/ui/Alert";
 
 export default function CatalogSyncPage() {
-  const [msg, setMsg] = useState<string | null>(null);
-  const [msgType, setMsgType] = useState<"success" | "error" | "info">("info");
+  // const [msg, setMsg] = useState<string | null>(null);
+  // const [msgType, setMsgType] = useState<"success" | "error" | "info">("info");
 
   return (
     <div>
@@ -20,13 +19,14 @@ export default function CatalogSyncPage() {
         <h2 className="text-lg font-semibold mb-4">TCGdx API Integration</h2>
         <div className="space-y-3 text-sm text-gray-700">
           <p>
-            <strong>✅ Fast & Direct:</strong> Sets and cards are fetched directly from TCGdx API 
-            (<code className="bg-gray-100 px-1 rounded">https://api.tcgdex.net/v2</code>) 
-            - no database caching needed.
+            <strong>✅ Fast & Direct:</strong> Sets and cards are fetched directly from TCGdx API (
+            <code className="bg-gray-100 px-1 rounded">https://api.tcgdex.net/v2</code>) - no
+            database caching needed.
           </p>
           <p>
-            <strong>✅ Multilingual Support:</strong> TCGdx supports multiple languages including 
-            English, Japanese, Chinese, and more. Use the <code className="bg-gray-100 px-1 rounded">locale</code> 
+            <strong>✅ Multilingual Support:</strong> TCGdx supports multiple languages including
+            English, Japanese, Chinese, and more. Use the{" "}
+            <code className="bg-gray-100 px-1 rounded">locale</code>
             parameter to switch languages.
           </p>
           <p>
@@ -55,4 +55,3 @@ export default function CatalogSyncPage() {
     </div>
   );
 }
-

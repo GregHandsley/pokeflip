@@ -4,18 +4,32 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import { uuid, quantity } from "@/lib/validation";
 
+type SoldItemRow = {
+  lot_id: string;
+  qty: number;
+};
+
+type BundleRow = {
+  id: string;
+  quantity: number;
+};
+
+type BundleItemRow = {
+  quantity: number;
+  bundle_id: string;
+};
+
 // POST: Add a lot to an existing bundle
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ bundleId: string }> }
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ bundleId: string }> }) {
   const logger = createApiLogger(req);
-  
+
+  // Extract bundleId outside try block so it's available in catch
+  const { bundleId } = await params;
+
   try {
     // Validate route parameters
-    const { bundleId } = await params;
     const validatedBundleId = uuid(bundleId, "bundleId");
-    
+
     // Validate request body
     const body = await req.json();
     const validatedLotId = uuid(body.lotId, "lotId");
@@ -31,17 +45,11 @@ export async function POST(
       .single();
 
     if (bundleError || !bundle) {
-      return NextResponse.json(
-        { error: "Bundle not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Bundle not found" }, { status: 404 });
     }
 
     if (bundle.status === "sold") {
-      return NextResponse.json(
-        { error: "Cannot add items to a sold bundle" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Cannot add items to a sold bundle" }, { status: 400 });
     }
 
     const bundleQuantity = bundle.quantity || 1;
@@ -54,10 +62,7 @@ export async function POST(
       .single();
 
     if (lotError || !lot) {
-      return NextResponse.json(
-        { error: "Lot not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Lot not found" }, { status: 404 });
     }
 
     if (!lot.for_sale) {
@@ -81,7 +86,10 @@ export async function POST(
       .select("lot_id, qty")
       .eq("lot_id", validatedLotId);
 
-    const soldQty = (soldItems || []).reduce((sum: number, item: any) => sum + (item.qty || 0), 0);
+    const soldQty = (soldItems || []).reduce(
+      (sum: number, item: SoldItemRow) => sum + (item.qty || 0),
+      0
+    );
 
     // Get quantities already reserved in other active bundles (excluding this bundle)
     // Reserved = bundle.quantity * bundle_item.quantity
@@ -93,26 +101,26 @@ export async function POST(
     let reservedQty = 0;
     if (activeBundles && activeBundles.length > 0) {
       const otherBundleIds = activeBundles
-        .filter((b: any) => b.id !== validatedBundleId)
-        .map((b: any) => b.id);
-      
+        .filter((b: BundleRow) => b.id !== validatedBundleId)
+        .map((b: BundleRow) => b.id);
+
       if (otherBundleIds.length > 0) {
         const bundleQtyMap = new Map<string, number>();
-        activeBundles.forEach((b: any) => {
+        activeBundles.forEach((b: BundleRow) => {
           if (b.id !== validatedBundleId) {
             bundleQtyMap.set(b.id, b.quantity || 1);
           }
         });
-        
+
         const { data: existingBundleItems } = await supabase
           .from("bundle_items")
           .select("quantity, bundle_id")
           .eq("lot_id", validatedLotId)
           .in("bundle_id", otherBundleIds);
 
-        reservedQty = (existingBundleItems || []).reduce((sum: number, item: any) => {
+        reservedQty = (existingBundleItems || []).reduce((sum: number, item: BundleItemRow) => {
           const bundleQty = bundleQtyMap.get(item.bundle_id) || 1;
-          return sum + (bundleQty * (item.quantity || 1));
+          return sum + bundleQty * (item.quantity || 1);
         }, 0);
       }
     }
@@ -120,27 +128,31 @@ export async function POST(
     const currentCardsPerBundle = existingItem?.quantity || 0;
     const currentReservedInThisBundle = bundleQuantity * currentCardsPerBundle;
     const availableQty = lot.quantity - soldQty - reservedQty - currentReservedInThisBundle;
-    
+
     // For updates: new total = bundleQuantity * newCardsPerBundle
     // For new items: total needed = bundleQuantity * validatedQuantity
     if (existingItem) {
       const newCardsPerBundle = currentCardsPerBundle + validatedQuantity;
       const newTotalNeeded = bundleQuantity * newCardsPerBundle;
       const totalAvailable = availableQty + currentReservedInThisBundle;
-      
+
       if (newTotalNeeded > totalAvailable) {
         return NextResponse.json(
-          { error: `Insufficient quantity. Available: ${totalAvailable}, Needed for ${bundleQuantity} bundle(s) with ${newCardsPerBundle} per bundle: ${newTotalNeeded}` },
+          {
+            error: `Insufficient quantity. Available: ${totalAvailable}, Needed for ${bundleQuantity} bundle(s) with ${newCardsPerBundle} per bundle: ${newTotalNeeded}`,
+          },
           { status: 400 }
         );
       }
     } else {
       const totalCardsNeeded = bundleQuantity * validatedQuantity;
       const totalAvailable = availableQty + currentReservedInThisBundle;
-      
+
       if (totalCardsNeeded > totalAvailable) {
         return NextResponse.json(
-          { error: `Insufficient quantity. Available: ${totalAvailable}, Needed for ${bundleQuantity} bundle(s) with ${validatedQuantity} per bundle: ${totalCardsNeeded}` },
+          {
+            error: `Insufficient quantity. Available: ${totalAvailable}, Needed for ${bundleQuantity} bundle(s) with ${validatedQuantity} per bundle: ${totalCardsNeeded}`,
+          },
           { status: 400 }
         );
       }
@@ -150,12 +162,9 @@ export async function POST(
       // Update quantity if item already exists
       const newQuantity = existingItem.quantity + validatedQuantity;
       if (newQuantity <= 0) {
-        return NextResponse.json(
-          { error: "Quantity must be greater than 0" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Quantity must be greater than 0" }, { status: 400 });
       }
-      
+
       const { error: updateError } = await supabase
         .from("bundle_items")
         .update({ quantity: newQuantity })
@@ -177,13 +186,11 @@ export async function POST(
       }
     } else {
       // Insert new bundle item
-      const { error: insertError } = await supabase
-        .from("bundle_items")
-        .insert({
-          bundle_id: validatedBundleId,
-          lot_id: validatedLotId,
-          quantity: validatedQuantity,
-        });
+      const { error: insertError } = await supabase.from("bundle_items").insert({
+        bundle_id: validatedBundleId,
+        lot_id: validatedLotId,
+        quantity: validatedQuantity,
+      });
 
       if (insertError) {
         logger.error("Failed to add bundle item", insertError, undefined, {
@@ -208,8 +215,7 @@ export async function POST(
     // ValidationErrorResponse is automatically handled by handleApiError
     return handleApiError(req, error, {
       operation: "add_bundle_item",
-      metadata: { bundleId: validatedBundleId },
+      metadata: { bundleId },
     });
   }
 }
-

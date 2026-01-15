@@ -8,9 +8,11 @@ export async function DELETE(
   { params }: { params: Promise<{ lotId: string; photoId: string }> }
 ) {
   const logger = createApiLogger(req);
-  
+
+  // Extract lotId and photoId outside try block so they're available in catch
+  const { lotId, photoId } = await params;
+
   try {
-    const { lotId, photoId } = await params;
     const supabase = supabaseServer();
 
     // Get the photo record to get the object_key
@@ -22,10 +24,7 @@ export async function DELETE(
       .single();
 
     if (photoError || !photo) {
-      return NextResponse.json(
-        { error: "Photo not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Photo not found" }, { status: 404 });
     }
 
     // Delete from storage
@@ -34,10 +33,11 @@ export async function DELETE(
       .remove([photo.object_key]);
 
     if (storageError) {
-      logger.warn("Failed to delete photo from storage", storageError, undefined, {
+      logger.warn("Failed to delete photo from storage", undefined, {
         lotId,
         photoId,
         objectKey: photo.object_key,
+        error: storageError,
       });
       // Continue to delete the record even if storage deletion fails
     }
@@ -63,11 +63,10 @@ export async function DELETE(
       ok: true,
       message: "Photo deleted successfully",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, {
       operation: "delete_lot_photo",
       metadata: { lotId, photoId },
     });
   }
 }
-

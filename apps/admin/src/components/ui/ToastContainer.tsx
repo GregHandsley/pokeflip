@@ -19,10 +19,10 @@ export default function ToastContainer() {
               toast.type === "success"
                 ? "bg-green-50 text-green-800 border-green-200"
                 : toast.type === "error"
-                ? "bg-red-50 text-red-800 border-red-200"
-                : toast.type === "warning"
-                ? "bg-yellow-50 text-yellow-800 border-yellow-200"
-                : "bg-blue-50 text-blue-800 border-blue-200"
+                  ? "bg-red-50 text-red-800 border-red-200"
+                  : toast.type === "warning"
+                    ? "bg-yellow-50 text-yellow-800 border-yellow-200"
+                    : "bg-blue-50 text-blue-800 border-blue-200"
             }
           `}
         >
@@ -31,17 +31,12 @@ export default function ToastContainer() {
             <button
               onClick={() => dismissToast(toast.id)}
               className={`
-                flex-shrink-0 text-current opacity-60 hover:opacity-100 transition-opacity
+                shrink-0 text-current opacity-60 hover:opacity-100 transition-opacity
                 ${toast.type === "success" ? "text-green-600" : toast.type === "error" ? "text-red-600" : toast.type === "warning" ? "text-yellow-600" : "text-blue-600"}
               `}
               aria-label="Dismiss"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -56,4 +51,3 @@ export default function ToastContainer() {
     </div>
   );
 }
-

@@ -36,11 +36,11 @@ export default function BackupPage() {
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;
-      
+
       const timestamp = new Date().toISOString().split("T")[0];
       const extension = exportFormat === "json" ? "json" : "csv";
       link.download = `pokeflip-full-export-${timestamp}.${extension}`;
-      
+
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -57,7 +57,7 @@ export default function BackupPage() {
         format: exportFormat,
         size: blob.size,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error("Failed to export data", error);
       handleError(error);
     } finally {
@@ -84,7 +84,7 @@ export default function BackupPage() {
       <Card>
         <div className="p-6 space-y-4">
           <h2 className="text-lg font-semibold">Backup Status</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <div className="text-sm text-gray-600">Supabase Automated Backups</div>
@@ -105,9 +105,7 @@ export default function BackupPage() {
                     {new Date(backupStatus.lastExport).toLocaleString()}
                   </div>
                   {backupStatus.lastExportSize && (
-                    <div className="text-xs text-gray-500">
-                      Size: {backupStatus.lastExportSize}
-                    </div>
+                    <div className="text-xs text-gray-500">Size: {backupStatus.lastExportSize}</div>
                   )}
                 </div>
               ) : (
@@ -119,9 +117,15 @@ export default function BackupPage() {
           <div className="pt-4 border-t border-gray-200">
             <h3 className="text-sm font-semibold mb-2">Backup Schedule</h3>
             <ul className="text-sm text-gray-600 space-y-1">
-              <li>• <strong>Automated:</strong> Daily (Supabase Pro Plan)</li>
-              <li>• <strong>Manual:</strong> On-demand via exports below</li>
-              <li>• <strong>Recommended:</strong> Weekly full export + daily automated backups</li>
+              <li>
+                • <strong>Automated:</strong> Daily (Supabase Pro Plan)
+              </li>
+              <li>
+                • <strong>Manual:</strong> On-demand via exports below
+              </li>
+              <li>
+                • <strong>Recommended:</strong> Weekly full export + daily automated backups
+              </li>
             </ul>
           </div>
         </div>
@@ -133,16 +137,14 @@ export default function BackupPage() {
           <div>
             <h2 className="text-lg font-semibold mb-2">Full Database Export</h2>
             <p className="text-sm text-gray-600">
-              Export all application data including acquisitions, inventory, sales, bundles, and more.
-              This creates a complete snapshot of your data.
+              Export all application data including acquisitions, inventory, sales, bundles, and
+              more. This creates a complete snapshot of your data.
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Export Format
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Export Format</label>
               <select
                 value={exportFormat}
                 onChange={(e) => setExportFormat(e.target.value as "csv" | "json")}
@@ -154,12 +156,8 @@ export default function BackupPage() {
               </select>
             </div>
 
-            <div className="flex-shrink-0">
-              <Button
-                variant="primary"
-                onClick={handleFullExport}
-                disabled={exporting}
-              >
+            <div className="shrink-0">
+              <Button variant="primary" onClick={handleFullExport} disabled={exporting}>
                 {exporting ? "Exporting..." : "Download Full Export"}
               </Button>
             </div>
@@ -168,8 +166,8 @@ export default function BackupPage() {
           <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
             <p className="text-sm text-blue-800">
               <strong>Note:</strong> Full exports include all critical data tables. JSON format
-              preserves relationships and structure better for restoration. CSV format is better
-              for analysis in spreadsheet applications.
+              preserves relationships and structure better for restoration. CSV format is better for
+              analysis in spreadsheet applications.
             </p>
           </div>
         </div>
@@ -193,11 +191,7 @@ export default function BackupPage() {
                   All sales orders with profit calculations, buyer information, and item details.
                 </p>
               </div>
-              <Button
-                variant="secondary"
-                onClick={handleSalesExport}
-                className="w-full"
-              >
+              <Button variant="secondary" onClick={handleSalesExport} className="w-full">
                 Export Sales CSV
               </Button>
             </div>
@@ -209,11 +203,7 @@ export default function BackupPage() {
                   All inventory lots with card details, conditions, quantities, and pricing.
                 </p>
               </div>
-              <Button
-                variant="secondary"
-                onClick={handleInventoryExport}
-                className="w-full"
-              >
+              <Button variant="secondary" onClick={handleInventoryExport} className="w-full">
                 Export Inventory CSV
               </Button>
             </div>
@@ -241,7 +231,7 @@ export default function BackupPage() {
                 <li>Navigate to your Supabase project dashboard</li>
                 <li>Go to Settings → Database → Backups</li>
                 <li>Select the backup point you want to restore</li>
-                <li>Click "Restore" and confirm</li>
+                <li>Click &quot;Restore&quot; and confirm</li>
                 <li>Verify data after restoration completes</li>
               </ol>
             </div>
@@ -253,9 +243,14 @@ export default function BackupPage() {
                 functions, or triggers.
               </p>
               <ol className="text-xs text-gray-600 space-y-1 ml-4 list-decimal">
-                <li>Use the restore script: <code className="bg-gray-100 px-1 rounded">scripts/restore-from-export.sh</code></li>
+                <li>
+                  Use the restore script:{" "}
+                  <code className="bg-gray-100 px-1 rounded">scripts/restore-from-export.sh</code>
+                </li>
                 <li>Review SQL output before executing</li>
-                <li>Import tables in dependency order (sets → cards → acquisitions → lots → orders)</li>
+                <li>
+                  Import tables in dependency order (sets → cards → acquisitions → lots → orders)
+                </li>
                 <li>Verify foreign key relationships are maintained</li>
               </ol>
             </div>
@@ -264,7 +259,9 @@ export default function BackupPage() {
           <div className="pt-4 border-t border-gray-200">
             <p className="text-sm text-gray-600">
               Complete backup and recovery documentation is available in the project repository:
-              <code className="bg-gray-100 px-2 py-1 rounded ml-2 text-xs">BACKUP_AND_RECOVERY.md</code>
+              <code className="bg-gray-100 px-2 py-1 rounded ml-2 text-xs">
+                BACKUP_AND_RECOVERY.md
+              </code>
             </p>
           </div>
         </div>
@@ -274,7 +271,7 @@ export default function BackupPage() {
       <Card>
         <div className="p-6 space-y-4">
           <h2 className="text-lg font-semibold">Backup Best Practices</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <h3 className="font-medium text-sm">3-2-1 Rule</h3>
@@ -298,7 +295,7 @@ export default function BackupPage() {
           <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
             <p className="text-sm text-yellow-800">
               <strong>Important:</strong> Regularly test your backup restoration procedures to
-              ensure they work when needed. A backup that can't be restored is not useful.
+              ensure they work when needed. A backup that can&apos;t be restored is not useful.
             </p>
           </div>
         </div>
@@ -306,4 +303,3 @@ export default function BackupPage() {
     </div>
   );
 }
-

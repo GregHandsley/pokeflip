@@ -9,10 +9,11 @@ vi.mock("@/lib/validation", async () => {
     ...actual,
     uuid: (val: string) => val,
     nonEmptyString: (val: string) => val,
-    optional: (val: any, fn: any) => val === undefined ? undefined : fn(val, "field"),
+    optional: (val: unknown, fn: (v: unknown, field: string) => unknown) =>
+      val === undefined ? undefined : fn(val, "field"),
     number: (val: number) => val,
     nonNegative: (val: number) => val,
-    array: (val: any[]) => val,
+    array: (val: unknown[]) => val,
     quantity: (val: number) => val,
   };
 });
@@ -31,7 +32,9 @@ describe.skip("POST /api/admin/bundles/[bundleId]/sell", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (supabaseServer as any).mockReturnValue(mockSupabase);
+    (supabaseServer as unknown as { mockReturnValue: (value: unknown) => void }).mockReturnValue(
+      mockSupabase
+    );
   });
 
   it("Sells a bundle successfully", async () => {
@@ -44,9 +47,7 @@ describe.skip("POST /api/admin/bundles/[bundleId]/sell", () => {
           id: "bundle1",
           status: "active",
           quantity: 3,
-          bundle_items: [
-            { id: "item1", lot_id: "lot1", quantity: 2 },
-          ],
+          bundle_items: [{ id: "item1", lot_id: "lot1", quantity: 2 }],
         },
         error: null,
       }),
@@ -220,4 +221,3 @@ describe.skip("POST /api/admin/bundles/[bundleId]/sell", () => {
     expect(json.error).toContain("already been sold");
   });
 });
-

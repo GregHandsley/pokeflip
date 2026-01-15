@@ -10,7 +10,11 @@ export type DraftLine = {
   for_sale: boolean;
   list_price_pence?: number | null;
   note: string | null;
-  cards: { number: string; name: string; api_image_url: string | null; api_payload?: any } | null;
+  cards: {
+    number: string;
+    name: string;
+    api_image_url: string | null;
+    api_payload?: unknown;
+  } | null;
   sets: { name: string } | null;
 };
-

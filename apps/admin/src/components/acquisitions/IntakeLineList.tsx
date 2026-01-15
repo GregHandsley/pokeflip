@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { penceToPounds } from "@pokeflip/shared";
 import Card from "@/components/ui/Card";
 
@@ -26,11 +27,15 @@ export default function IntakeLineList({ lines }: IntakeLineListProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {line.cards?.api_image_url && (
-                <img
-                  src={`${line.cards.api_image_url}/low.webp`}
-                  alt=""
-                  className="h-12 w-auto rounded border border-gray-200"
-                />
+                <div className="relative h-12 w-auto rounded border border-gray-200 overflow-hidden">
+                  <Image
+                    src={`${line.cards.api_image_url}/low.webp`}
+                    alt=""
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
               )}
               <div>
                 <div className="font-medium">
@@ -39,9 +44,7 @@ export default function IntakeLineList({ lines }: IntakeLineListProps) {
                 </div>
                 <div className="text-sm text-gray-600">
                   {line.condition} • qty {line.quantity} •{" "}
-                  {line.for_sale
-                    ? `£${penceToPounds(line.list_price_pence)}`
-                    : "not for sale"}
+                  {line.for_sale ? `£${penceToPounds(line.list_price_pence)}` : "not for sale"}
                 </div>
               </div>
             </div>
@@ -52,4 +55,3 @@ export default function IntakeLineList({ lines }: IntakeLineListProps) {
     </div>
   );
 }
-

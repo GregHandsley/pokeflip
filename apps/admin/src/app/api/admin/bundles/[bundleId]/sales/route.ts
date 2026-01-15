@@ -4,13 +4,93 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import { uuid } from "@/lib/validation";
 
+type SalesOrderRow = {
+  id: string;
+  sold_at: string;
+  platform_order_ref: string | null;
+  fees_pence: number | null;
+  shipping_pence: number | null;
+  discount_pence: number | null;
+  order_group: string | null;
+  buyers:
+    | {
+        id: string;
+        handle: string;
+        platform: string;
+      }[]
+    | null;
+  sales_items: Array<{
+    id: string;
+    qty: number;
+    sold_price_pence: number;
+    inventory_lots:
+      | {
+          id: string;
+          condition: string;
+          variation: string | null;
+          cards: {
+            id: string;
+            number: string | null;
+            name: string | null;
+            api_image_url: string | null;
+            sets:
+              | {
+                  id: string;
+                  name: string;
+                }
+              | {
+                  id: string;
+                  name: string;
+                }[]
+              | null;
+          } | null;
+        }[]
+      | null;
+  }> | null;
+  sales_consumables: Array<{
+    id: string;
+    qty: number;
+    consumables: {
+      id: string;
+      name: string;
+      unit: string;
+    } | null;
+  }> | null;
+};
+
+type SalesConsumableRow = {
+  consumable_id: string;
+};
+
+type ConsumableCostRow = {
+  consumable_id: string;
+  avg_cost_pence_per_unit: number | null;
+};
+
+type EnrichedSalesOrder = SalesOrderRow & {
+  sales_consumables: Array<{
+    id: string;
+    qty: number;
+    consumables: {
+      id: string;
+      name: string;
+      unit: string;
+      avg_cost_pence_per_unit: number;
+    } | null;
+  }> | null;
+  buyers:
+    | {
+        id: string;
+        handle: string;
+        platform: string;
+      }[]
+    | null;
+};
+
 // GET: Get sales information for a bundle (all sales orders for this bundle)
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ bundleId: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ bundleId: string }> }) {
   const logger = createApiLogger(req);
-  
+
   try {
     const { bundleId } = await params;
     const validatedBundleId = uuid(bundleId, "bundleId");
@@ -20,7 +100,8 @@ export async function GET(
     // Get all sales orders for this bundle
     const { data: salesOrders, error: salesError } = await supabase
       .from("sales_orders")
-      .select(`
+      .select(
+        `
         id,
         sold_at,
         platform_order_ref,
@@ -62,12 +143,15 @@ export async function GET(
             unit
           )
         )
-      `)
+      `
+      )
       .eq("bundle_id", validatedBundleId)
       .order("sold_at", { ascending: false });
 
     if (salesError) {
-      logger.error("Failed to fetch bundle sales", salesError, undefined, { bundleId: validatedBundleId });
+      logger.error("Failed to fetch bundle sales", salesError, undefined, {
+        bundleId: validatedBundleId,
+      });
       return createErrorResponse(
         salesError.message || "Failed to fetch bundle sales",
         500,
@@ -79,7 +163,8 @@ export async function GET(
     // Get bundle details
     const { data: bundle, error: bundleError } = await supabase
       .from("bundles")
-      .select(`
+      .select(
+        `
         id,
         name,
         description,
@@ -106,12 +191,15 @@ export async function GET(
             variation
           )
         )
-      `)
+      `
+      )
       .eq("id", validatedBundleId)
       .single();
 
     if (bundleError) {
-      logger.error("Failed to fetch bundle", bundleError, undefined, { bundleId: validatedBundleId });
+      logger.error("Failed to fetch bundle", bundleError, undefined, {
+        bundleId: validatedBundleId,
+      });
       return createErrorResponse(
         bundleError.message || "Failed to fetch bundle",
         500,
@@ -121,9 +209,9 @@ export async function GET(
     }
 
     // Get consumable costs for all sales orders
-    const salesOrderIds = (salesOrders || []).map((so: any) => so.id);
+    const salesOrderIds = (salesOrders || []).map((so) => so.id);
     const consumableCostsMap = new Map<string, number>();
-    
+
     if (salesOrderIds.length > 0) {
       // Get all consumables used in these sales orders
       const { data: salesConsumables } = await supabase
@@ -132,7 +220,7 @@ export async function GET(
         .in("sales_order_id", salesOrderIds);
 
       const consumableIds = [
-        ...new Set((salesConsumables || []).map((sc: any) => sc.consumable_id)),
+        ...new Set((salesConsumables || []).map((sc: SalesConsumableRow) => sc.consumable_id)),
       ];
 
       if (consumableIds.length > 0) {
@@ -142,25 +230,28 @@ export async function GET(
           .select("consumable_id, avg_cost_pence_per_unit")
           .in("consumable_id", consumableIds);
 
-        (consumableCosts || []).forEach((cost: any) => {
+        (consumableCosts || []).forEach((cost: ConsumableCostRow) => {
           consumableCostsMap.set(cost.consumable_id, cost.avg_cost_pence_per_unit || 0);
         });
       }
     }
 
     // Enhance sales orders with consumable costs
-    const enrichedSales = (salesOrders || []).map((order: any) => ({
+    const enrichedSales: EnrichedSalesOrder[] = (salesOrders || []).map((order) => ({
       ...order,
-      sales_consumables: (order.sales_consumables || []).map((sc: any) => ({
-        ...sc,
-        consumables: sc.consumables
-          ? {
-              ...sc.consumables,
-              avg_cost_pence_per_unit: consumableCostsMap.get(sc.consumables.id) || 0,
-            }
-          : null,
-      })),
-    }));
+      sales_consumables: (order.sales_consumables || []).map((sc) => {
+        const consumable = Array.isArray(sc.consumables) ? sc.consumables[0] : sc.consumables;
+        return {
+          ...sc,
+          consumables: consumable
+            ? {
+                ...consumable,
+                avg_cost_pence_per_unit: consumableCostsMap.get(consumable.id) || 0,
+              }
+            : null,
+        };
+      }),
+    })) as unknown as EnrichedSalesOrder[];
 
     return NextResponse.json({
       ok: true,
@@ -173,4 +264,3 @@ export async function GET(
     });
   }
 }
-

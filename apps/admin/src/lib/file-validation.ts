@@ -27,8 +27,14 @@ export const ALLOWED_IMAGE_TYPES = [
 const FILE_SIGNATURES: Record<string, number[][]> = {
   "image/jpeg": [[0xff, 0xd8, 0xff]],
   "image/png": [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
-  "image/gif": [[0x47, 0x49, 0x46, 0x38, 0x37, 0x61], [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]],
-  "image/webp": [[0x52, 0x49, 0x46, 0x46], [0x57, 0x45, 0x42, 0x50]], // RIFF...WEBP
+  "image/gif": [
+    [0x47, 0x49, 0x46, 0x38, 0x37, 0x61],
+    [0x47, 0x49, 0x46, 0x38, 0x39, 0x61],
+  ],
+  "image/webp": [
+    [0x52, 0x49, 0x46, 0x46],
+    [0x57, 0x45, 0x42, 0x50],
+  ], // RIFF...WEBP
 };
 
 /**
@@ -42,10 +48,7 @@ async function getFileSignature(file: File): Promise<Uint8Array> {
 /**
  * Validates file type using magic numbers (file signatures)
  */
-async function validateFileSignature(
-  file: File,
-  expectedMimeType: string
-): Promise<boolean> {
+async function validateFileSignature(file: File, expectedMimeType: string): Promise<boolean> {
   try {
     const signature = await getFileSignature(file);
     const expectedSignatures = FILE_SIGNATURES[expectedMimeType];
@@ -79,14 +82,14 @@ async function validateFileSignature(
         signature[8] === 0x57 && // W
         signature[9] === 0x45 && // E
         signature[10] === 0x42 && // B
-        signature[11] === 0x50   // P
+        signature[11] === 0x50 // P
       ) {
         return true;
       }
     }
 
     return false;
-  } catch (error) {
+  } catch {
     // If we can't read the signature, fail validation for safety
     return false;
   }
@@ -115,7 +118,7 @@ export async function validateImageFile(
   }
 
   // Check MIME type
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type as any)) {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type as (typeof ALLOWED_IMAGE_TYPES)[number])) {
     return {
       valid: false,
       error: `Invalid file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(", ")}`,
@@ -144,7 +147,8 @@ export async function validateImageFile(
   if (!signatureValid) {
     return {
       valid: false,
-      error: "File content does not match declared file type (possible file corruption or spoofing)",
+      error:
+        "File content does not match declared file type (possible file corruption or spoofing)",
     };
   }
 
@@ -177,7 +181,7 @@ export function getSafeFilename(originalFilename: string, prefix: string = ""): 
     .substring(0, 100); // Limit length
 
   const finalName = prefix ? `${prefix}_${sanitized}` : sanitized;
-  
+
   // Ensure filename is not empty
   if (!finalName) {
     return prefix || "file";
@@ -193,12 +197,11 @@ export function validateFileKind(kind: string, allowedKinds: string[]): string |
   if (!kind || typeof kind !== "string") {
     return null;
   }
-  
+
   const normalized = kind.toLowerCase().trim();
   if (allowedKinds.includes(normalized)) {
     return normalized;
   }
-  
+
   return null;
 }
-

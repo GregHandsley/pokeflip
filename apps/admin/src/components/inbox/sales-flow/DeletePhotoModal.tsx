@@ -26,18 +26,10 @@ export default function DeletePhotoModal({
       maxWidth="sm"
       footer={
         <div className="flex justify-end gap-3">
-          <Button
-            variant="secondary"
-            onClick={onClose}
-            disabled={isDeleting}
-          >
+          <Button variant="secondary" onClick={onClose} disabled={isDeleting}>
             Cancel
           </Button>
-          <Button
-            variant="danger"
-            onClick={onConfirm}
-            disabled={isDeleting}
-          >
+          <Button variant="danger" onClick={onConfirm} disabled={isDeleting}>
             {isDeleting ? "Deleting..." : "Delete Photo"}
           </Button>
         </div>
@@ -46,8 +38,8 @@ export default function DeletePhotoModal({
       {photoKind && (
         <div className="space-y-3">
           <p className="text-gray-700">
-            Are you sure you want to delete this <strong>{photoKind}</strong> photo? This
-            action cannot be undone.
+            Are you sure you want to delete this <strong>{photoKind}</strong> photo? This action
+            cannot be undone.
           </p>
           <p className="text-xs text-gray-500">
             The photo will be permanently removed from storage and cannot be recovered.
@@ -57,5 +49,3 @@ export default function DeletePhotoModal({
     </Modal>
   );
 }
-
-

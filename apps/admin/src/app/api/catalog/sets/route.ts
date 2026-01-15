@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchAllSets } from "@/lib/tcgdx/tcgdxClient";
 import { handleApiError } from "@/lib/api-error-handler";
-import { createApiLogger } from "@/lib/logger";
 import { unstable_cache } from "next/cache";
 
 // Cache catalog data for 1 hour (sets don't change frequently)
@@ -10,11 +9,10 @@ async function fetchSetsUncached(locale: string) {
 }
 
 export async function GET(req: Request) {
-  const logger = createApiLogger(req);
-  
+  const { searchParams } = new URL(req.url);
+  const locale = searchParams.get("locale") || "en";
+
   try {
-    const { searchParams } = new URL(req.url);
-    const locale = searchParams.get("locale") || "en";
     const simplified = searchParams.get("simplified") === "true";
 
     // Use cached sets (revalidates every hour) - cache key includes locale
@@ -28,7 +26,7 @@ export async function GET(req: Request) {
     );
 
     const sets = await getCachedSets();
-    
+
     // Return simplified format if requested (for backward compatibility)
     if (simplified) {
       const transformedSets = sets.map((s) => ({
@@ -42,7 +40,7 @@ export async function GET(req: Request) {
 
     // Return full set objects (client-side components need logo, symbol, etc.)
     return NextResponse.json({ ok: true, data: sets });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "get_sets", metadata: { locale } });
   }
 }

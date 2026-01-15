@@ -24,6 +24,12 @@ export default function Modal({
   const modalRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  // Keep latest onClose without retriggering the main effect
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // Handle keyboard navigation and focus management
   useEffect(() => {
@@ -32,21 +38,39 @@ export default function Modal({
     // Store the previously focused element
     previousActiveElement.current = document.activeElement as HTMLElement;
 
-    // Focus the close button when modal opens
-    const timeoutId = setTimeout(() => {
-      closeButtonRef.current?.focus();
-    }, 100);
-
-    // Handle Escape key
+    // Handle Escape key - only if not typing in an input field
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
+      // Only handle Escape key
+      if (e.key !== "Escape") return;
+
+      const target = e.target as HTMLElement;
+      // Don't close if user is typing in an input, textarea, or select, or if target is editable
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable
+      ) {
+        return;
       }
+      e.preventDefault();
+      onCloseRef.current();
     };
 
-    // Handle focus trapping
+    // Handle focus trapping - only for Tab key, and only if not in an input
     const handleTabKey = (e: KeyboardEvent) => {
       if (e.key !== "Tab" || !modalRef.current) return;
+
+      const target = e.target as HTMLElement;
+      // Don't interfere if user is typing in an input
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
 
       const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -69,22 +93,21 @@ export default function Modal({
       }
     };
 
-    document.addEventListener("keydown", handleEscape);
-    document.addEventListener("keydown", handleTabKey);
+    document.addEventListener("keydown", handleEscape, { capture: false });
+    document.addEventListener("keydown", handleTabKey, { capture: false });
 
     // Lock body scroll when modal is open
     document.body.style.overflow = "hidden";
 
     return () => {
-      clearTimeout(timeoutId);
       document.removeEventListener("keydown", handleEscape);
       document.removeEventListener("keydown", handleTabKey);
       document.body.style.overflow = "";
-      
+
       // Restore focus to previously focused element
       previousActiveElement.current?.focus();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -113,16 +136,18 @@ export default function Modal({
         tabIndex={-1}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200 flex-shrink-0">
+        <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200 shrink-0">
           <div className="flex-1 min-w-0 pr-2">
-            <h2 id="modal-title" className="text-xl md:text-2xl font-bold truncate">{title}</h2>
+            <h2 id="modal-title" className="text-xl md:text-2xl font-bold truncate">
+              {title}
+            </h2>
             {subtitle && (
               <div id="modal-subtitle" className="text-sm text-gray-600 mt-1">
                 {subtitle}
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             {headerAction}
             <button
               ref={closeButtonRef}
@@ -141,7 +166,7 @@ export default function Modal({
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-between p-4 md:p-6 border-t border-gray-200 flex-shrink-0">
+          <div className="flex items-center justify-between p-4 md:p-6 border-t border-gray-200 shrink-0">
             {footer}
           </div>
         )}
@@ -149,4 +174,3 @@ export default function Modal({
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
 /**
  * Structured logging utility
- * 
+ *
  * Integrated with Sentry for production error tracking
  */
 
@@ -39,7 +39,13 @@ class Logger {
   /**
    * Log an entry with structured data
    */
-  private log(level: LogLevel, message: string, context?: LogContext, error?: Error, metadata?: Record<string, unknown>) {
+  private log(
+    level: LogLevel,
+    message: string,
+    context?: LogContext,
+    error?: Error,
+    metadata?: Record<string, unknown>
+  ) {
     const entry: LogEntry = {
       level,
       message,
@@ -59,11 +65,11 @@ class Logger {
     // In development, log to console with formatting
     if (this.isDevelopment) {
       const style = this.getConsoleStyle(level);
-      console.log(
-        `%c[${entry.timestamp}] ${level.toUpperCase()}: ${message}`,
-        style,
-        { context, error, metadata }
-      );
+      console.log(`%c[${entry.timestamp}] ${level.toUpperCase()}: ${message}`, style, {
+        context,
+        error,
+        metadata,
+      });
     }
 
     // Send to Sentry in production (or if explicitly enabled)
@@ -93,11 +99,13 @@ class Logger {
             extra: {
               context,
               metadata,
-              error: error ? {
-                name: error.name,
-                message: error.message,
-                stack: error.stack,
-              } : undefined,
+              error: error
+                ? {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack,
+                  }
+                : undefined,
             },
           });
         }
@@ -153,7 +161,12 @@ class Logger {
   /**
    * Log errors with full context
    */
-  error(message: string, error?: Error | unknown, context?: LogContext, metadata?: Record<string, unknown>) {
+  error(
+    message: string,
+    error?: Error | unknown,
+    context?: LogContext,
+    metadata?: Record<string, unknown>
+  ) {
     const err = error instanceof Error ? error : new Error(String(error));
     this.log("error", message, context, err, metadata);
   }
@@ -169,8 +182,12 @@ class Logger {
         this.info(message, { ...defaultContext, ...context }, metadata),
       warn: (message: string, context?: LogContext, metadata?: Record<string, unknown>) =>
         this.warn(message, { ...defaultContext, ...context }, metadata),
-      error: (message: string, error?: Error | unknown, context?: LogContext, metadata?: Record<string, unknown>) =>
-        this.error(message, error, { ...defaultContext, ...context }, metadata),
+      error: (
+        message: string,
+        error?: Error | unknown,
+        context?: LogContext,
+        metadata?: Record<string, unknown>
+      ) => this.error(message, error, { ...defaultContext, ...context }, metadata),
     };
   }
 }
@@ -192,4 +209,3 @@ export function createApiLogger(req: Request, userId?: string, userEmail?: strin
 
   return logger.withContext(context);
 }
-

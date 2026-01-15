@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import Image from "next/image";
 import type { TcgdxCard } from "./types";
 import { DEFAULT_CARD_BACK_IMAGE } from "@/lib/constants/images";
 
@@ -12,7 +14,14 @@ type Props = {
   locale?: string;
 };
 
-export function CardGrid({ cards, loading, searchQuery, recentlyAdded, onCardClick, locale = "en" }: Props) {
+export function CardGrid({
+  cards,
+  loading,
+  searchQuery,
+  recentlyAdded,
+  onCardClick,
+  locale = "en",
+}: Props) {
   if (loading) {
     return <div className="text-center py-16 text-gray-600 flex-1">Loading cards...</div>;
   }
@@ -48,21 +57,17 @@ export function CardGrid({ cards, loading, searchQuery, recentlyAdded, onCardCli
               }`}
             >
               {locale === "en" && (
-                <div className="text-sm font-semibold line-clamp-2 leading-tight break-words mb-2">{card.name}</div>
+                <div className="text-sm font-semibold line-clamp-2 leading-tight wrap-break-words mb-2">
+                  {card.name}
+                </div>
               )}
-              <div className="aspect-[2.5/3.5] w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center mb-3">
-                <img
-                  src={displayImageUrl}
-                  alt={card.name || "Card"}
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    // Fallback if default image also fails to load
-                    (e.target as HTMLImageElement).src = DEFAULT_CARD_BACK_IMAGE;
-                  }}
-                />
+              <div className="aspect-[2.5/3.5] w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center mb-3 relative">
+                <CardImage src={displayImageUrl} alt={card.name || "Card"} />
               </div>
               {(card.localId || card.number) && (
-                <div className={`font-bold ${locale === "en" ? "text-base text-gray-900 text-center" : "text-lg text-gray-900 text-center"}`}>
+                <div
+                  className={`font-bold ${locale === "en" ? "text-base text-gray-900 text-center" : "text-lg text-gray-900 text-center"}`}
+                >
                   {card.localId || card.number}
                 </div>
               )}
@@ -79,3 +84,25 @@ export function CardGrid({ cards, loading, searchQuery, recentlyAdded, onCardCli
   );
 }
 
+function CardImage({ src, alt }: { src: string; alt: string }) {
+  const [imageError, setImageError] = useState(false);
+  const [imageSrc, setImageSrc] = useState(src);
+
+  const handleError = () => {
+    if (!imageError) {
+      setImageError(true);
+      setImageSrc(DEFAULT_CARD_BACK_IMAGE);
+    }
+  };
+
+  return (
+    <Image
+      src={imageSrc}
+      alt={alt}
+      fill
+      className="object-cover"
+      onError={handleError}
+      unoptimized
+    />
+  );
+}

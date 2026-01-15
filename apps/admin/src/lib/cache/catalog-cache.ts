@@ -10,17 +10,13 @@ type CacheEntry<T> = {
 };
 
 class CatalogCache {
-  private cache = new Map<string, CacheEntry<any>>();
+  private cache = new Map<string, CacheEntry<unknown>>();
   private defaultTTL = 60 * 60 * 1000; // 1 hour default
 
   /**
    * Get cached data or fetch and cache it
    */
-  async get<T>(
-    key: string,
-    fetcher: () => Promise<T>,
-    ttl: number = this.defaultTTL
-  ): Promise<T> {
+  async get<T>(key: string, fetcher: () => Promise<T>, ttl: number = this.defaultTTL): Promise<T> {
     const entry = this.cache.get(key);
 
     // Check if cache entry exists and is still valid
@@ -108,4 +104,3 @@ export function getSetsCacheKey(locale: string): string {
 export function getCardsCacheKey(setId: string, locale: string): string {
   return `cards:${setId}:${locale}`;
 }
-

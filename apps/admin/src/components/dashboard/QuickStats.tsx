@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { penceToPounds } from "@pokeflip/shared";
 import Card from "@/components/ui/Card";
 
@@ -46,16 +47,14 @@ export default function QuickStats({ data, loading }: Props) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-gray-600">Open Purchases</span>
-              <a
+              <Link
                 href="/admin/acquisitions"
                 className="text-xs text-gray-600 hover:text-gray-900 underline"
               >
                 View
-              </a>
+              </Link>
             </div>
-            <div className="text-2xl font-bold text-gray-900">
-              {data.purchases.open}
-            </div>
+            <div className="text-2xl font-bold text-gray-900">{data.purchases.open}</div>
           </div>
 
           {/* Inventory */}
@@ -71,15 +70,11 @@ export default function QuickStats({ data, loading }: Props) {
             </div>
             <div className="flex items-center gap-4">
               <div>
-                <div className="text-xl font-bold text-gray-900">
-                  {data.inventory.total}
-                </div>
+                <div className="text-xl font-bold text-gray-900">{data.inventory.total}</div>
                 <div className="text-xs text-gray-500">Total</div>
               </div>
               <div>
-                <div className="text-xl font-bold text-green-600">
-                  {data.inventory.listed}
-                </div>
+                <div className="text-xl font-bold text-green-600">{data.inventory.listed}</div>
                 <div className="text-xs text-gray-500">Listed</div>
               </div>
             </div>
@@ -98,9 +93,7 @@ export default function QuickStats({ data, loading }: Props) {
             </div>
             <div className="flex items-center gap-4">
               <div>
-                <div className="text-xl font-bold text-gray-900">
-                  {data.recentSales.count}
-                </div>
+                <div className="text-xl font-bold text-gray-900">{data.recentSales.count}</div>
                 <div className="text-xs text-gray-500">Orders</div>
               </div>
               <div>
@@ -116,4 +109,3 @@ export default function QuickStats({ data, loading }: Props) {
     </Card>
   );
 }
-

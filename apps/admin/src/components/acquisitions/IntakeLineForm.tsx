@@ -1,11 +1,11 @@
 "use client";
 
 import { FormEvent, useState, useEffect, useMemo } from "react";
+import Image from "next/image";
 import { poundsToPence } from "@pokeflip/shared";
 import { Input, Select } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Alert from "@/components/ui/Alert";
-import type { TcgSet, TcgCard } from "@/lib/tcgdx/types";
 import { CARD_CONDITIONS } from "@/lib/tcgdx/constants";
 import { useCatalogSets } from "./hooks/useCatalogSets";
 import { useTcgdxCards } from "./hooks/useTcgdxCards";
@@ -29,10 +29,7 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
 
   // Use hooks for data fetching
   const { sets, loading: loadingSets, error: setsError } = useCatalogSets();
-  const { cards, loading: loadingCards, error: cardsError } = useTcgdxCards(
-    setId || null,
-    "en"
-  );
+  const { cards, loading: loadingCards, error: cardsError } = useTcgdxCards(setId || null, "en");
 
   const conditionOptions = CARD_CONDITIONS.map((c) => ({
     value: c.value,
@@ -45,7 +42,7 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
   useEffect(() => {
     if (setsError) {
       setError(setsError);
-      }
+    }
   }, [setsError]);
 
   // Reset card selection when set changes
@@ -93,8 +90,8 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
       setQty(1);
       setListPrice("0.99");
       onLineAdded();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "An unknown error occurred");
     } finally {
       setLoading(false);
     }
@@ -145,14 +142,16 @@ export default function IntakeLineForm({ acquisitionId, onLineAdded }: IntakeLin
 
       {selectedCard?.image && (
         <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-          <img
-            src={`${selectedCard.image}/high.webp`}
-            alt={`${selectedCard.name} preview`}
-            className="h-20 w-auto rounded-lg border border-gray-200"
-          />
-          <div className="text-sm text-gray-600">
-            Card preview from TCGdex API
+          <div className="relative h-20 w-auto rounded-lg border border-gray-200 overflow-hidden">
+            <Image
+              src={`${selectedCard.image}/high.webp`}
+              alt={`${selectedCard.name} preview`}
+              fill
+              className="object-contain"
+              unoptimized
+            />
           </div>
+          <div className="text-sm text-gray-600">Card preview from TCGdex API</div>
         </div>
       )}
 

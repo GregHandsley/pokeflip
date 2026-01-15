@@ -3,7 +3,6 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import {
-  nonEmptyString,
   sanitizedNonEmptyString,
   sanitizedString,
   pricePence,
@@ -11,14 +10,47 @@ import {
   uuid,
   quantity,
   optional,
-  string,
   bundleStatus,
 } from "@/lib/validation";
+
+type BundleItemInput = {
+  lotId: string;
+  quantity?: number;
+};
+
+type CreateBundleRequestBody = {
+  name: string;
+  pricePence: number;
+  items: BundleItemInput[];
+  quantity?: number;
+  description?: string;
+};
+
+type InventoryLotRow = {
+  id: string;
+  quantity: number;
+  for_sale: boolean;
+  status: string;
+};
+
+type SoldItemRow = {
+  lot_id: string;
+  qty: number;
+};
+
+type BundleRow = {
+  id: string;
+};
+
+type BundleItemRow = {
+  lot_id: string;
+  quantity: number;
+};
 
 // GET: List all bundles
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const supabase = supabaseServer();
     const { searchParams } = new URL(req.url);
@@ -26,7 +58,8 @@ export async function GET(req: Request) {
 
     let query = supabase
       .from("bundles")
-      .select(`
+      .select(
+        `
         *,
         bundle_items (
           id,
@@ -48,7 +81,8 @@ export async function GET(req: Request) {
             )
           )
         )
-      `)
+      `
+      )
       .order("created_at", { ascending: false });
 
     // Only filter by status if provided and not "all"
@@ -73,7 +107,7 @@ export async function GET(req: Request) {
       ok: true,
       bundles: bundles || [],
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "fetch_bundles" });
   }
 }
@@ -81,44 +115,44 @@ export async function GET(req: Request) {
 // POST: Create a new bundle
 export async function POST(req: Request) {
   const logger = createApiLogger(req);
-  let body: any;
-  
+
   try {
-    body = await req.json();
-    
+    const body = (await req.json()) as CreateBundleRequestBody;
+
     // Validate and sanitize required fields
     const validatedName = sanitizedNonEmptyString(body.name, "name");
     const validatedPricePence = pricePence(body.pricePence, "pricePence");
-    const validatedItems = nonEmptyArray(body.items, "items");
+    const validatedItems = nonEmptyArray(body.items, "items") as BundleItemInput[];
     const validatedBundleQuantity = quantity(body.quantity || 1, "quantity");
-    
+
     // Validate each item in the array
-    validatedItems.forEach((item: any, index: number) => {
+    validatedItems.forEach((item: BundleItemInput, index: number) => {
       uuid(item.lotId, `items[${index}].lotId`);
       quantity(item.quantity || 1, `items[${index}].quantity`);
     });
-    
+
     // Sanitize optional description
-    const validatedDescription = optional(body.description, (v) => sanitizedString(v, "description"), "description");
+    const validatedDescription = optional(
+      body.description,
+      (v) => sanitizedString(v, "description"),
+      "description"
+    );
 
     const supabase = supabaseServer();
 
     // Verify all lots exist and are for sale
-    const lotIds = validatedItems.map((item: any) => item.lotId);
+    const lotIds = validatedItems.map((item: BundleItemInput) => item.lotId);
     const { data: lots, error: lotsError } = await supabase
       .from("inventory_lots")
       .select("id, quantity, for_sale, status")
       .in("id", lotIds);
 
     if (lotsError || !lots || lots.length !== lotIds.length) {
-      return NextResponse.json(
-        { error: "One or more lots not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "One or more lots not found" }, { status: 404 });
     }
 
     // Check if all lots are for sale
-    const notForSaleLots = lots.filter((lot: any) => !lot.for_sale);
+    const notForSaleLots = lots.filter((lot: InventoryLotRow) => !lot.for_sale);
     if (notForSaleLots.length > 0) {
       return NextResponse.json(
         { error: "Cannot add cards that are not for sale to bundles" },
@@ -133,7 +167,7 @@ export async function POST(req: Request) {
       .in("lot_id", lotIds);
 
     const soldItemsMap = new Map<string, number>();
-    (soldItems || []).forEach((item: any) => {
+    (soldItems || []).forEach((item: SoldItemRow) => {
       const current = soldItemsMap.get(item.lot_id) || 0;
       soldItemsMap.set(item.lot_id, current + (item.qty || 0));
     });
@@ -146,15 +180,15 @@ export async function POST(req: Request) {
 
     const bundleReservedMap = new Map<string, number>();
     if (activeBundles && activeBundles.length > 0) {
-      const activeBundleIds = activeBundles.map((b: any) => b.id);
-      
+      const activeBundleIds = activeBundles.map((b: BundleRow) => b.id);
+
       const { data: existingBundleItems } = await supabase
         .from("bundle_items")
         .select("lot_id, quantity")
         .in("lot_id", lotIds)
         .in("bundle_id", activeBundleIds);
 
-      (existingBundleItems || []).forEach((item: any) => {
+      (existingBundleItems || []).forEach((item: BundleItemRow) => {
         const current = bundleReservedMap.get(item.lot_id) || 0;
         bundleReservedMap.set(item.lot_id, current + (item.quantity || 0));
       });
@@ -163,19 +197,20 @@ export async function POST(req: Request) {
     // Validate each item has enough available quantity
     // Total cards needed = bundle_quantity * cards_per_bundle for each item
     for (const item of validatedItems) {
-      const lot = lots.find((l: any) => l.id === item.lotId);
+      const bundleItem: BundleItemInput = item;
+      const lot = lots.find((l: InventoryLotRow) => l.id === bundleItem.lotId);
       if (!lot) continue;
 
-      const soldQty = soldItemsMap.get(item.lotId) || 0;
-      const reservedQty = bundleReservedMap.get(item.lotId) || 0;
-      const cardsPerBundle = item.quantity || 1;
+      const soldQty = soldItemsMap.get(bundleItem.lotId) || 0;
+      const reservedQty = bundleReservedMap.get(bundleItem.lotId) || 0;
+      const cardsPerBundle = bundleItem.quantity || 1;
       const totalCardsNeeded = validatedBundleQuantity * cardsPerBundle;
       const availableQty = lot.quantity - soldQty - reservedQty;
 
       if (availableQty < totalCardsNeeded) {
         return NextResponse.json(
-          { 
-            error: `Insufficient quantity for lot ${item.lotId}. Available: ${availableQty}, Needed for ${validatedBundleQuantity} bundle(s): ${totalCardsNeeded} (${cardsPerBundle} per bundle)` 
+          {
+            error: `Insufficient quantity for lot ${bundleItem.lotId}. Available: ${availableQty}, Needed for ${validatedBundleQuantity} bundle(s): ${totalCardsNeeded} (${cardsPerBundle} per bundle)`,
           },
           { status: 400 }
         );
@@ -209,15 +244,13 @@ export async function POST(req: Request) {
     }
 
     // Create bundle items
-    const bundleItems = validatedItems.map((item: any) => ({
+    const bundleItems = validatedItems.map((item: BundleItemInput) => ({
       bundle_id: bundle.id,
       lot_id: item.lotId,
       quantity: item.quantity || 1,
     }));
 
-    const { error: itemsError } = await supabase
-      .from("bundle_items")
-      .insert(bundleItems);
+    const { error: itemsError } = await supabase.from("bundle_items").insert(bundleItems);
 
     if (itemsError) {
       logger.error("Failed to create bundle items", itemsError, undefined, {
@@ -245,11 +278,9 @@ export async function POST(req: Request) {
         status: "active",
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, {
       operation: "create_bundle",
-      metadata: { body },
     });
   }
 }
-

@@ -43,7 +43,6 @@ export default function RecordSaleModal({ isOpen, onClose, onSaleCreated }: Prop
     showBuyerSuggestions,
     setShowBuyerSuggestions,
     existingOrderGroups,
-    showOrderGroupSuggestions,
     setShowOrderGroupSuggestions,
     consumables,
     selectedConsumables,
@@ -205,7 +204,8 @@ export default function RecordSaleModal({ isOpen, onClose, onSaleCreated }: Prop
           orderGroup: orderGroup.trim() || null,
           feesPence: fees ? Math.round(parseFloat(fees) * 100) : null,
           shippingPence: shipping ? Math.round(parseFloat(shipping) * 100) : null,
-          discountPence: dealDiscount && dealDiscount.amount > 0 ? Math.round(dealDiscount.amount) : null,
+          discountPence:
+            dealDiscount && dealDiscount.amount > 0 ? Math.round(dealDiscount.amount) : null,
           consumables: selectedConsumables
             .filter((c) => c.consumable_id && c.qty > 0)
             .map((c) => ({
@@ -222,8 +222,11 @@ export default function RecordSaleModal({ isOpen, onClose, onSaleCreated }: Prop
 
       onSaleCreated();
       onClose();
-    } catch (e: any) {
-      setErrorModal({ isOpen: true, message: e.message || "Failed to create sale" });
+    } catch (e: unknown) {
+      setErrorModal({
+        isOpen: true,
+        message: e instanceof Error ? e.message : "Failed to create sale",
+      });
     } finally {
       setSubmitting(false);
     }

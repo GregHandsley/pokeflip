@@ -7,11 +7,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/contexts/ToastContext";
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = supabaseBrowser();
@@ -44,4 +40,3 @@ export default function AdminLayout({
     </ErrorBoundary>
   );
 }
-

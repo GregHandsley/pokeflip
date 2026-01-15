@@ -16,12 +16,25 @@ type Props = {
   onLeaveImage: () => void;
 };
 
-export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove, onHoverImage, onLeaveImage }: Props) {
+export function SingleCardRow({
+  line,
+  cardDisplay,
+  imageUrl,
+  onUpdate,
+  onRemove,
+  onHoverImage,
+  onLeaveImage,
+}: Props) {
   const [showSplitModal, setShowSplitModal] = useState(false);
-  const [allowedVariations, setAllowedVariations] = useState<string[]>(CARD_VARIATIONS as string[]);
+  const [allowedVariations, setAllowedVariations] = useState<string[]>([...CARD_VARIATIONS]);
   const [loadingVariants, setLoadingVariants] = useState(false);
 
-  const handleSplit = async (splitQty: number, forSale: boolean, price: string | null, condition?: Condition) => {
+  const handleSplit = async (
+    splitQty: number,
+    forSale: boolean,
+    price: string | null,
+    condition?: Condition
+  ) => {
     try {
       const res = await fetch(`/api/admin/intake-lines/${line.id}/split`, {
         method: "POST",
@@ -41,11 +54,11 @@ export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove,
 
       // Update the current line's quantity
       await onUpdate(line.id, { quantity: line.quantity - splitQty });
-      
+
       // Trigger a page refresh to show the new split line
       window.location.reload();
-    } catch (e: any) {
-      alert(e.message || "Failed to split line");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to split line");
       throw e;
     }
   };
@@ -56,7 +69,9 @@ export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove,
     const loadVariants = async () => {
       setLoadingVariants(true);
       try {
-        const res = await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(line.card_id)}`);
+        const res = await fetch(
+          `https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(line.card_id)}`
+        );
         const json = await res.json();
         const variants = json?.variants;
         if (!variants || typeof variants !== "object") throw new Error("No variants");
@@ -77,7 +92,7 @@ export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove,
         }
       } catch (e) {
         console.warn("Variant load failed, using defaults", e);
-        if (active) setAllowedVariations(CARD_VARIATIONS as string[]);
+        if (active) setAllowedVariations([...CARD_VARIATIONS]);
       } finally {
         if (active) setLoadingVariants(false);
       }
@@ -107,9 +122,24 @@ export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove,
                 className="p-1.5 rounded hover:bg-black/10 transition-colors"
                 title="Hover to view card image"
               >
-                <svg className="w-4 h-4 text-black/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                <svg
+                  className="w-4 h-4 text-black/60"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
                 </svg>
               </button>
             </div>
@@ -130,7 +160,11 @@ export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove,
             value={line.condition}
             onChange={(e) => onUpdate(line.id, { condition: e.target.value as Condition })}
           >
-            {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+            {CONDITIONS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -142,8 +176,10 @@ export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove,
             onChange={(e) => onUpdate(line.id, { variation: e.target.value })}
             disabled={loadingVariants}
           >
-            {allowedVariations.map(v => (
-              <option key={v} value={v}>{variationLabel(v)}</option>
+            {allowedVariations.map((v) => (
+              <option key={v} value={v}>
+                {variationLabel(v)}
+              </option>
             ))}
           </select>
         </div>
@@ -203,11 +239,10 @@ export function SingleCardRow({ line, cardDisplay, imageUrl, onUpdate, onRemove,
         onSplit={handleSplit}
         currentQuantity={line.quantity}
         currentForSale={line.for_sale}
-        currentPrice={line.list_price_pence}
+        currentPrice={line.list_price_pence ?? null}
         currentCondition={line.condition}
         title={`Split ${cardDisplay}`}
       />
     </div>
   );
 }
-

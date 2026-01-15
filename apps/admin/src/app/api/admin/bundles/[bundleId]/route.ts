@@ -3,30 +3,55 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import {
-  nonEmptyString,
   sanitizedNonEmptyString,
   sanitizedString,
   pricePence,
   optional,
-  string,
   bundleStatus,
   quantity,
 } from "@/lib/validation";
 
+type BundleItemRow = {
+  id: string;
+  lot_id: string;
+  quantity: number;
+};
+
+type InventoryLotRow = {
+  id: string;
+  quantity: number;
+};
+
+type SoldItemRow = {
+  lot_id: string;
+  qty: number;
+};
+
+type BundleRow = {
+  id: string;
+  quantity: number;
+};
+
+type UpdateBundleData = {
+  name?: string;
+  description?: string | null;
+  price_pence?: number;
+  status?: string;
+  quantity?: number;
+};
+
 // GET: Get a single bundle with items
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ bundleId: string }> }
-) {
-  const logger = createApiLogger(req);
-  
+export async function GET(req: Request, { params }: { params: Promise<{ bundleId: string }> }) {
+  // Extract bundleId outside try block so it's available in catch
+  const { bundleId } = await params;
+
   try {
-    const { bundleId } = await params;
     const supabase = supabaseServer();
 
     const { data: bundle, error } = await supabase
       .from("bundles")
-      .select(`
+      .select(
+        `
         *,
         bundle_items (
           id,
@@ -48,42 +73,40 @@ export async function GET(
             )
           )
         )
-      `)
+      `
+      )
       .eq("id", bundleId)
       .single();
 
     if (error || !bundle) {
-      return NextResponse.json(
-        { error: "Bundle not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Bundle not found" }, { status: 404 });
     }
 
     return NextResponse.json({
       ok: true,
       bundle,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "get_bundle", metadata: { bundleId } });
   }
 }
 
 // PATCH: Update bundle details
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ bundleId: string }> }
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ bundleId: string }> }) {
   const logger = createApiLogger(req);
-  
+
+  // Extract bundleId outside try block so it's available in catch
+  const { bundleId } = await params;
+
   try {
-    const { bundleId } = await params;
     const body = await req.json();
     const supabase = supabaseServer();
 
     // Verify bundle exists with items
     const { data: bundle, error: bundleError } = await supabase
       .from("bundles")
-      .select(`
+      .select(
+        `
         id,
         status,
         quantity,
@@ -92,35 +115,31 @@ export async function PATCH(
           lot_id,
           quantity
         )
-      `)
+      `
+      )
       .eq("id", bundleId)
       .single();
 
     if (bundleError || !bundle) {
-      return NextResponse.json(
-        { error: "Bundle not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Bundle not found" }, { status: 404 });
     }
 
     if (bundle.status === "sold") {
-      return NextResponse.json(
-        { error: "Cannot modify a sold bundle" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Cannot modify a sold bundle" }, { status: 400 });
     }
 
     // Build update object with validated and sanitized fields
-    const updateData: any = {};
-    
+    const updateData: UpdateBundleData = {};
+
     if (body.name !== undefined) {
       updateData.name = sanitizedNonEmptyString(body.name, "name");
     }
-    
+
     if (body.description !== undefined) {
-      updateData.description = optional(body.description, (v) => sanitizedString(v, "description"), "description") || null;
+      updateData.description =
+        optional(body.description, (v) => sanitizedString(v, "description"), "description") || null;
     }
-    
+
     if (body.pricePence !== undefined) {
       updateData.price_pence = pricePence(body.pricePence, "pricePence");
     }
@@ -137,8 +156,8 @@ export async function PATCH(
       // If increasing quantity, validate that enough cards are available
       if (newQuantity > currentQuantity) {
         const bundleItems = bundle.bundle_items || [];
-        const lotIds = bundleItems.map((item: any) => item.lot_id);
-        
+        const lotIds = bundleItems.map((item: BundleItemRow) => item.lot_id);
+
         // Get current lots with sold quantities
         const { data: lots } = await supabase
           .from("inventory_lots")
@@ -151,7 +170,7 @@ export async function PATCH(
           .in("lot_id", lotIds);
 
         const soldItemsMap = new Map<string, number>();
-        (soldItems || []).forEach((item: any) => {
+        (soldItems || []).forEach((item: SoldItemRow) => {
           const current = soldItemsMap.get(item.lot_id) || 0;
           soldItemsMap.set(item.lot_id, current + (item.qty || 0));
         });
@@ -165,47 +184,52 @@ export async function PATCH(
         const bundleReservedMap = new Map<string, number>();
         if (activeBundles && activeBundles.length > 0) {
           const otherBundleIds = activeBundles
-            .filter((b: any) => b.id !== bundleId)
-            .map((b: any) => b.id);
-          
+            .filter((b: BundleRow) => b.id !== bundleId)
+            .map((b: BundleRow) => b.id);
+
           if (otherBundleIds.length > 0) {
             const bundleQtyMap = new Map<string, number>();
-            activeBundles.forEach((b: any) => {
+            activeBundles.forEach((b: BundleRow) => {
               if (b.id !== bundleId) {
                 bundleQtyMap.set(b.id, b.quantity || 1);
               }
             });
-            
+
             const { data: otherBundleItems } = await supabase
               .from("bundle_items")
               .select("lot_id, quantity, bundle_id")
               .in("lot_id", lotIds)
               .in("bundle_id", otherBundleIds);
 
-            (otherBundleItems || []).forEach((item: any) => {
-              const bundleQty = bundleQtyMap.get(item.bundle_id) || 1;
-              const totalReserved = bundleQty * (item.quantity || 1);
-              const current = bundleReservedMap.get(item.lot_id) || 0;
-              bundleReservedMap.set(item.lot_id, current + totalReserved);
-            });
+            (otherBundleItems || []).forEach(
+              (item: { lot_id: string; quantity: number; bundle_id: string }) => {
+                const bundleQty = bundleQtyMap.get(item.bundle_id) || 1;
+                const totalReserved = bundleQty * (item.quantity || 1);
+                const current = bundleReservedMap.get(item.lot_id) || 0;
+                bundleReservedMap.set(item.lot_id, current + totalReserved);
+              }
+            );
           }
         }
 
         // Validate each bundle item has enough available
         const quantityIncrease = newQuantity - currentQuantity;
         for (const bundleItem of bundleItems) {
-          const lot = (lots || []).find((l: any) => l.id === bundleItem.lot_id);
+          const lot = (lots || []).find((l: InventoryLotRow) => l.id === bundleItem.lot_id);
           if (!lot) continue;
 
           const soldQty = soldItemsMap.get(bundleItem.lot_id) || 0;
           const reservedInOtherBundles = bundleReservedMap.get(bundleItem.lot_id) || 0;
           const cardsReservedInThisBundle = currentQuantity * (bundleItem.quantity || 1);
-          const availableQty = lot.quantity - soldQty - reservedInOtherBundles - cardsReservedInThisBundle;
+          const availableQty =
+            lot.quantity - soldQty - reservedInOtherBundles - cardsReservedInThisBundle;
           const cardsNeeded = quantityIncrease * (bundleItem.quantity || 1);
 
           if (cardsNeeded > availableQty) {
             return NextResponse.json(
-              { error: `Cannot increase bundle quantity. Insufficient cards for lot. Available: ${availableQty}, Needed for ${quantityIncrease} more bundle(s): ${cardsNeeded} (${bundleItem.quantity || 1} per bundle)` },
+              {
+                error: `Cannot increase bundle quantity. Insufficient cards for lot. Available: ${availableQty}, Needed for ${quantityIncrease} more bundle(s): ${cardsNeeded} (${bundleItem.quantity || 1} per bundle)`,
+              },
               { status: 400 }
             );
           }
@@ -216,10 +240,7 @@ export async function PATCH(
     }
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json(
-        { error: "No fields to update" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
     }
 
     const { error: updateError } = await supabase
@@ -241,19 +262,16 @@ export async function PATCH(
       ok: true,
       message: "Bundle updated successfully",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "update_bundle", metadata: { bundleId } });
   }
 }
 
 // DELETE: Delete a bundle
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ bundleId: string }> }
-) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ bundleId: string }> }) {
   const logger = createApiLogger(req);
   let bundleId: string = "";
-  
+
   try {
     const resolved = await params;
     bundleId = resolved.bundleId;
@@ -273,10 +291,7 @@ export async function DELETE(
       );
     }
 
-    const { error } = await supabase
-      .from("bundles")
-      .delete()
-      .eq("id", bundleId);
+    const { error } = await supabase.from("bundles").delete().eq("id", bundleId);
 
     if (error) {
       logger.error("Failed to delete bundle", error, undefined, { bundleId });
@@ -292,8 +307,7 @@ export async function DELETE(
       ok: true,
       message: "Bundle deleted successfully",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "delete_bundle", metadata: { bundleId } });
   }
 }
-

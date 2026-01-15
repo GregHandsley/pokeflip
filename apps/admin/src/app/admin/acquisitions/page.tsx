@@ -61,24 +61,23 @@ export default function AcquisitionsPage() {
   const [notes, setNotes] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    const q = supabase
-      .from("acquisitions")
-      .select("id, source_name, source_type, purchase_total_pence, purchased_at, notes, status")
-      .order("created_at", { ascending: false });
-
-    const { data, error } = await q.eq("status", filter);
-
-    if (error) setMsg(error.message);
-    else setRows((data ?? []) as Acquisition[]);
-    setLoading(false);
-  };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const q = supabase
+        .from("acquisitions")
+        .select("id, source_name, source_type, purchase_total_pence, purchased_at, notes, status")
+        .order("created_at", { ascending: false });
+
+      const { data, error } = await q.eq("status", filter);
+
+      if (error) setMsg(error.message);
+      else setRows((data ?? []) as Acquisition[]);
+      setLoading(false);
+    };
+
     void load();
-  }, [filter]);
+  }, [filter, supabase]);
 
   useEffect(() => {
     if (showCreateModal) {

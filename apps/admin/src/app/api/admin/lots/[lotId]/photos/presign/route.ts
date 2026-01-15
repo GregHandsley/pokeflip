@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/api-error-handler";
-import { createApiLogger } from "@/lib/logger";
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
-  const logger = createApiLogger(req);
-  
+export async function POST(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
+  // Extract lotId outside try block so it's available in catch
+  const { lotId } = await params;
+
   try {
-    const { lotId } = await params;
     const body = await req.json();
     const { kind, contentType } = body as {
       kind?: "front" | "back" | "extra";
@@ -43,7 +39,7 @@ export async function POST(
     // Note: Supabase doesn't have createSignedUploadUrl, so we'll return the objectKey
     // and the client will upload through a different endpoint, or we can use POST signed URLs
     // For now, return the objectKey and let the commit endpoint handle verification
-    
+
     // Alternative: Generate a signed URL for PUT (read/write)
     // This is a workaround - ideally we'd use createSignedUploadUrl if available
     const expiresIn = 300; // 5 minutes
@@ -70,8 +66,7 @@ export async function POST(
       path: objectKey,
       serverUpload: false,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "presign_lot_photo", metadata: { lotId } });
   }
 }
-

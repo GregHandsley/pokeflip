@@ -43,8 +43,8 @@ export default function CardAnalyticsPanel({ cardId }: Props) {
         const json = await res.json();
         if (!json.ok) throw new Error(json.error || "Failed to load analytics");
         setData(json);
-      } catch (e: any) {
-        setError(e.message || "Failed to load analytics");
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to load analytics");
       } finally {
         setLoading(false);
       }
@@ -84,17 +84,12 @@ export default function CardAnalyticsPanel({ cardId }: Props) {
               <XAxis dataKey="date" />
               <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(2)}`} />
               <Tooltip
-                formatter={(v: number, key) =>
-                  key === "avg_price_pence" ? currency(v) : v
+                formatter={(v: number | undefined, key) =>
+                  v !== undefined ? (key === "avg_price_pence" ? currency(v) : v) : ""
                 }
                 labelFormatter={(label) => `Date: ${label}`}
               />
-              <Line
-                type="monotone"
-                dataKey="avg_price_pence"
-                stroke="#2563eb"
-                dot={false}
-              />
+              <Line type="monotone" dataKey="avg_price_pence" stroke="#2563eb" dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -111,7 +106,9 @@ export default function CardAnalyticsPanel({ cardId }: Props) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="condition" />
               <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(2)}`} />
-              <Tooltip formatter={(v: number) => currency(v)} />
+              <Tooltip
+                formatter={(v: number | undefined) => (v !== undefined ? currency(v) : "")}
+              />
               <Bar dataKey="avg_price_pence" fill="#10b981" />
             </BarChart>
           </ResponsiveContainer>
@@ -137,4 +134,3 @@ export default function CardAnalyticsPanel({ cardId }: Props) {
     </div>
   );
 }
-

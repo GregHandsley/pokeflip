@@ -72,19 +72,11 @@ export default function AdminToolsPage() {
                   >
                     {tool.title}
                   </h2>
-                  <p
-                    className={`text-sm ${
-                      isActive ? "text-gray-200" : "text-gray-600"
-                    }`}
-                  >
+                  <p className={`text-sm ${isActive ? "text-gray-200" : "text-gray-600"}`}>
                     {tool.description}
                   </p>
                 </div>
-                <div
-                  className={`text-sm font-medium ${
-                    isActive ? "text-white" : "text-gray-400"
-                  }`}
-                >
+                <div className={`text-sm font-medium ${isActive ? "text-white" : "text-gray-400"}`}>
                   →
                 </div>
               </div>
@@ -96,11 +88,10 @@ export default function AdminToolsPage() {
       <div className="mt-8 p-4 bg-gray-50 border border-gray-200 rounded-lg">
         <h3 className="text-sm font-semibold text-gray-900 mb-2">About Admin Tools</h3>
         <p className="text-sm text-gray-600">
-          These tools help you monitor system health, maintain data integrity, track changes,
-          and manage backups. Use them regularly to ensure your system is running smoothly.
+          These tools help you monitor system health, maintain data integrity, track changes, and
+          manage backups. Use them regularly to ensure your system is running smoothly.
         </p>
       </div>
     </div>
   );
 }
-

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { penceToPounds } from "@pokeflip/shared";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 
@@ -57,13 +56,6 @@ export default function InboxTable({
   onPageChange,
   onLotClick,
 }: Props) {
-  const [valuableThreshold, setValuableThreshold] = useState(VALUABLE_THRESHOLD_GBP);
-
-  useEffect(() => {
-    // Load threshold from config (could be from API)
-    // For now, use default
-  }, []);
-
   const toggleSelection = (lotId: string) => {
     const newSelection = new Set(selectedLotIds);
     if (newSelection.has(lotId)) {
@@ -84,13 +76,12 @@ export default function InboxTable({
 
   const isValuable = (lot: InboxLot) => {
     if (!lot.list_price_pence) return false;
-    return penceToPounds(lot.list_price_pence) >= valuableThreshold;
+    return lot.list_price_pence >= VALUABLE_THRESHOLD_GBP * 100;
   };
 
   const isRare = (lot: InboxLot) => {
     return lot.rarity_rank >= RARE_RARITY_RANK;
   };
-
 
   if (loading) {
     return (
@@ -104,9 +95,7 @@ export default function InboxTable({
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <div className="text-gray-600">No cards in inbox</div>
-        <div className="text-sm text-gray-500 mt-2">
-          Cards ready to list will appear here.
-        </div>
+        <div className="text-sm text-gray-500 mt-2">Cards ready to list will appear here.</div>
       </div>
     );
   }
@@ -193,9 +182,7 @@ export default function InboxTable({
                   </td>
                   <td className="px-4 py-3 text-sm">{lot.available_qty}</td>
                   <td className="px-4 py-3 text-sm font-medium text-green-600">
-                    {lot.list_price_pence != null
-                      ? `£${penceToPounds(lot.list_price_pence)}`
-                      : "—"}
+                    {lot.list_price_pence != null ? `£${penceToPounds(lot.list_price_pence)}` : "—"}
                   </td>
                   <td className="px-4 py-3 text-sm font-medium text-blue-700">
                     {lot.market_price_pence != null ? (
@@ -225,7 +212,10 @@ export default function InboxTable({
                   <td className="px-4 py-3 text-sm text-gray-600">{lot.rarity || "—"}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">
                     {lot.use_api_image ? (
-                      <span className="flex items-center gap-1 text-blue-600" title="Using API image">
+                      <span
+                        className="flex items-center gap-1 text-blue-600"
+                        title="Using API image"
+                      >
                         <svg
                           className="w-4 h-4"
                           fill="none"
@@ -242,7 +232,10 @@ export default function InboxTable({
                         API
                       </span>
                     ) : lot.has_required_photos ? (
-                      <span className="flex items-center gap-1 text-green-600" title="Has required photos">
+                      <span
+                        className="flex items-center gap-1 text-green-600"
+                        title="Has required photos"
+                      >
                         <svg
                           className="w-4 h-4"
                           fill="none"
@@ -265,7 +258,10 @@ export default function InboxTable({
                         {lot.photo_count}
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1 text-red-600" title="Missing required photos (front and back)">
+                      <span
+                        className="flex items-center gap-1 text-red-600"
+                        title="Missing required photos (front and back)"
+                      >
                         <svg
                           className="w-4 h-4"
                           fill="none"
@@ -345,4 +341,3 @@ export default function InboxTable({
     </div>
   );
 }
-

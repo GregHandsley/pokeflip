@@ -3,14 +3,13 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ bundleId: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ bundleId: string }> }) {
   const logger = createApiLogger(req);
-  
+
+  // Extract bundleId outside try block so it's available in catch
+  const { bundleId } = await params;
+
   try {
-    const { bundleId } = await params;
     const supabase = supabaseServer();
 
     const { data: photos, error } = await supabase
@@ -50,7 +49,7 @@ export async function GET(
       ok: true,
       photos: photosWithUrls,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "fetch_bundle_photos", metadata: { bundleId } });
   }
 }

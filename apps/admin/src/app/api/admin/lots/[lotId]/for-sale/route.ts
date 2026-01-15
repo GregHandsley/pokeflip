@@ -5,18 +5,17 @@ import { createApiLogger } from "@/lib/logger";
 import { logAudit, getCurrentUser } from "@/lib/audit";
 import { uuid, boolean, optional, pricePence, required } from "@/lib/validation";
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
-  
+
   // Get current user for audit logging
   const userInfo = await getCurrentUser(req);
-  
+
+  // Extract lotId outside try block so it's available in catch
+  const { lotId } = await params;
+
   try {
     // Validate route parameters
-    const { lotId } = await params;
     const validatedLotId = uuid(lotId, "lotId");
 
     // Validate request body
@@ -50,8 +49,8 @@ export async function PATCH(
     }
 
     // Prepare update object
-    const updateData: { 
-      for_sale: boolean; 
+    const updateData: {
+      for_sale: boolean;
       list_price_pence?: number | null;
     } = {
       for_sale: validatedForSale,
@@ -93,10 +92,12 @@ export async function PATCH(
         action_type: "update_price",
         entity_type: "inventory_lot",
         entity_id: validatedLotId,
-        old_values: currentLot ? {
-          for_sale: currentLot.for_sale,
-          list_price_pence: currentLot.list_price_pence,
-        } : null,
+        old_values: currentLot
+          ? {
+              for_sale: currentLot.for_sale,
+              list_price_pence: currentLot.list_price_pence,
+            }
+          : null,
         new_values: {
           for_sale: validatedForSale,
           list_price_pence: validatedPrice || null,
@@ -111,8 +112,9 @@ export async function PATCH(
       });
     } catch (auditError) {
       // Don't fail the update if audit logging fails
-      logger.warn("Failed to log audit entry for price change", auditError, undefined, {
+      logger.warn("Failed to log audit entry for price change", undefined, {
         lotId: validatedLotId,
+        error: auditError,
       });
     }
 
@@ -128,4 +130,3 @@ export async function PATCH(
     });
   }
 }
-

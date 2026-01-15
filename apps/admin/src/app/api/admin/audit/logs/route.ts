@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
-import { createApiLogger } from "@/lib/logger";
-import { getAllAuditLogs, getAuditLogs, AuditEntityType } from "@/lib/audit";
+import { handleApiError } from "@/lib/api-error-handler";
+import { getAllAuditLogs, getAuditLogs, AuditEntityType, AuditActionType } from "@/lib/audit";
 
 /**
  * GET /api/admin/audit/logs
- * 
+ *
  * Query parameters:
  * - entityType: Filter by entity type (e.g., "sales_order", "inventory_lot")
  * - entityId: Filter by entity ID (UUID)
@@ -15,8 +14,6 @@ import { getAllAuditLogs, getAuditLogs, AuditEntityType } from "@/lib/audit";
  * - offset: Offset for pagination (default: 0)
  */
 export async function GET(req: Request) {
-  const logger = createApiLogger(req);
-
   try {
     const url = new URL(req.url);
     const entityType = url.searchParams.get("entityType") as AuditEntityType | null;
@@ -42,7 +39,7 @@ export async function GET(req: Request) {
     // Otherwise, use getAllAuditLogs with filters
     const result = await getAllAuditLogs({
       userId: userId || undefined,
-      actionType: actionType as any || undefined,
+      actionType: (actionType as AuditActionType) || undefined,
       entityType: entityType || undefined,
       limit,
       offset,
@@ -63,28 +60,31 @@ export async function GET(req: Request) {
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorCode = (error as any)?.code;
-    
+    const errorWithCode = error as { code?: string };
+    const errorCode = errorWithCode?.code;
+
     // Check if it's a table not found error
-    if (errorCode === "AUDIT_TABLE_NOT_FOUND" || 
-        errorMessage.includes("AUDIT_TABLE_NOT_FOUND") ||
-        errorMessage.includes("does not exist") || 
-        errorMessage.includes("relation") ||
-        errorMessage.includes("Could not find")) {
+    if (
+      errorCode === "AUDIT_TABLE_NOT_FOUND" ||
+      errorMessage.includes("AUDIT_TABLE_NOT_FOUND") ||
+      errorMessage.includes("does not exist") ||
+      errorMessage.includes("relation") ||
+      errorMessage.includes("Could not find")
+    ) {
       return NextResponse.json(
         {
           ok: false,
           error: "AUDIT_TABLE_NOT_FOUND",
-          message: "Audit log table does not exist. Please run the migration: supabase/migrations/20260111000000_add_audit_log.sql",
+          message:
+            "Audit log table does not exist. Please run the migration: supabase/migrations/20260111000000_add_audit_log.sql",
           hint: "Run: supabase migration up or apply the migration manually via Supabase dashboard",
         },
         { status: 503 }
       );
     }
-    
+
     return handleApiError(req, error, {
       operation: "get_audit_logs",
     });
   }
 }
-

@@ -7,7 +7,7 @@ import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const supabase = supabaseServer();
 
@@ -61,9 +61,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const profitMap = new Map(
-      (profitRes.data || []).map((p) => [p.sales_order_id, p])
-    );
+    const profitMap = new Map((profitRes.data || []).map((p) => [p.sales_order_id, p]));
 
     type OrderRow = {
       id: string;
@@ -85,21 +83,24 @@ export async function GET(req: Request) {
       inventory_lots?: {
         condition: string | null;
         variation?: string | null;
-        cards?: { number: string | null; name: string | null; sets?: { name: string | null } | null } | null;
+        cards?: {
+          number: string | null;
+          name: string | null;
+          sets?: { name: string | null } | null;
+        } | null;
       } | null;
     };
 
     const rows: Array<Record<string, string | number>> = [];
 
-    ((ordersRes.data || []) as OrderRow[]).forEach((order) => {
+    ((ordersRes.data || []) as unknown as OrderRow[]).forEach((order) => {
       const profit = profitMap.get(order.id);
       const orderRevenue = profit?.revenue_pence || 0;
       const orderNetProfit = profit?.net_profit_pence || 0;
 
       (order.sales_items || []).forEach((item) => {
         const revenue = (item.qty || 0) * (item.sold_price_pence || 0);
-        const itemProfit =
-          orderRevenue > 0 ? (orderNetProfit * revenue) / orderRevenue : 0;
+        const itemProfit = orderRevenue > 0 ? (orderNetProfit * revenue) / orderRevenue : 0;
 
         rows.push({
           order_id: order.id,
@@ -142,4 +143,3 @@ export async function GET(req: Request) {
     return handleApiError(req, error, { operation: "export_sales" });
   }
 }
-

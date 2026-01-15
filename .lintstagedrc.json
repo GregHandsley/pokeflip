@@ -1,10 +1,4 @@
 {
-  "*.{ts,tsx,js,jsx}": [
-    "pnpm --filter admin lint --fix",
-    "prettier --write"
-  ],
-  "*.{json,md,yml,yaml}": [
-    "prettier --write"
-  ]
+  "*.{ts,tsx,js,jsx}": ["pnpm --filter admin lint --fix", "prettier --write"],
+  "*.{json,md,yml,yaml}": ["prettier --write"]
 }
-

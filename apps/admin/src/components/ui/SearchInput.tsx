@@ -5,11 +5,11 @@ interface SearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "
   "aria-label"?: string;
 }
 
-export default function SearchInput({ 
-  placeholder = "Search...", 
-  className = "", 
+export default function SearchInput({
+  placeholder = "Search...",
+  className = "",
   "aria-label": ariaLabel,
-  ...props 
+  ...props
 }: SearchInputProps) {
   return (
     <input
@@ -21,4 +21,3 @@ export default function SearchInput({
     />
   );
 }
-

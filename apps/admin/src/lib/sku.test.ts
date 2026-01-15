@@ -8,31 +8,32 @@ describe("SKU Generation", () => {
     // Sanitize card_id: remove special characters (keeps alphanumeric, hyphens, underscores)
     // Then replace spaces with hyphens
     let sanitized = cardId.replace(/[^a-zA-Z0-9_-]/g, "").replace(/\s+/g, "-");
-    
+
     // Limit to 50 characters
     if (sanitized.length > 50) {
       sanitized = sanitized.substring(0, 50);
     }
-    
+
     // Normalize variation
     const normalizedVariation = variation || "standard";
-    
+
     // Construct SKU: PKM-{card_id}-{condition}-{variation}
     let sku = `PKM-${sanitized}-${condition.toUpperCase()}-${normalizedVariation.toUpperCase()}`;
-    
+
     // Limit total length to 100 characters
     if (sku.length > 100) {
-      const maxCardIdLength = 100 - `PKM---${condition.toUpperCase()}-${normalizedVariation.toUpperCase()}`.length;
+      const maxCardIdLength =
+        100 - `PKM---${condition.toUpperCase()}-${normalizedVariation.toUpperCase()}`.length;
       sanitized = sanitized.substring(0, maxCardIdLength);
       sku = `PKM-${sanitized}-${condition.toUpperCase()}-${normalizedVariation.toUpperCase()}`;
     }
-    
+
     return sku;
   }
 
   function generatePurchaseSKU(existingSKUs: string[]): string {
     let maxNum = 0;
-    
+
     for (const sku of existingSKUs) {
       const match = sku.match(/^PUR-(\d+)$/);
       if (match) {
@@ -40,7 +41,7 @@ describe("SKU Generation", () => {
         if (num > maxNum) maxNum = num;
       }
     }
-    
+
     const nextNum = maxNum + 1;
     return `PUR-${String(nextNum).padStart(3, "0")}`;
   }
@@ -112,7 +113,7 @@ describe("SKU Generation", () => {
     it("Pads with zeros correctly", () => {
       const sku = generatePurchaseSKU([]);
       expect(sku).toBe("PUR-001");
-      
+
       const sku2 = generatePurchaseSKU(["PUR-001", "PUR-009"]);
       expect(sku2).toBe("PUR-010");
     });
@@ -136,4 +137,3 @@ describe("SKU Generation", () => {
     });
   });
 });
-

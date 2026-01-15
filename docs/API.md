@@ -16,6 +16,7 @@ Most API endpoints require authentication via Supabase session. Sessions are man
 All API responses follow a standard format:
 
 ### Success Response
+
 ```json
 {
   "ok": true,
@@ -24,6 +25,7 @@ All API responses follow a standard format:
 ```
 
 ### Error Response
+
 ```json
 {
   "ok": false,
@@ -38,9 +40,11 @@ All API responses follow a standard format:
 ### Health & Monitoring
 
 #### `GET /api/health`
+
 Health check endpoint for monitoring system availability.
 
 **Response:**
+
 ```json
 {
   "status": "healthy" | "degraded" | "unhealthy",
@@ -60,18 +64,22 @@ Health check endpoint for monitoring system availability.
 ```
 
 **Status Codes:**
+
 - `200` - Healthy or degraded
 - `503` - Unhealthy
 
 ---
 
 #### `GET /api/admin/monitoring/metrics`
+
 Get business metrics (sales volume, inventory levels).
 
 **Query Parameters:**
+
 - `days` (number, optional): Number of days for recent sales calculation (default: 7, max: 365)
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -102,9 +110,11 @@ Get business metrics (sales volume, inventory levels).
 ---
 
 #### `GET /api/admin/performance/metrics`
+
 Get performance metrics (database, indexes, caching).
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -131,9 +141,11 @@ Get performance metrics (database, indexes, caching).
 ### Dashboard
 
 #### `GET /api/admin/dashboard/summary`
+
 Get dashboard summary data.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -169,9 +181,11 @@ Get dashboard summary data.
 ### Sales
 
 #### `POST /api/admin/sales/create`
+
 Create a new sales order.
 
 **Request Body:**
+
 ```json
 {
   "buyerId": "uuid",
@@ -199,6 +213,7 @@ Create a new sales order.
 ```
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -213,9 +228,11 @@ Create a new sales order.
 ---
 
 #### `GET /api/admin/sales/orders`
+
 Get all sales orders.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -235,9 +252,11 @@ Get all sales orders.
 ---
 
 #### `GET /api/admin/sales/overall-profit`
+
 Get overall profit data.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -253,9 +272,11 @@ Get overall profit data.
 ---
 
 #### `GET /api/admin/sales/listed-lots`
+
 Get all lots available for sale.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -277,13 +298,16 @@ Get all lots available for sale.
 ### Inventory
 
 #### `GET /api/admin/inventory/cards`
+
 Get all inventory cards with totals.
 
 **Query Parameters:**
+
 - `setId` (string, optional): Filter by set ID
 - `search` (string, optional): Search by card name
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -305,9 +329,11 @@ Get all inventory cards with totals.
 ---
 
 #### `GET /api/admin/inventory/cards/[cardId]/lots`
+
 Get all lots for a specific card.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -329,9 +355,11 @@ Get all lots for a specific card.
 ### Acquisitions
 
 #### `GET /api/admin/acquisitions/[acquisitionId]/lots`
+
 Get all lots for an acquisition.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -342,9 +370,11 @@ Get all lots for an acquisition.
 ---
 
 #### `GET /api/admin/acquisitions/[acquisitionId]/profit`
+
 Get profit analysis for an acquisition.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -365,9 +395,11 @@ Get profit analysis for an acquisition.
 ### Bundles
 
 #### `GET /api/admin/bundles`
+
 Get all bundles.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -387,9 +419,11 @@ Get all bundles.
 ---
 
 #### `POST /api/admin/bundles`
+
 Create a new bundle.
 
 **Request Body:**
+
 ```json
 {
   "name": "Starter Bundle",
@@ -408,9 +442,11 @@ Create a new bundle.
 ---
 
 #### `PATCH /api/admin/bundles/[bundleId]`
+
 Update a bundle.
 
 **Request Body:**
+
 ```json
 {
   "name": "Updated Bundle Name",
@@ -422,9 +458,11 @@ Update a bundle.
 ---
 
 #### `POST /api/admin/bundles/[bundleId]/sell`
+
 Sell a bundle.
 
 **Request Body:**
+
 ```json
 {
   "buyerId": "uuid",
@@ -438,9 +476,11 @@ Sell a bundle.
 ### Lots
 
 #### `GET /api/admin/lots/[lotId]`
+
 Get a specific lot.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -457,9 +497,11 @@ Get a specific lot.
 ---
 
 #### `PATCH /api/admin/lots/[lotId]/status`
+
 Update lot status.
 
 **Request Body:**
+
 ```json
 {
   "status": "listed" | "ready" | "draft" | "sold" | "archived"
@@ -469,9 +511,11 @@ Update lot status.
 ---
 
 #### `PATCH /api/admin/lots/[lotId]/for-sale`
+
 Update lot for-sale flag.
 
 **Request Body:**
+
 ```json
 {
   "forSale": true,
@@ -482,9 +526,11 @@ Update lot for-sale flag.
 ---
 
 #### `POST /api/admin/lots/merge`
+
 Merge multiple lots into one.
 
 **Request Body:**
+
 ```json
 {
   "lotIds": ["uuid1", "uuid2"],
@@ -495,9 +541,11 @@ Merge multiple lots into one.
 ---
 
 #### `POST /api/admin/lots/[lotId]/split`
+
 Split a lot into multiple lots.
 
 **Request Body:**
+
 ```json
 {
   "splits": [
@@ -518,9 +566,11 @@ Split a lot into multiple lots.
 ### Inbox
 
 #### `GET /api/admin/inbox/lots`
+
 Get all inbox lots (draft/ready status).
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -531,9 +581,11 @@ Get all inbox lots (draft/ready status).
 ---
 
 #### `GET /api/admin/inbox/count`
+
 Get inbox counts.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -546,9 +598,11 @@ Get inbox counts.
 ---
 
 #### `POST /api/admin/inbox/lots/bulk`
+
 Bulk update inbox lots.
 
 **Request Body:**
+
 ```json
 {
   "lotIds": ["uuid1", "uuid2"],
@@ -564,9 +618,11 @@ Bulk update inbox lots.
 ### Consumables
 
 #### `GET /api/admin/consumables`
+
 Get all consumables.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -584,9 +640,11 @@ Get all consumables.
 ---
 
 #### `POST /api/admin/consumables`
+
 Create a consumable.
 
 **Request Body:**
+
 ```json
 {
   "name": "Bubble Mailer",
@@ -597,9 +655,11 @@ Create a consumable.
 ---
 
 #### `POST /api/admin/consumables/purchases`
+
 Record a consumable purchase.
 
 **Request Body:**
+
 ```json
 {
   "consumableId": "uuid",
@@ -613,12 +673,15 @@ Record a consumable purchase.
 ### Promotional Deals
 
 #### `GET /api/admin/promotional-deals`
+
 Get all promotional deals.
 
 **Query Parameters:**
+
 - `activeOnly` (boolean, optional): Only return active deals
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -637,9 +700,11 @@ Get all promotional deals.
 ---
 
 #### `POST /api/admin/promotional-deals`
+
 Create a promotional deal.
 
 **Request Body:**
+
 ```json
 {
   "name": "Buy 2 Get 1 Free",
@@ -656,9 +721,11 @@ Create a promotional deal.
 ### Packaging Rules
 
 #### `GET /api/admin/packaging-rules`
+
 Get all packaging rules.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -678,9 +745,11 @@ Get all packaging rules.
 ---
 
 #### `POST /api/admin/packaging-rules`
+
 Create a packaging rule.
 
 **Request Body:**
+
 ```json
 {
   "name": "Standard Package",
@@ -701,13 +770,16 @@ Create a packaging rule.
 ### Catalog
 
 #### `GET /api/catalog/sets`
+
 Get all card sets.
 
 **Query Parameters:**
+
 - `locale` (string, optional): Locale for translations (default: "en")
 - `simplified` (boolean, optional): Return simplified format
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -725,13 +797,16 @@ Get all card sets.
 ---
 
 #### `GET /api/catalog/cards`
+
 Get cards for a set.
 
 **Query Parameters:**
+
 - `setId` (string, required): Set ID
 - `locale` (string, optional): Locale for translations (default: "en")
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -752,9 +827,11 @@ Get cards for a set.
 ### Photos
 
 #### `POST /api/photos/sign-url`
+
 Get a signed URL for photo upload.
 
 **Request Body:**
+
 ```json
 {
   "path": "lot_photos/lot-id/photo.jpg",
@@ -763,6 +840,7 @@ Get a signed URL for photo upload.
 ```
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -787,6 +865,7 @@ Common error codes:
 ## Rate Limiting
 
 API endpoints may be rate-limited in production. Check response headers:
+
 - `X-RateLimit-Limit` - Request limit
 - `X-RateLimit-Remaining` - Remaining requests
 - `X-RateLimit-Reset` - Reset timestamp
@@ -794,7 +873,7 @@ API endpoints may be rate-limited in production. Check response headers:
 ## Response Times
 
 All API routes are monitored for response times:
+
 - Response time is included in `X-Response-Time` header
 - Slow requests (>1s) are logged
 - Very slow requests (>3s) trigger alerts
-

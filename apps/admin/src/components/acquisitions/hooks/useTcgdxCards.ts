@@ -29,7 +29,7 @@ export function useTcgdxCards(setId: string | null, locale: string = "en") {
       setError(null);
       try {
         const cacheKey = getCardsCacheKey(setId, locale);
-        
+
         // Use cache with 1 hour TTL - fetchCardsForSet will use API route which is also cached
         const fetchedCards = await catalogCache.get(
           cacheKey,
@@ -42,9 +42,16 @@ export function useTcgdxCards(setId: string | null, locale: string = "en") {
         if (!abortController.signal.aborted) {
           setCards(fetchedCards);
         }
-      } catch (e: any) {
-        if (e.name !== "AbortError" && !abortController.signal.aborted) {
-          setError(`Failed to load cards: ${e.message}`);
+      } catch (e: unknown) {
+        const isAbortError =
+          (e instanceof Error && e.name === "AbortError") ||
+          (typeof e === "object" &&
+            e !== null &&
+            "name" in e &&
+            (e as { name: string }).name === "AbortError");
+
+        if (!isAbortError && !abortController.signal.aborted) {
+          setError(`Failed to load cards: ${e instanceof Error ? e.message : "Unknown error"}`);
           setCards([]);
         }
       } finally {
@@ -63,4 +70,3 @@ export function useTcgdxCards(setId: string | null, locale: string = "en") {
 
   return { cards, loading, error };
 }
-

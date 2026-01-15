@@ -16,7 +16,8 @@ export default function Button({
 }: ButtonProps) {
   // Minimum touch target size for laptop/desktop interaction (44x44px recommended)
   // Buttons should be at least 32px height for comfortable clicking
-  const baseClasses = "rounded-lg font-medium transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 min-h-[32px]";
+  const baseClasses =
+    "rounded-lg font-medium transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 min-h-[32px]";
   const sizeClasses = {
     sm: "px-3 py-1.5 text-sm min-h-[32px]",
     md: "px-4 py-2 min-h-[36px]",
@@ -37,4 +38,3 @@ export default function Button({
     </button>
   );
 }
-

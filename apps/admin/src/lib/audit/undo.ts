@@ -1,7 +1,6 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { createApiLogger } from "@/lib/logger";
-import { getAuditLogById, logAudit, AuditActionType, AuditEntityType } from "./audit-log";
-import type { AuditLogRecord } from "./audit-log";
+import { getAuditLogById, logAudit, AuditEntityType } from "./audit-log";
 
 export interface UndoResult {
   success: boolean;
@@ -70,7 +69,7 @@ export async function undoAuditLog(
     // Restore old values to the entity
     const { error: updateError } = await supabase
       .from(tableName)
-      .update(auditLog.old_values as any)
+      .update(auditLog.old_values as Record<string, unknown>)
       .eq("id", auditLog.entity_id);
 
     if (updateError) {
@@ -103,7 +102,9 @@ export async function undoAuditLog(
       update_acquisition: "Purchase Update",
       other: "Previous Action",
     };
-    const actionLabel = actionLabels[auditLog.action_type] || auditLog.action_type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+    const actionLabel =
+      actionLabels[auditLog.action_type] ||
+      auditLog.action_type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 
     // Log the undo action
     await logAudit({
@@ -123,10 +124,15 @@ export async function undoAuditLog(
       auditLogId: auditLog.id,
     };
   } catch (error) {
-    logger.error("Error undoing audit log entry", error instanceof Error ? error : new Error(String(error)), undefined, {
-      operation: "undo_audit_log",
-      auditLogId,
-    });
+    logger.error(
+      "Error undoing audit log entry",
+      error instanceof Error ? error : new Error(String(error)),
+      undefined,
+      {
+        operation: "undo_audit_log",
+        auditLogId,
+      }
+    );
 
     return {
       success: false,
@@ -183,8 +189,7 @@ export async function canUndoAuditLog(auditLogId: string): Promise<boolean> {
     }
 
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
-

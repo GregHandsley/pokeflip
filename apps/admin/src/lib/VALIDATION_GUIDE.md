@@ -5,6 +5,7 @@ This guide explains how to use the validation utilities in API endpoints to ensu
 ## Overview
 
 The validation system provides:
+
 - **Type-safe validation** for all API inputs
 - **Consistent error responses** with detailed field-level errors
 - **Database constraints** to enforce data integrity at the database level
@@ -105,20 +106,11 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
-import {
-  uuid,
-  boolean,
-  optional,
-  pricePence,
-  ValidationErrorResponse,
-} from "@/lib/validation";
+import { uuid, boolean, optional, pricePence, ValidationErrorResponse } from "@/lib/validation";
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
-  
+
   try {
     // Validate route parameters
     const { lotId } = await params;
@@ -228,6 +220,7 @@ Database constraints provide a second layer of validation at the database level.
 See migration: `20260107214234_add_missing_price_constraints.sql`
 
 Example:
+
 ```sql
 alter table public.inventory_lots
 add constraint inventory_lots_list_price_pence_positive
@@ -339,6 +332,7 @@ curl -X PATCH /api/admin/lots/123/status \
 ```
 
 Expected response:
+
 ```json
 {
   "ok": false,
@@ -353,4 +347,3 @@ Expected response:
   ]
 }
 ```
-

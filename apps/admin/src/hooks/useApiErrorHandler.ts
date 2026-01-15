@@ -51,8 +51,8 @@ export function useApiErrorHandler() {
         Array.isArray((error as ApiErrorResponse).errors)
       ) {
         const apiError = error as ApiErrorResponse;
-        validationErrors = apiError.errors;
-        
+        validationErrors = apiError.errors ?? [];
+
         // Build message from validation errors
         if (validationErrors.length > 0) {
           if (validationErrors.length === 1) {
@@ -117,10 +117,7 @@ export function useApiErrorHandler() {
    * Wrap an async function to handle errors automatically
    */
   const withErrorHandling = useCallback(
-    <T extends unknown[], R>(
-      fn: (...args: T) => Promise<R>,
-      context?: { operation?: string }
-    ) => {
+    <T extends unknown[], R>(fn: (...args: T) => Promise<R>, context?: { operation?: string }) => {
       return async (...args: T): Promise<R | null> => {
         try {
           return await fn(...args);
@@ -138,4 +135,3 @@ export function useApiErrorHandler() {
     withErrorHandling,
   };
 }
-

@@ -8,4 +8,3 @@ export function penceToPounds(pence: number | null | undefined): string {
   if (pence == null) return "";
   return (pence / 100).toFixed(2);
 }
-

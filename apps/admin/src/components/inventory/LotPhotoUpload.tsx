@@ -23,14 +23,14 @@ export default function LotPhotoUpload({ lotId, kind, onUploaded }: Props) {
       setError("Please select an image file");
       return;
     }
-    
+
     // Check file size (10MB limit)
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
       setError("File size exceeds 10MB limit");
       return;
     }
-    
+
     // Validate allowed image types
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
     if (!allowedTypes.includes(file.type)) {
@@ -66,8 +66,8 @@ export default function LotPhotoUpload({ lotId, kind, onUploaded }: Props) {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-    } catch (e: any) {
-      setError(e.message || "Upload failed");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -99,4 +99,3 @@ export default function LotPhotoUpload({ lotId, kind, onUploaded }: Props) {
     </div>
   );
 }
-

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { createApiLogger } from "@/lib/logger";
-import { withResponseTimeTracking, getRequestStartTime } from "@/lib/monitoring/response-time-wrapper";
+import { withResponseTimeTracking } from "@/lib/monitoring/response-time-wrapper";
 
 interface HealthCheckResult {
   status: "healthy" | "degraded" | "unhealthy";
@@ -24,13 +24,13 @@ const serverStartTime = Date.now();
 /**
  * Health check endpoint
  * GET /api/health
- * 
+ *
  * Returns the health status of the application and its dependencies.
  * Used by monitoring systems to check service availability.
  */
 async function healthCheckHandler(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const checks: HealthCheckResult["checks"] = {
       database: { status: "unhealthy" },
@@ -42,10 +42,7 @@ async function healthCheckHandler(req: Request) {
     // Check database connection
     const dbStartTime = Date.now();
     const supabase = supabaseServer();
-    const { error: dbError } = await supabase
-      .from("healthcheck")
-      .select("id")
-      .limit(1);
+    const { error: dbError } = await supabase.from("healthcheck").select("id").limit(1);
     const dbResponseTime = Date.now() - dbStartTime;
 
     if (dbError) {
@@ -88,9 +85,14 @@ async function healthCheckHandler(req: Request) {
 
     return NextResponse.json(result, { status: httpStatus });
   } catch (error: unknown) {
-    logger.error("Health check failed", error instanceof Error ? error : new Error(String(error)), undefined, {
-      operation: "health_check",
-    });
+    logger.error(
+      "Health check failed",
+      error instanceof Error ? error : new Error(String(error)),
+      undefined,
+      {
+        operation: "health_check",
+      }
+    );
 
     const errorResult: HealthCheckResult = {
       status: "unhealthy",
@@ -107,7 +109,4 @@ async function healthCheckHandler(req: Request) {
   }
 }
 
-export const GET = withResponseTimeTracking(healthCheckHandler, {
-  operation: "health_check",
-});
-
+export const GET = withResponseTimeTracking(healthCheckHandler);

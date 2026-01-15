@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { penceToPounds } from "@pokeflip/shared";
@@ -51,7 +52,7 @@ export default function BundlesPage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const loadBundles = async () => {
+  const loadBundles = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -68,11 +69,11 @@ export default function BundlesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, handleError]);
 
   useEffect(() => {
     loadBundles();
-  }, [statusFilter]);
+  }, [loadBundles]);
 
   const handleBundleCreated = () => {
     setShowCreateModal(false);
@@ -129,11 +130,11 @@ export default function BundlesPage() {
 
   return (
     <div>
-      <PageHeader 
-        title="Bundles" 
+      <PageHeader
+        title="Bundles"
         description="Create pre-made bundles with a fixed price. Different from multi-card sales - bundles are created in advance, while multi-card sales combine cards at sale time."
       />
-      
+
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <label className="text-sm font-medium text-gray-700">Filter by status:</label>
@@ -158,20 +159,16 @@ export default function BundlesPage() {
         <div className="text-sm text-gray-600 py-8 text-center">Loading bundles...</div>
       ) : bundles.length === 0 ? (
         <div className="text-sm text-gray-600 py-8 text-center">
-          {statusFilter === "sold" 
+          {statusFilter === "sold"
             ? "No sold bundles found."
             : statusFilter === "all"
-            ? "No bundles found. Create your first bundle to get started."
-            : `No ${statusFilter} bundles found. ${statusFilter === "active" ? "Create your first bundle to get started." : ""}`
-          }
+              ? "No bundles found. Create your first bundle to get started."
+              : `No ${statusFilter} bundles found. ${statusFilter === "active" ? "Create your first bundle to get started." : ""}`}
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {bundles.map((bundle) => {
-            const totalCards = bundle.bundle_items.reduce(
-              (sum, item) => sum + item.quantity,
-              0
-            );
+            const totalCards = bundle.bundle_items.reduce((sum, item) => sum + item.quantity, 0);
             return (
               <div
                 key={bundle.id}
@@ -194,8 +191,8 @@ export default function BundlesPage() {
                       bundle.status === "active"
                         ? "bg-green-100 text-green-800"
                         : bundle.status === "sold"
-                        ? "bg-gray-100 text-gray-800"
-                        : "bg-yellow-100 text-yellow-800"
+                          ? "bg-gray-100 text-gray-800"
+                          : "bg-yellow-100 text-yellow-800"
                     }`}
                   >
                     {bundle.status}
@@ -205,10 +202,9 @@ export default function BundlesPage() {
                 <div className="mb-3">
                   <div className="text-2xl font-bold">£{penceToPounds(bundle.price_pence)}</div>
                   <div className="text-xs text-gray-600">
-                    {bundle.status === "sold" 
-                      ? "Sold • " 
-                      : `${bundle.quantity || 1} bundle${bundle.quantity !== 1 ? "s" : ""} available • `
-                    }
+                    {bundle.status === "sold"
+                      ? "Sold • "
+                      : `${bundle.quantity || 1} bundle${bundle.quantity !== 1 ? "s" : ""} available • `}
                     {totalCards} card{totalCards !== 1 ? "s" : ""} per bundle
                   </div>
                 </div>
@@ -217,11 +213,16 @@ export default function BundlesPage() {
                   {bundle.bundle_items.map((item, idx) => (
                     <div key={idx} className="flex items-center gap-2 text-sm">
                       {item.inventory_lots?.cards?.api_image_url && (
-                        <img
-                          src={`${item.inventory_lots.cards.api_image_url}/low.webp`}
-                          alt=""
-                          className="h-8 w-auto rounded border border-gray-200"
-                        />
+                        <div className="relative h-8" style={{ width: "auto", minWidth: "32px" }}>
+                          <Image
+                            src={`${item.inventory_lots.cards.api_image_url}/low.webp`}
+                            alt={`${item.inventory_lots.cards.name || "Card"} image`}
+                            width={32}
+                            height={32}
+                            className="h-8 w-auto rounded border border-gray-200 object-contain"
+                            unoptimized
+                          />
+                        </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="font-medium truncate">
@@ -275,7 +276,7 @@ export default function BundlesPage() {
                         Edit
                       </Button>
                       {/* Three-dot menu for additional actions */}
-                      <div 
+                      <div
                         className="relative"
                         ref={(el) => {
                           if (el) {
@@ -293,14 +294,24 @@ export default function BundlesPage() {
                           className="px-2 py-1 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center"
                           aria-label="More options"
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                            />
                           </svg>
                         </button>
                         {openMenuId === bundle.id && (
                           <>
-                            <div 
-                              className="fixed inset-0 z-10" 
+                            <div
+                              className="fixed inset-0 z-10"
                               onClick={() => setOpenMenuId(null)}
                             />
                             <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
@@ -362,4 +373,3 @@ export default function BundlesPage() {
     </div>
   );
 }
-

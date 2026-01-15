@@ -4,7 +4,6 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import {
   uuid,
-  nonEmptyString,
   sanitizedNonEmptyString,
   sanitizedString,
   optional,
@@ -14,26 +13,85 @@ import {
   quantity,
 } from "@/lib/validation";
 
+type BundleItemRow = {
+  id: string;
+  quantity: number;
+  lot_id: string;
+  inventory_lots?: {
+    id: string;
+    quantity: number;
+    card_id: string;
+    condition: string;
+    variation: string | null;
+  } | null;
+};
+
+type InventoryLotRow = {
+  id: string;
+  quantity: number;
+  status: string;
+  acquisition_id: string | null;
+};
+
+type SoldItemRow = {
+  lot_id: string;
+  qty: number;
+};
+
+type SalesOrderData = {
+  platform: string;
+  buyer_id: string;
+  bundle_id: string;
+  order_group?: string;
+  fees_pence?: number;
+  shipping_pence?: number;
+  discount_pence?: number;
+};
+
+type PurchaseHistoryRow = {
+  lot_id: string;
+  acquisition_id: string;
+  quantity: number;
+};
+
+type ConsumableInput = {
+  consumable_id: string;
+  qty: number | string;
+};
+
 // POST: Sell a bundle
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ bundleId: string }> }
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ bundleId: string }> }) {
   const logger = createApiLogger(req);
   let validatedBundleId: string = "";
-  
+
   try {
     // Validate route parameters
     const { bundleId } = await params;
     validatedBundleId = uuid(bundleId, "bundleId");
-    
+
     // Validate and sanitize request body
     const body = await req.json();
     const validatedBuyerHandle = sanitizedNonEmptyString(body.buyerHandle, "buyerHandle");
-    const validatedOrderGroup = optional(body.orderGroup, (v) => sanitizedString(v, "orderGroup"), "orderGroup");
-    const validatedFeesPence = optional(body.feesPence, (v) => nonNegative(number(v, "feesPence"), "feesPence"), "feesPence");
-    const validatedShippingPence = optional(body.shippingPence, (v) => nonNegative(number(v, "shippingPence"), "shippingPence"), "shippingPence");
-    const validatedDiscountPence = optional(body.discountPence, (v) => nonNegative(number(v, "discountPence"), "discountPence"), "discountPence");
+    const validatedOrderGroup = optional(
+      body.orderGroup,
+      (v) => sanitizedString(v, "orderGroup"),
+      "orderGroup"
+    );
+    const validatedFeesPence = optional(
+      body.feesPence,
+      (v) => nonNegative(number(v, "feesPence"), "feesPence"),
+      "feesPence"
+    );
+    const validatedShippingPence = optional(
+      body.shippingPence,
+      (v) => nonNegative(number(v, "shippingPence"), "shippingPence"),
+      "shippingPence"
+    );
+    const validatedDiscountPence = optional(
+      body.discountPence,
+      (v) => nonNegative(number(v, "discountPence"), "discountPence"),
+      "discountPence"
+    );
     const validatedConsumables = optional(body.consumables, array, "consumables");
     const validatedQuantity = quantity(body.quantity || 1, "quantity"); // Quantity of bundles to sell
 
@@ -42,7 +100,8 @@ export async function POST(
     // Get bundle with items
     const { data: bundle, error: bundleError } = await supabase
       .from("bundles")
-      .select(`
+      .select(
+        `
         *,
         bundle_items (
           id,
@@ -56,22 +115,17 @@ export async function POST(
             variation
           )
         )
-      `)
+      `
+      )
       .eq("id", validatedBundleId)
       .single();
 
     if (bundleError || !bundle) {
-      return NextResponse.json(
-        { error: "Bundle not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Bundle not found" }, { status: 404 });
     }
 
     if (bundle.status === "sold") {
-      return NextResponse.json(
-        { error: "Bundle has already been sold" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Bundle has already been sold" }, { status: 400 });
     }
 
     // Check if bundle has enough quantity available
@@ -85,24 +139,18 @@ export async function POST(
 
     const bundleItems = bundle.bundle_items || [];
     if (bundleItems.length === 0) {
-      return NextResponse.json(
-        { error: "Bundle has no items" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Bundle has no items" }, { status: 400 });
     }
 
     // Verify all lots have enough available quantity
-    const lotIds = bundleItems.map((item: any) => item.lot_id);
+    const lotIds = bundleItems.map((item: BundleItemRow) => item.lot_id);
     const { data: lots, error: lotsError } = await supabase
       .from("inventory_lots")
-      .select("id, quantity, status")
+      .select("id, quantity, status, acquisition_id")
       .in("id", lotIds);
 
     if (lotsError || !lots || lots.length !== lotIds.length) {
-      return NextResponse.json(
-        { error: "One or more lots not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "One or more lots not found" }, { status: 404 });
     }
 
     // Get current sold quantities
@@ -112,7 +160,7 @@ export async function POST(
       .in("lot_id", lotIds);
 
     const soldQtyMap = new Map<string, number>();
-    (existingSales || []).forEach((item: any) => {
+    (existingSales || []).forEach((item: SoldItemRow) => {
       const current = soldQtyMap.get(item.lot_id) || 0;
       soldQtyMap.set(item.lot_id, current + (item.qty || 0));
     });
@@ -121,25 +169,24 @@ export async function POST(
     // they haven't been sold individually and that we have enough bundle quantity
     // Total cards needed = validatedQuantity * cards_per_bundle for each item
     for (const bundleItem of bundleItems) {
-      const lot = lots.find((l: any) => l.id === bundleItem.lot_id);
+      const lot = lots.find((l: InventoryLotRow) => l.id === bundleItem.lot_id);
       if (!lot) {
-        return NextResponse.json(
-          { error: `Lot ${bundleItem.lot_id} not found` },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: `Lot ${bundleItem.lot_id} not found` }, { status: 404 });
       }
 
       const currentSoldQty = soldQtyMap.get(bundleItem.lot_id) || 0;
       const cardsPerBundle = bundleItem.quantity || 1;
       const totalCardsNeeded = validatedQuantity * cardsPerBundle;
-      
+
       // Cards are reserved in bundle, but check that total available (including reserved) is enough
       // Available = lot.quantity - already_sold
       const totalAvailable = lot.quantity - currentSoldQty;
 
       if (totalCardsNeeded > totalAvailable) {
         return NextResponse.json(
-          { error: `Insufficient quantity for lot ${bundleItem.lot_id}. Available: ${totalAvailable}, Needed for ${validatedQuantity} bundle(s): ${totalCardsNeeded} (${cardsPerBundle} per bundle)` },
+          {
+            error: `Insufficient quantity for lot ${bundleItem.lot_id}. Available: ${totalAvailable}, Needed for ${validatedQuantity} bundle(s): ${totalCardsNeeded} (${cardsPerBundle} per bundle)`,
+          },
           { status: 400 }
         );
       }
@@ -167,16 +214,13 @@ export async function POST(
         .single();
 
       if (buyerError || !newBuyer) {
-        return NextResponse.json(
-          { error: "Failed to create buyer" },
-          { status: 500 }
-        );
+        return NextResponse.json({ error: "Failed to create buyer" }, { status: 500 });
       }
       buyerId = newBuyer.id;
     }
 
     // Create sales order with bundle_id
-    const orderData: any = {
+    const orderData: SalesOrderData = {
       platform: "ebay",
       buyer_id: buyerId,
       bundle_id: validatedBundleId,
@@ -220,8 +264,11 @@ export async function POST(
       .select("lot_id, acquisition_id, quantity")
       .in("lot_id", lotIds);
 
-    const purchaseHistoryMap = new Map<string, Array<{ acquisition_id: string; quantity: number }>>();
-    (purchaseHistory || []).forEach((ph: any) => {
+    const purchaseHistoryMap = new Map<
+      string,
+      Array<{ acquisition_id: string; quantity: number }>
+    >();
+    (purchaseHistory || []).forEach((ph: PurchaseHistoryRow) => {
       if (!purchaseHistoryMap.has(ph.lot_id)) {
         purchaseHistoryMap.set(ph.lot_id, []);
       }
@@ -232,8 +279,11 @@ export async function POST(
     });
 
     // Calculate total cards in bundle
-    const totalCardsInBundle = bundleItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
-    
+    const totalCardsInBundle = bundleItems.reduce(
+      (sum: number, item: BundleItemRow) => sum + item.quantity,
+      0
+    );
+
     // Calculate price per card (bundle price / total cards)
     // All sales items will use the same price per card
     // Revenue allocation to purchases is handled by purchase allocations
@@ -249,7 +299,7 @@ export async function POST(
     }> = [];
 
     for (const bundleItem of bundleItems) {
-      const lot = lots.find((l: any) => l.id === bundleItem.lot_id);
+      const lot = lots.find((l: InventoryLotRow) => l.id === bundleItem.lot_id);
       if (!lot) continue;
 
       // Total quantity sold = number of bundles * cards per bundle
@@ -293,11 +343,11 @@ export async function POST(
 
     for (let i = 0; i < insertedSalesItems.length; i++) {
       const salesItem = insertedSalesItems[i];
-      const bundleItem = bundleItems.find((bi: any) => bi.lot_id === salesItem.lot_id);
+      const bundleItem = bundleItems.find((bi: BundleItemRow) => bi.lot_id === salesItem.lot_id);
       if (!bundleItem) continue;
 
       const history = purchaseHistoryMap.get(salesItem.lot_id) || [];
-      const lot = lots.find((l: any) => l.id === salesItem.lot_id);
+      const lot = lots.find((l: InventoryLotRow) => l.id === salesItem.lot_id);
       if (!lot) continue;
 
       if (history.length > 0) {
@@ -308,9 +358,10 @@ export async function POST(
         for (let j = 0; j < history.length && remainingQty > 0; j++) {
           const hist = history[j];
           const proportion = hist.quantity / totalFromHistory;
-          const allocatedQty = j === history.length - 1
-            ? remainingQty // Last one gets remaining
-            : Math.floor(salesItem.qty * proportion);
+          const allocatedQty =
+            j === history.length - 1
+              ? remainingQty // Last one gets remaining
+              : Math.floor(salesItem.qty * proportion);
 
           if (allocatedQty > 0) {
             purchaseAllocations.push({
@@ -333,23 +384,31 @@ export async function POST(
 
     // Insert purchase allocations
     if (purchaseAllocations.length > 0) {
-      console.log(`Bundle sell: Creating ${purchaseAllocations.length} purchase allocations:`, purchaseAllocations);
+      console.log(
+        `Bundle sell: Creating ${purchaseAllocations.length} purchase allocations:`,
+        purchaseAllocations
+      );
       const { error: allocError } = await supabase
         .from("sales_item_purchase_allocations")
         .insert(purchaseAllocations);
 
       if (allocError) {
-        logger.warn("Failed to create purchase allocations for bundle sale", allocError, undefined, {
+        logger.warn("Failed to create purchase allocations for bundle sale", undefined, {
           bundleId: validatedBundleId,
           salesOrderId: salesOrder.id,
           allocationsCount: purchaseAllocations.length,
+          error: allocError,
         });
         // Don't fail the sale if allocations fail
       } else {
-        logger.info(`Bundle sell: Successfully created ${purchaseAllocations.length} purchase allocations`, undefined, {
-          bundleId: validatedBundleId,
-          salesOrderId: salesOrder.id,
-        });
+        logger.info(
+          `Bundle sell: Successfully created ${purchaseAllocations.length} purchase allocations`,
+          undefined,
+          {
+            bundleId: validatedBundleId,
+            salesOrderId: salesOrder.id,
+          }
+        );
       }
     } else {
       logger.warn("Bundle sell: No purchase allocations created!", undefined, {
@@ -360,11 +419,15 @@ export async function POST(
     // Create sales consumables if provided
     if (validatedConsumables && validatedConsumables.length > 0) {
       const salesConsumables = validatedConsumables
-        .filter((c: any) => c.consumable_id && c.qty > 0)
-        .map((c: any) => ({
+        .filter((c: ConsumableInput) => {
+          if (!c.consumable_id) return false;
+          const qty = typeof c.qty === "string" ? parseInt(c.qty, 10) : c.qty;
+          return qty > 0;
+        })
+        .map((c: ConsumableInput) => ({
           sales_order_id: salesOrder.id,
           consumable_id: c.consumable_id,
-          qty: parseInt(c.qty, 10) || 1,
+          qty: typeof c.qty === "string" ? parseInt(c.qty, 10) || 1 : c.qty,
         }));
 
       if (salesConsumables.length > 0) {
@@ -373,10 +436,11 @@ export async function POST(
           .insert(salesConsumables);
 
         if (consumablesError) {
-          logger.warn("Failed to create sales consumables for bundle", consumablesError, undefined, {
+          logger.warn("Failed to create sales consumables for bundle", undefined, {
             bundleId: validatedBundleId,
             salesOrderId: salesOrder.id,
             consumablesCount: salesConsumables.length,
+            error: consumablesError,
           });
           // Don't fail the sale if consumables fail
         }
@@ -393,10 +457,7 @@ export async function POST(
         .eq("id", validatedBundleId);
     } else {
       // Decrease quantity
-      await supabase
-        .from("bundles")
-        .update({ quantity: newQuantity })
-        .eq("id", validatedBundleId);
+      await supabase.from("bundles").update({ quantity: newQuantity }).eq("id", validatedBundleId);
     }
 
     return NextResponse.json({
@@ -414,4 +475,3 @@ export async function POST(
     });
   }
 }
-

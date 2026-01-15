@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
-import { nonEmptyString, sanitizedNonEmptyString, optional, string } from "@/lib/validation";
+import { sanitizedNonEmptyString, optional } from "@/lib/validation";
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const supabase = supabaseServer();
 
@@ -30,20 +30,21 @@ export async function GET(req: Request) {
       ok: true,
       consumables: consumables || [],
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "get_consumables" });
   }
 }
 
 export async function POST(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const body = await req.json();
-    
+
     // Validate and sanitize required fields
     const validatedName = sanitizedNonEmptyString(body.name, "name");
-    const validatedUnit = optional(body.unit, (v) => sanitizedNonEmptyString(v, "unit"), "unit") || "each";
+    const validatedUnit =
+      optional(body.unit, (v) => sanitizedNonEmptyString(v, "unit"), "unit") || "each";
 
     const supabase = supabaseServer();
 
@@ -73,9 +74,7 @@ export async function POST(req: Request) {
       ok: true,
       consumable,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "create_consumable" });
   }
 }
-
-

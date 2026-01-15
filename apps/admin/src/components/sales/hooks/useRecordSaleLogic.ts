@@ -4,10 +4,10 @@ import { autoAllocatePurchases, calculateDealDiscount } from "../utils/saleCalcu
 import type {
   ListedLot,
   SaleItem,
-  Buyer,
   Consumable,
   ConsumableSelection,
   PromotionalDeal,
+  PurchaseAllocation,
 } from "../types";
 
 export function useRecordSaleLogic(
@@ -62,12 +62,18 @@ export function useRecordSaleLogic(
   const updateSaleItem = useCallback(
     (
       index: number,
-      field: "qty" | "pricePence" | "isFree" | "selectedPurchaseId" | "manualAllocation" | "purchaseAllocation",
-      value: any
+      field:
+        | "qty"
+        | "pricePence"
+        | "isFree"
+        | "selectedPurchaseId"
+        | "manualAllocation"
+        | "purchaseAllocation",
+      value: string | number | boolean | PurchaseAllocation | null
     ) => {
       const updated = [...saleItems];
       if (field === "qty") {
-        const qty = parseInt(value, 10) || 1;
+        const qty = parseInt(String(value ?? "1"), 10) || 1;
         const lot = updated[index].lot;
         if (lot && qty > lot.available_qty) {
           setErrorModal({ isOpen: true, message: `Only ${lot.available_qty} available` });
@@ -78,8 +84,14 @@ export function useRecordSaleLogic(
           const autoAllocs = autoAllocatePurchases(updated[index]);
           updated[index].purchaseAllocations = autoAllocs;
         } else if (updated[index].purchaseAllocations) {
-          const currentTotal = updated[index].purchaseAllocations.reduce((sum, a) => sum + a.qty, 0);
-          if (currentTotal !== updated[index].qty && updated[index].purchaseAllocations.length > 0) {
+          const currentTotal = updated[index].purchaseAllocations.reduce(
+            (sum, a) => sum + a.qty,
+            0
+          );
+          if (
+            currentTotal !== updated[index].qty &&
+            updated[index].purchaseAllocations.length > 0
+          ) {
             const diff = updated[index].qty - currentTotal;
             const lastAlloc =
               updated[index].purchaseAllocations[updated[index].purchaseAllocations.length - 1];
@@ -87,35 +99,39 @@ export function useRecordSaleLogic(
           }
         }
       } else if (field === "pricePence") {
-        const pricePounds = parseFloat(value) || 0;
+        const pricePounds = parseFloat(String(value ?? "0")) || 0;
         updated[index].pricePence = pricePounds > 0 ? Math.round(pricePounds * 100) : null;
         if (pricePounds > 0) {
           updated[index].isFree = false;
         }
       } else if (field === "isFree") {
-        updated[index].isFree = value;
-        if (value) {
+        updated[index].isFree = value === true;
+        if (value === true) {
           updated[index].pricePence = 0;
         }
       } else if (field === "selectedPurchaseId") {
-        updated[index].selectedPurchaseId = value || null;
+        updated[index].selectedPurchaseId = typeof value === "string" ? value : null;
       } else if (field === "manualAllocation") {
-        updated[index].manualAllocation = value;
-        if (value && !updated[index].purchaseAllocations) {
+        updated[index].manualAllocation = value === true;
+        if (value === true && !updated[index].purchaseAllocations) {
           const autoAllocs = autoAllocatePurchases(updated[index]);
           updated[index].purchaseAllocations = autoAllocs;
         }
       } else if (field === "purchaseAllocation") {
+        if (!value || typeof value !== "object" || !("purchaseId" in value) || !("qty" in value)) {
+          return;
+        }
+        const allocation = value as PurchaseAllocation;
         if (!updated[index].purchaseAllocations) {
           updated[index].purchaseAllocations = [];
         }
         const allocs = updated[index].purchaseAllocations!;
-        const existingIndex = allocs.findIndex((a) => a.purchaseId === value.purchaseId);
-        if (value.qty > 0) {
+        const existingIndex = allocs.findIndex((a) => a.purchaseId === allocation.purchaseId);
+        if (allocation.qty > 0) {
           if (existingIndex >= 0) {
-            allocs[existingIndex].qty = value.qty;
+            allocs[existingIndex].qty = allocation.qty;
           } else {
-            allocs.push({ purchaseId: value.purchaseId, qty: value.qty });
+            allocs.push({ purchaseId: allocation.purchaseId, qty: allocation.qty });
           }
         } else {
           if (existingIndex >= 0) {
@@ -153,7 +169,14 @@ export function useRecordSaleLogic(
 
         const json = await res.json();
         if (json.ok && json.consumables) {
-          const selections: ConsumableSelection[] = json.consumables.map((c: any) => {
+          type PackagingRuleConsumable = {
+            consumable_id: string;
+            consumable_name: string;
+            qty: number;
+          };
+          const selections: ConsumableSelection[] = (
+            json.consumables as PackagingRuleConsumable[]
+          ).map((c) => {
             const consumable = consumables.find((cons) => cons.consumable_id === c.consumable_id);
             return {
               consumable_id: c.consumable_id,
@@ -200,13 +223,14 @@ export function useRecordSaleLogic(
   );
 
   const handleUpdateConsumable = useCallback(
-    (index: number, field: keyof ConsumableSelection, value: any) => {
+    (index: number, field: keyof ConsumableSelection, value: string | number) => {
       const updated = [...selectedConsumables];
       if (field === "consumable_id") {
-        const consumable = consumables.find((c) => c.consumable_id === value);
+        const consumableId = String(value);
+        const consumable = consumables.find((c) => c.consumable_id === consumableId);
         updated[index] = {
           ...updated[index],
-          consumable_id: value,
+          consumable_id: consumableId,
           consumable_name: consumable?.name || "",
           unit_cost_pence: consumable?.avg_cost_pence_per_unit || 0,
         };
@@ -249,4 +273,3 @@ export function useRecordSaleLogic(
     handleDealChange,
   };
 }
-

@@ -27,7 +27,7 @@ export function useTcgdxSets(locale: string = "en") {
       setError(null);
       try {
         const cacheKey = getSetsCacheKey(locale);
-        
+
         // Use cache with 1 hour TTL - fetchAllSets will use API route which is also cached
         const fetchedSets = await catalogCache.get(
           cacheKey,
@@ -40,9 +40,16 @@ export function useTcgdxSets(locale: string = "en") {
         if (!abortController.signal.aborted) {
           setSets(fetchedSets);
         }
-      } catch (e: any) {
-        if (e.name !== "AbortError" && !abortController.signal.aborted) {
-          setError(`Failed to load sets: ${e.message}`);
+      } catch (e: unknown) {
+        const isAbortError =
+          (e instanceof Error && e.name === "AbortError") ||
+          (typeof e === "object" &&
+            e !== null &&
+            "name" in e &&
+            (e as { name: string }).name === "AbortError");
+
+        if (!isAbortError && !abortController.signal.aborted) {
+          setError(`Failed to load sets: ${e instanceof Error ? e.message : "Unknown error"}`);
         }
       } finally {
         if (!abortController.signal.aborted) {
@@ -60,4 +67,3 @@ export function useTcgdxSets(locale: string = "en") {
 
   return { sets, loading, error };
 }
-

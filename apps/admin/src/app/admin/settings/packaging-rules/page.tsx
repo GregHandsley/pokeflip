@@ -40,8 +40,14 @@ export default function PackagingRulesPage() {
   const [showAddRule, setShowAddRule] = useState(false);
   const [editingRule, setEditingRule] = useState<PackagingRule | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: "" });
-  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; ruleId: string | null }>({ isOpen: false, ruleId: null });
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; message: string }>({
+    isOpen: false,
+    message: "",
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; ruleId: string | null }>({
+    isOpen: false,
+    ruleId: null,
+  });
 
   // Form state
   const [ruleName, setRuleName] = useState("");
@@ -135,14 +141,20 @@ export default function PackagingRulesPage() {
 
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(json.error || `Failed to ${editingRule ? "update" : "create"} packaging rule`);
+        throw new Error(
+          json.error || `Failed to ${editingRule ? "update" : "create"} packaging rule`
+        );
       }
 
       setShowAddRule(false);
       resetForm();
       await loadRules();
-    } catch (e: any) {
-      setErrorModal({ isOpen: true, message: e.message || `Failed to ${editingRule ? "update" : "create"} packaging rule` });
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      setErrorModal({
+        isOpen: true,
+        message: error.message || `Failed to ${editingRule ? "update" : "create"} packaging rule`,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -164,8 +176,9 @@ export default function PackagingRulesPage() {
 
       setDeleteConfirm({ isOpen: false, ruleId: null });
       await loadRules();
-    } catch (e: any) {
-      setErrorModal({ isOpen: true, message: e.message || "Failed to delete packaging rule" });
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      setErrorModal({ isOpen: true, message: error.message || "Failed to delete packaging rule" });
     } finally {
       setSubmitting(false);
     }
@@ -204,10 +217,13 @@ export default function PackagingRulesPage() {
             Define default consumables to apply based on card count
           </p>
         </div>
-        <Button variant="primary" onClick={() => {
-          resetForm();
-          setShowAddRule(true);
-        }}>
+        <Button
+          variant="primary"
+          onClick={() => {
+            resetForm();
+            setShowAddRule(true);
+          }}
+        >
           Add Rule
         </Button>
       </div>
@@ -220,11 +236,14 @@ export default function PackagingRulesPage() {
           <p className="text-sm text-gray-400 mb-4">
             Create a default rule to automatically apply consumables when marking items as sold.
           </p>
-          <Button variant="primary" onClick={() => {
-            resetForm();
-            setIsDefault(true);
-            setShowAddRule(true);
-          }}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              resetForm();
+              setIsDefault(true);
+              setShowAddRule(true);
+            }}
+          >
             Create Default Rule
           </Button>
         </div>
@@ -269,7 +288,9 @@ export default function PackagingRulesPage() {
                     <div key={item.id} className="flex items-center gap-2 text-sm">
                       <span className="font-medium">{item.consumables?.name || "Unknown"}</span>
                       <span className="text-gray-500">× {item.qty}</span>
-                      <span className="text-gray-400 text-xs">({item.consumables?.unit || "each"})</span>
+                      <span className="text-gray-400 text-xs">
+                        ({item.consumables?.unit || "each"})
+                      </span>
                     </div>
                   ))
                 )}
@@ -313,7 +334,7 @@ export default function PackagingRulesPage() {
             onChange={(e) => setRuleName(e.target.value)}
             placeholder="e.g., Single Card, Multi-Card"
           />
-          
+
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -382,8 +403,18 @@ export default function PackagingRulesPage() {
                       onClick={() => handleRemoveRuleItem(index)}
                       className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded"
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -434,4 +465,3 @@ export default function PackagingRulesPage() {
     </div>
   );
 }
-

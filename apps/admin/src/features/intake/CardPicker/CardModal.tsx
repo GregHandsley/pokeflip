@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import type { TcgdxCard, Condition, CardVariation } from "./types";
 import { CONDITIONS, CONDITION_LABELS } from "./types";
 import { CARD_VARIATIONS, variationLabel } from "@/components/inventory/variations";
@@ -11,12 +12,27 @@ type Props = {
   imageUrl: string;
   selectedSetId: string;
   locale: string;
-  onAdd: (args: { setId: string; cardId: string; locale: string; condition: Condition; quantity: number; variation: CardVariation }) => Promise<void>;
+  onAdd: (args: {
+    setId: string;
+    cardId: string;
+    locale: string;
+    condition: Condition;
+    quantity: number;
+    variation: CardVariation;
+  }) => Promise<void>;
   onClose: () => void;
   onCardAdded: (cardId: string) => void;
 };
 
-export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClose, onCardAdded }: Props) {
+export function CardModal({
+  card,
+  imageUrl,
+  selectedSetId,
+  locale,
+  onAdd,
+  onClose,
+  onCardAdded,
+}: Props) {
   const [quantities, setQuantities] = useState<Record<Condition, number>>({
     NM: 0,
     LP: 0,
@@ -25,14 +41,15 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
     DMG: 0,
   });
   const [variation, setVariation] = useState<CardVariation>("standard");
-  const [allowedVariations, setAllowedVariations] = useState<CardVariation[]>(CARD_VARIATIONS as CardVariation[]);
+  const [allowedVariations, setAllowedVariations] = useState<CardVariation[]>([...CARD_VARIATIONS]);
   const [loadingVariants, setLoadingVariants] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   // Inject animation styles
   useEffect(() => {
-    const styleId = 'card-picker-animations';
+    const styleId = "card-picker-animations";
     if (!document.getElementById(styleId)) {
-      const style = document.createElement('style');
+      const style = document.createElement("style");
       style.id = styleId;
       style.textContent = `
         @keyframes fadeIn {
@@ -89,15 +106,17 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
       setLoadingVariants(true);
       try {
         const variantLocales = locale === "en" ? ["en"] : ["en", locale];
-        let json: any = null;
+        let json: { variants?: Array<{ locale: string; name: string }> } | null = null;
 
         for (const variantLocale of variantLocales) {
           try {
-            const res = await fetch(`https://api.tcgdex.net/v2/${variantLocale}/cards/${encodeURIComponent(card.id)}`);
+            const res = await fetch(
+              `https://api.tcgdex.net/v2/${variantLocale}/cards/${encodeURIComponent(card.id)}`
+            );
             if (!res.ok) continue;
             json = await res.json();
             break;
-          } catch (err) {
+          } catch {
             // try next locale
           }
         }
@@ -106,7 +125,7 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
           throw new Error("No variants payload");
         }
         const variants = json?.variants;
-        if (!variants || typeof variants !== "object") {
+        if (!variants || typeof variants !== "object" || Array.isArray(variants)) {
           throw new Error("No variants field");
         }
         const map: Array<{ key: string; value: CardVariation }> = [
@@ -116,7 +135,10 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
           { key: "firstEdition", value: "first_edition" },
           { key: "wPromo", value: "promo" },
         ];
-        const next = map.filter((m) => variants[m.key] === true).map((m) => m.value) as CardVariation[];
+        const variantsRecord = variants as unknown as Record<string, unknown>;
+        const next = map
+          .filter((m) => variantsRecord[m.key] === true)
+          .map((m) => m.value) as CardVariation[];
         const nextAllowed = next.length > 0 ? next : (["standard"] as CardVariation[]);
         if (active) {
           setAllowedVariations(nextAllowed);
@@ -125,7 +147,7 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
       } catch (e) {
         console.warn("Failed to load variants; using defaults", e);
         if (active) {
-          setAllowedVariations(CARD_VARIATIONS as CardVariation[]);
+          setAllowedVariations([...CARD_VARIATIONS]);
           setVariation("standard");
         }
       } finally {
@@ -142,14 +164,14 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       style={{
-        animation: 'fadeIn 0.2s ease-out',
+        animation: "fadeIn 0.2s ease-out",
       }}
       onClick={onClose}
     >
       <div
         className="bg-white rounded-xl shadow-2xl max-w-sm w-full max-h-[90vh] flex flex-col relative"
         style={{
-          animation: 'scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          animation: "scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -162,31 +184,29 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
           ×
         </button>
 
-        <div className="p-3 pb-2 flex-shrink-0">
+        <div className="p-3 pb-2 shrink-0">
           <h3 className="text-base font-semibold mb-0.5 pr-8">{card.name}</h3>
           {(card.localId || card.number) && (
-            <div className="text-xs text-gray-600 mb-1.5">
-              {card.localId || card.number}
-            </div>
+            <div className="text-xs text-gray-600 mb-1.5">{card.localId || card.number}</div>
           )}
-          <div className="aspect-[2.5/3.5] w-full max-w-[100px] mx-auto overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-            <img
-              src={imageUrl || DEFAULT_CARD_BACK_IMAGE}
+          <div className="aspect-[2.5/3.5] w-full max-w-[100px] mx-auto overflow-hidden rounded-lg border border-gray-200 bg-gray-50 relative">
+            <Image
+              src={imageError ? DEFAULT_CARD_BACK_IMAGE : imageUrl || DEFAULT_CARD_BACK_IMAGE}
               alt={card.name || "Card"}
-              className="w-full h-full object-cover"
-              onError={(e) => {
+              fill
+              className="object-cover"
+              onError={() => {
                 // Fallback to default card back if image fails to load
-                (e.target as HTMLImageElement).src = DEFAULT_CARD_BACK_IMAGE;
+                setImageError(true);
               }}
+              unoptimized
             />
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 pb-3">
           <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Variation
-            </label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Variation</label>
             <select
               value={variation}
               onChange={(e) => setVariation(e.target.value as CardVariation)}
@@ -216,7 +236,7 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
                         <button
                           type="button"
                           onClick={() => {
-                            setQuantities(prev => ({
+                            setQuantities((prev) => ({
                               ...prev,
                               [condition]: Math.max(0, quantity - 1),
                             }));
@@ -233,7 +253,7 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
                         <button
                           type="button"
                           onClick={() => {
-                            setQuantities(prev => ({
+                            setQuantities((prev) => ({
                               ...prev,
                               [condition]: quantity + 1,
                             }));
@@ -252,9 +272,7 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
           </div>
 
           <div className="pt-2 mt-2 border-t border-gray-200">
-            <div className="text-xs text-gray-600 mb-1.5">
-              Total: {totalQty} card(s)
-            </div>
+            <div className="text-xs text-gray-600 mb-1.5">Total: {totalQty} card(s)</div>
             <button
               type="button"
               onClick={handleAdd}
@@ -269,4 +287,3 @@ export function CardModal({ card, imageUrl, selectedSetId, locale, onAdd, onClos
     </div>
   );
 }
-

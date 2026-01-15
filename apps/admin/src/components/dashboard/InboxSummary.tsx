@@ -1,6 +1,5 @@
 "use client";
 
-import { penceToPounds } from "@pokeflip/shared";
 import Card from "@/components/ui/Card";
 
 type InboxSummary = {
@@ -57,9 +56,7 @@ export default function InboxSummary({ data, loading }: Props) {
                     High-value ready to list
                   </span>
                 </div>
-                <span className="text-sm font-bold text-green-700">
-                  {data.highValueReady}
-                </span>
+                <span className="text-sm font-bold text-green-700">{data.highValueReady}</span>
               </div>
             )}
 
@@ -67,13 +64,9 @@ export default function InboxSummary({ data, loading }: Props) {
               <div className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                  <span className="text-sm font-medium text-blue-900">
-                    Ready to list
-                  </span>
+                  <span className="text-sm font-medium text-blue-900">Ready to list</span>
                 </div>
-                <span className="text-sm font-bold text-blue-700">
-                  {data.readyToList}
-                </span>
+                <span className="text-sm font-bold text-blue-700">{data.readyToList}</span>
               </div>
             )}
 
@@ -81,13 +74,9 @@ export default function InboxSummary({ data, loading }: Props) {
               <div className="flex items-center justify-between p-2 bg-orange-50 rounded border border-orange-200">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-orange-600 rounded-full"></div>
-                  <span className="text-sm font-medium text-orange-900">
-                    Need photos
-                  </span>
+                  <span className="text-sm font-medium text-orange-900">Need photos</span>
                 </div>
-                <span className="text-sm font-bold text-orange-700">
-                  {data.needsPhotos}
-                </span>
+                <span className="text-sm font-bold text-orange-700">{data.needsPhotos}</span>
               </div>
             )}
           </div>
@@ -96,4 +85,3 @@ export default function InboxSummary({ data, loading }: Props) {
     </Card>
   );
 }
-

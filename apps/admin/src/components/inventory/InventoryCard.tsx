@@ -14,7 +14,7 @@ interface InventoryCardProps {
 }
 
 export default function InventoryCard({
-  card_id,
+  // card_id,
   number,
   name,
   api_image_url,
@@ -36,8 +36,7 @@ export default function InventoryCard({
         )}
         <div className="flex-1">
           <div className="font-medium">
-            <span className="text-gray-500 font-normal">#{number}</span>{" "}
-            {name}
+            <span className="text-gray-500 font-normal">#{number}</span> {name}
           </div>
           <div className="text-sm text-gray-600">
             active {qty_active ?? 0} • listed {qty_listed ?? 0} • sold {qty_sold ?? 0}
@@ -48,4 +47,3 @@ export default function InventoryCard({
     </Card>
   );
 }
-

@@ -41,7 +41,6 @@ const links = [
   },
 ];
 
-
 type DashboardSummary = {
   inbox: {
     readyToList: number;
@@ -101,22 +100,20 @@ export default function AdminHome() {
       {/* Dashboard Widgets */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
-          <InboxSummary 
-            data={summary?.inbox || null} 
-            loading={loading}
-          />
-          <FinancialOverview 
-            data={summary?.overallProfit || null} 
-            loading={loading}
-          />
+          <InboxSummary data={summary?.inbox || null} loading={loading} />
+          <FinancialOverview data={summary?.overallProfit || null} loading={loading} />
         </div>
         <div className="space-y-4">
-          <QuickStats 
-            data={summary ? {
-              purchases: summary.purchases,
-              inventory: summary.inventory,
-              recentSales: summary.recentSales,
-            } : null} 
+          <QuickStats
+            data={
+              summary
+                ? {
+                    purchases: summary.purchases,
+                    inventory: summary.inventory,
+                    recentSales: summary.recentSales,
+                  }
+                : null
+            }
             loading={loading}
           />
           <TestStatus />
@@ -127,7 +124,10 @@ export default function AdminHome() {
       {/* Quick Links */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {links.map((link) => (
-          <Card key={link.title} className="border border-gray-200 shadow-sm hover:shadow-md transition">
+          <Card
+            key={link.title}
+            className="border border-gray-200 shadow-sm hover:shadow-md transition"
+          >
             <div className="flex flex-col gap-2">
               <h2 className="text-lg font-semibold text-gray-900">{link.title}</h2>
               <p className="text-sm text-gray-600">{link.description}</p>

@@ -24,7 +24,7 @@ export default function ListingDetailsStep({
   onUpdateVariation,
 }: Props) {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
-  const [allowedVariations, setAllowedVariations] = useState<string[]>(CARD_VARIATIONS as string[]);
+  const [allowedVariations, setAllowedVariations] = useState<string[]>([...CARD_VARIATIONS]);
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [editingVariation, setEditingVariation] = useState(false);
 
@@ -34,7 +34,9 @@ export default function ListingDetailsStep({
     const loadVariants = async () => {
       setLoadingVariants(true);
       try {
-        const res = await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(lot.card_id)}`);
+        const res = await fetch(
+          `https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(lot.card_id)}`
+        );
         const json = await res.json();
         const variants = json?.variants;
         if (!variants || typeof variants !== "object") {
@@ -59,7 +61,7 @@ export default function ListingDetailsStep({
       } catch (e) {
         console.warn("Failed to load variants; using defaults", e);
         if (active) {
-          setAllowedVariations(CARD_VARIATIONS as string[]);
+          setAllowedVariations([...CARD_VARIATIONS]);
         }
       } finally {
         if (active) setLoadingVariants(false);
@@ -80,11 +82,7 @@ export default function ListingDetailsStep({
   }
 
   if (!salesData) {
-    return (
-      <div className="text-center py-8 text-gray-600">
-        Failed to load listing details
-      </div>
-    );
+    return <div className="text-center py-8 text-gray-600">Failed to load listing details</div>;
   }
 
   return (
@@ -94,7 +92,9 @@ export default function ListingDetailsStep({
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-gray-600">Card:</span>{" "}
-            <span className="font-medium">#{lot.card_number} {lot.card_name}</span>
+            <span className="font-medium">
+              #{lot.card_number} {lot.card_name}
+            </span>
           </div>
           <div>
             <span className="text-gray-600">Set:</span>{" "}
@@ -103,8 +103,7 @@ export default function ListingDetailsStep({
           <div>
             <span className="text-gray-600">Condition:</span>{" "}
             <span className="font-medium">
-              {CONDITION_LABELS[lot.condition as keyof typeof CONDITION_LABELS] ||
-                lot.condition}
+              {CONDITION_LABELS[lot.condition as keyof typeof CONDITION_LABELS] || lot.condition}
             </span>
           </div>
           <div>
@@ -126,9 +125,7 @@ export default function ListingDetailsStep({
 
       {/* Title */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Variation
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Variation</label>
         <div className="flex items-center gap-3 mb-2">
           <span className="px-3 py-2 rounded border text-sm bg-gray-50 text-gray-800">
             {variationLabel(lot.variation)}
@@ -164,9 +161,7 @@ export default function ListingDetailsStep({
 
       {/* Title */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Listing Title
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Listing Title</label>
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
             <input
@@ -182,7 +177,7 @@ export default function ListingDetailsStep({
                   await navigator.clipboard.writeText(salesData.title);
                   setCopyStatus("copied");
                   setTimeout(() => setCopyStatus("idle"), 1500);
-                } catch (e) {
+                } catch {
                   setCopyStatus("error");
                   setTimeout(() => setCopyStatus("idle"), 1500);
                 }
@@ -198,9 +193,7 @@ export default function ListingDetailsStep({
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Listing Description
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Listing Description</label>
         <div className="flex items-start gap-2">
           <textarea
             value={salesData.description}
@@ -216,7 +209,7 @@ export default function ListingDetailsStep({
                 await navigator.clipboard.writeText(salesData.description);
                 setCopyStatus("copied");
                 setTimeout(() => setCopyStatus("idle"), 1500);
-              } catch (e) {
+              } catch {
                 setCopyStatus("error");
                 setTimeout(() => setCopyStatus("idle"), 1500);
               }
@@ -231,9 +224,7 @@ export default function ListingDetailsStep({
 
       {/* Bundle Integration - Placeholder for future bundle functionality */}
       <div className="border-t border-gray-200 pt-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Add to Bundle
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Add to Bundle</label>
         <p className="text-xs text-gray-500 mb-3">
           Add this card to an existing bundle or create a new bundle.
         </p>
@@ -292,8 +283,8 @@ function BundleSelector({ lotId }: { lotId: string }) {
       alert("Card added to bundle successfully!");
       setSelectedBundleId("");
       loadBundles();
-    } catch (e: any) {
-      alert(e.message || "Failed to add to bundle");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to add to bundle");
     } finally {
       setAdding(false);
     }
@@ -408,8 +399,8 @@ function CreateBundleFromLotModal({
       setName("");
       setDescription("");
       setPrice("");
-    } catch (e: any) {
-      setError(e.message || "Failed to create bundle");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to create bundle");
     } finally {
       setCreating(false);
     }
@@ -421,16 +412,10 @@ function CreateBundleFromLotModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
         <h3 className="text-lg font-semibold mb-4">Create New Bundle</h3>
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
-            {error}
-          </div>
-        )}
+        {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Bundle Name *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Bundle Name *</label>
             <input
               type="text"
               value={name}
@@ -440,9 +425,7 @@ function CreateBundleFromLotModal({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -486,4 +469,3 @@ function CreateBundleFromLotModal({
     </div>
   );
 }
-

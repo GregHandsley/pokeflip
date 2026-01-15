@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { handleApiError } from "@/lib/api-error-handler";
-import { runAllIntegrityChecks, checkOrphanedRecords, checkQuantityConsistency, validateProfitCalculations } from "@/lib/integrity";
+import {
+  runAllIntegrityChecks,
+  checkOrphanedRecords,
+  checkQuantityConsistency,
+  validateProfitCalculations,
+} from "@/lib/integrity";
 
 /**
  * GET /api/admin/integrity/check
- * 
+ *
  * Run all integrity checks or a specific check
  * Query parameters:
  * - check: Optional. Specific check to run ('orphaned', 'quantities', 'profit', or omit for all)
@@ -51,7 +56,7 @@ export async function GET(req: Request) {
 
 /**
  * POST /api/admin/integrity/check
- * 
+ *
  * Run all integrity checks (alternative to GET)
  */
 export async function POST(req: Request) {
@@ -67,4 +72,3 @@ export async function POST(req: Request) {
     });
   }
 }
-

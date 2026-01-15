@@ -29,7 +29,12 @@ export default function IntegrityChecker() {
         // Single check result
         setReport({
           timestamp: new Date().toISOString(),
-          overall_status: data.check.status === "pass" ? "healthy" : data.check.status === "fail" ? "unhealthy" : "degraded",
+          overall_status:
+            data.check.status === "pass"
+              ? "healthy"
+              : data.check.status === "fail"
+                ? "unhealthy"
+                : "degraded",
           checks: [data.check],
           total_issues: data.check.issues.length,
           execution_time_ms: data.check.execution_time_ms,
@@ -109,11 +114,7 @@ export default function IntegrityChecker() {
               Verify data consistency, check for orphaned records, and validate calculations
             </p>
           </div>
-          <Button
-            onClick={() => runChecks()}
-            disabled={loading}
-            variant="primary"
-          >
+          <Button onClick={() => runChecks()} disabled={loading} variant="primary">
             {loading && runningCheck === "all" ? "Running..." : "Run All Checks"}
           </Button>
         </div>
@@ -162,16 +163,16 @@ export default function IntegrityChecker() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold mb-1">
-                  {getStatusIcon(report.overall_status)} Overall Status: {report.overall_status.toUpperCase()}
+                  {getStatusIcon(report.overall_status)} Overall Status:{" "}
+                  {report.overall_status.toUpperCase()}
                 </div>
                 <div className="text-sm opacity-90">
                   {report.total_issues} issue{report.total_issues !== 1 ? "s" : ""} found
-                  {report.execution_time_ms && ` • Completed in ${formatExecutionTime(report.execution_time_ms)}`}
+                  {report.execution_time_ms &&
+                    ` • Completed in ${formatExecutionTime(report.execution_time_ms)}`}
                 </div>
               </div>
-              <div className="text-xs opacity-75">
-                {formatDate(report.timestamp)}
-              </div>
+              <div className="text-xs opacity-75">{formatDate(report.timestamp)}</div>
             </div>
           </div>
 
@@ -183,7 +184,9 @@ export default function IntegrityChecker() {
                 className="bg-white border border-gray-200 rounded-lg overflow-hidden"
               >
                 {/* Check Header */}
-                <div className={`border-l-4 p-4 ${getStatusColor(check.status).split(" ")[0]} bg-opacity-10`}>
+                <div
+                  className={`border-l-4 p-4 ${getStatusColor(check.status).split(" ")[0]} bg-opacity-10`}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-lg font-semibold">{getStatusIcon(check.status)}</span>
@@ -197,7 +200,9 @@ export default function IntegrityChecker() {
                       {formatExecutionTime(check.execution_time_ms)}
                     </div>
                   </div>
-                  <div className={`inline-block mt-2 px-2 py-1 rounded text-xs font-medium ${getStatusColor(check.status)}`}>
+                  <div
+                    className={`inline-block mt-2 px-2 py-1 rounded text-xs font-medium ${getStatusColor(check.status)}`}
+                  >
                     {check.status.toUpperCase()}
                   </div>
                 </div>
@@ -206,10 +211,7 @@ export default function IntegrityChecker() {
                 {check.issues.length > 0 && (
                   <div className="border-t border-gray-200 divide-y divide-gray-200">
                     {check.issues.map((issue: IntegrityIssue, index: number) => (
-                      <div
-                        key={index}
-                        className={`p-4 ${getSeverityColor(issue.severity)}`}
-                      >
+                      <div key={index} className={`p-4 ${getSeverityColor(issue.severity)}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
@@ -256,9 +258,7 @@ export default function IntegrityChecker() {
           {/* Summary when no issues */}
           {report.total_issues === 0 && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-              <div className="text-green-800 font-semibold text-lg mb-2">
-                ✓ All checks passed!
-              </div>
+              <div className="text-green-800 font-semibold text-lg mb-2">✓ All checks passed!</div>
               <div className="text-green-600 text-sm">
                 Your data integrity is healthy. All checks completed successfully.
               </div>
@@ -271,7 +271,7 @@ export default function IntegrityChecker() {
       {!report && !loading && !error && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
           <div className="text-gray-600 mb-4">
-            Click "Run All Checks" to verify your data integrity
+            Click &quot;Run All Checks&quot; to verify your data integrity
           </div>
           <div className="text-sm text-gray-500">
             Checks will verify orphaned records, quantity consistency, and profit calculations
@@ -281,4 +281,3 @@ export default function IntegrityChecker() {
     </div>
   );
 }
-

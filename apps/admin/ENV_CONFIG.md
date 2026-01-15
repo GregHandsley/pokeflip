@@ -5,6 +5,7 @@ This document describes all environment variables used by the application and ho
 ## Quick Start
 
 1. **Copy the example file:**
+
    ```bash
    cp .env.example .env.local
    ```
@@ -25,6 +26,7 @@ This document describes all environment variables used by the application and ho
 These variables **must** be set for the application to start:
 
 #### `NEXT_PUBLIC_SUPABASE_URL`
+
 - **Description**: Supabase project URL
 - **Type**: Public (exposed to client)
 - **Example**: `https://abcdefghijklmnop.supabase.co`
@@ -32,6 +34,7 @@ These variables **must** be set for the application to start:
 - **Required**: ✅ Yes
 
 #### `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
 - **Description**: Supabase anonymous (public) key - safe for client-side use
 - **Type**: Public (exposed to client)
 - **Example**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
@@ -39,6 +42,7 @@ These variables **must** be set for the application to start:
 - **Required**: ✅ Yes
 
 #### `SUPABASE_SERVICE_ROLE_KEY`
+
 - **Description**: Supabase service role key - **NEVER expose to client!**
 - **Type**: Private (server-only)
 - **Example**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
@@ -51,6 +55,7 @@ These variables **must** be set for the application to start:
 #### Application Environment
 
 ##### `APP_ENV`
+
 - **Description**: Application environment (`development`, `staging`, `production`)
 - **Type**: Private (server-only)
 - **Default**: Derived from `NODE_ENV`
@@ -58,6 +63,7 @@ These variables **must** be set for the application to start:
 - **Required**: ❌ No
 
 ##### `NEXT_PUBLIC_SITE_URL`
+
 - **Description**: Base URL of the application (used for CORS, absolute URLs, etc.)
 - **Type**: Public (exposed to client)
 - **Default**: `http://127.0.0.1:3000` (development), `https://your-domain.com` (production)
@@ -65,6 +71,7 @@ These variables **must** be set for the application to start:
 - **Required**: ❌ No (but recommended for production)
 
 ##### `PRICE_FLOOR_GBP`
+
 - **Description**: Minimum price floor for card listings (in GBP)
 - **Type**: Private (server-only)
 - **Default**: `0.99`
@@ -74,6 +81,7 @@ These variables **must** be set for the application to start:
 #### Sentry Error Tracking
 
 ##### `NEXT_PUBLIC_SENTRY_DSN` or `SENTRY_DSN`
+
 - **Description**: Sentry Data Source Name for error tracking
 - **Type**: `NEXT_PUBLIC_SENTRY_DSN` is public, `SENTRY_DSN` is private (server-only)
 - **Default**: None (Sentry disabled)
@@ -82,6 +90,7 @@ These variables **must** be set for the application to start:
 - **Required**: ❌ No (but recommended for production)
 
 ##### `NEXT_PUBLIC_SENTRY_ENABLED`
+
 - **Description**: Enable Sentry in development/staging (default: only enabled in production)
 - **Type**: Public (exposed to client)
 - **Default**: `false` (enabled automatically in production)
@@ -89,6 +98,7 @@ These variables **must** be set for the application to start:
 - **Required**: ❌ No
 
 ##### `SENTRY_ORG`
+
 - **Description**: Sentry organization slug (required for source map uploads)
 - **Type**: Private (server-only)
 - **Default**: None
@@ -97,6 +107,7 @@ These variables **must** be set for the application to start:
 - **Required**: ❌ No (only needed for source map uploads)
 
 ##### `SENTRY_PROJECT`
+
 - **Description**: Sentry project slug (required for source map uploads)
 - **Type**: Private (server-only)
 - **Default**: None
@@ -126,6 +137,7 @@ NEXT_PUBLIC_SENTRY_ENABLED=false
 ```
 
 **Notes:**
+
 - Sentry is disabled by default (set `NEXT_PUBLIC_SENTRY_ENABLED=true` to enable)
 - Uses local Supabase instance or development Supabase project
 - `NEXT_PUBLIC_SITE_URL` defaults to localhost
@@ -145,6 +157,7 @@ SENTRY_PROJECT=pokeflip-admin
 ```
 
 **Notes:**
+
 - Uses staging Supabase project
 - Sentry enabled for monitoring
 - Set proper staging URL
@@ -164,6 +177,7 @@ PRICE_FLOOR_GBP=0.99
 ```
 
 **Notes:**
+
 - Sentry automatically enabled (no need to set `NEXT_PUBLIC_SENTRY_ENABLED`)
 - Use production Supabase project
 - Ensure all URLs are production URLs
@@ -193,6 +207,7 @@ validateEnvironment();
 ### Validation Output
 
 On startup, you'll see:
+
 - ✅ Success message with current configuration (development only)
 - ⚠️ Warnings for missing optional but recommended variables
 - ❌ Errors for missing required variables (app won't start)
@@ -300,4 +315,3 @@ PRICE_FLOOR_GBP=0.99
 - [Supabase Setup Guide](https://supabase.com/docs/guides/getting-started)
 - [Sentry Next.js Integration](https://docs.sentry.io/platforms/javascript/guides/nextjs/)
 - [Next.js Environment Variables](https://nextjs.org/docs/basic-features/environment-variables)
-

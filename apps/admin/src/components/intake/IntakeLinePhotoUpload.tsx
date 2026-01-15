@@ -23,14 +23,14 @@ export default function IntakeLinePhotoUpload({ lineId, kind, onUploaded }: Prop
       setError("Please select an image file");
       return;
     }
-    
+
     // Check file size (10MB limit)
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
       setError("File size exceeds 10MB limit");
       return;
     }
-    
+
     // Validate allowed image types
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
     if (!allowedTypes.includes(file.type)) {
@@ -66,8 +66,9 @@ export default function IntakeLinePhotoUpload({ lineId, kind, onUploaded }: Prop
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-    } catch (e: any) {
-      setError(e.message || "Upload failed");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      setError(error.message || "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -99,4 +100,3 @@ export default function IntakeLinePhotoUpload({ lineId, kind, onUploaded }: Prop
     </div>
   );
 }
-

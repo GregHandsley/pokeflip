@@ -34,13 +34,16 @@ export default function AddCardsModal({
   const [error, setError] = useState<string | null>(null);
 
   // Use hooks for data fetching
-  const { sets, loading: loadingSets, error: setsError } = useTcgdxSets(
-    step === "set" || step === "cards" ? locale : ""
-  );
-  const { cards, loading: loadingCards, error: cardsError } = useTcgdxCards(
-    step === "cards" ? selectedSet?.id ?? null : null,
-    locale
-  );
+  const {
+    sets,
+    loading: loadingSets,
+    error: setsError,
+  } = useTcgdxSets(step === "set" || step === "cards" ? locale : "");
+  const {
+    cards,
+    loading: loadingCards,
+    error: cardsError,
+  } = useTcgdxCards(step === "cards" ? (selectedSet?.id ?? null) : null, locale);
 
   // Combine errors
   useEffect(() => {
@@ -114,8 +117,8 @@ export default function AddCardsModal({
       await Promise.all(promises);
       onCardsAdded();
       onClose();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "An unknown error occurred");
     } finally {
       setLoading(false);
     }
@@ -140,10 +143,7 @@ export default function AddCardsModal({
         Cancel
       </Button>
       {step === "cards" && (
-        <Button
-          onClick={handleAddCards}
-          disabled={loading || selectedCards.size === 0}
-        >
+        <Button onClick={handleAddCards} disabled={loading || selectedCards.size === 0}>
           {loading
             ? "Adding..."
             : `Add ${selectedCards.size} Card${selectedCards.size !== 1 ? "s" : ""}`}
@@ -167,9 +167,7 @@ export default function AddCardsModal({
         </div>
       )}
 
-      {step === "language" && (
-        <LanguageStep onLanguageSelect={handleLanguageSelect} />
-      )}
+      {step === "language" && <LanguageStep onLanguageSelect={handleLanguageSelect} />}
 
       {step === "set" && (
         <SetStep

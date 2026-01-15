@@ -16,20 +16,19 @@ function formatStatusLabel(status: string): string {
   return labels[status] || status;
 }
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
-  
+
   // Get current user for audit logging
   const userInfo = await getCurrentUser(req);
-  
+
+  // Validate route parameters outside try block so it's accessible in catch
+  const { lotId } = await params;
+  let validatedLotId: string = lotId;
+
   try {
-    // Validate route parameters
-    const { lotId } = await params;
-    const validatedLotId = uuid(lotId, "lotId");
-    
+    validatedLotId = uuid(lotId, "lotId");
+
     // Validate request body
     const body = await req.json();
     const validatedStatus = lotStatus(body.status, "status");
@@ -77,9 +76,11 @@ export async function PATCH(
         action_type: "change_status",
         entity_type: "inventory_lot",
         entity_id: validatedLotId,
-        old_values: currentLot ? {
-          status: currentLot.status,
-        } : null,
+        old_values: currentLot
+          ? {
+              status: currentLot.status,
+            }
+          : null,
         new_values: {
           status: validatedStatus,
         },
@@ -89,8 +90,9 @@ export async function PATCH(
       });
     } catch (auditError) {
       // Don't fail the update if audit logging fails
-      logger.warn("Failed to log audit entry for status change", auditError, undefined, {
+      logger.warn("Failed to log audit entry for status change", undefined, {
         lotId: validatedLotId,
+        error: auditError,
       });
     }
 
@@ -102,8 +104,7 @@ export async function PATCH(
     // ValidationErrorResponse is automatically handled by handleApiError
     return handleApiError(req, error, {
       operation: "update_lot_status",
-      metadata: { lotId: validatedLotId },
+      metadata: { lotId: validatedLotId || lotId },
     });
   }
 }
-

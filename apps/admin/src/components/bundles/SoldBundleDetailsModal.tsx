@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { penceToPounds } from "@pokeflip/shared";
@@ -91,13 +92,7 @@ export default function SoldBundleDetailsModal({ bundle, isOpen, onClose }: Prop
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadSalesDetails();
-    }
-  }, [isOpen, bundle.id]);
-
-  const loadSalesDetails = async () => {
+  const loadSalesDetails = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -114,18 +109,27 @@ export default function SoldBundleDetailsModal({ bundle, isOpen, onClose }: Prop
     } finally {
       setLoading(false);
     }
-  };
+  }, [bundle.id]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadSalesDetails();
+    }
+  }, [isOpen, loadSalesDetails]);
 
   const calculateSaleTotals = (order: SalesOrder) => {
-    const revenue = order.sales_items.reduce((sum, item) => sum + (item.sold_price_pence * item.qty), 0);
+    const revenue = order.sales_items.reduce(
+      (sum, item) => sum + item.sold_price_pence * item.qty,
+      0
+    );
     const fees = order.fees_pence || 0;
     const shipping = order.shipping_pence || 0;
     const discount = order.discount_pence || 0;
     const consumablesCost = order.sales_consumables.reduce((sum, sc) => {
       const unitCost = sc.consumables?.avg_cost_pence_per_unit ?? 0;
-      return sum + (unitCost * sc.qty);
+      return sum + unitCost * sc.qty;
     }, 0);
-    
+
     const revenueAfterDiscount = revenue - discount;
     const totalCosts = fees + shipping + consumablesCost;
     const netProfit = revenueAfterDiscount - totalCosts;
@@ -151,7 +155,7 @@ export default function SoldBundleDetailsModal({ bundle, isOpen, onClose }: Prop
       isOpen={isOpen}
       onClose={onClose}
       title={`Bundle Details: ${bundle.name}`}
-      maxWidth="4xl"
+      maxWidth="6xl"
       footer={
         <div className="flex justify-end">
           <Button variant="secondary" onClick={onClose}>
@@ -199,18 +203,23 @@ export default function SoldBundleDetailsModal({ bundle, isOpen, onClose }: Prop
             {bundle.bundle_items.map((item, idx) => (
               <div key={idx} className="flex items-center gap-3 text-sm">
                 {item.inventory_lots?.cards?.api_image_url && (
-                  <img
-                    src={`${item.inventory_lots.cards.api_image_url}/low.webp`}
-                    alt=""
-                    className="h-12 w-auto rounded border border-gray-200"
-                  />
+                  <div className="relative h-12 w-auto rounded border border-gray-200 overflow-hidden">
+                    <Image
+                      src={`${item.inventory_lots.cards.api_image_url}/low.webp`}
+                      alt=""
+                      fill
+                      className="object-contain"
+                      unoptimized
+                    />
+                  </div>
                 )}
                 <div className="flex-1">
                   <div className="font-medium">
                     #{item.inventory_lots?.cards?.number} {item.inventory_lots?.cards?.name}
                   </div>
                   <div className="text-xs text-gray-600">
-                    {item.inventory_lots?.cards?.sets?.name} • {item.inventory_lots?.condition} • Qty: {item.quantity}
+                    {item.inventory_lots?.cards?.sets?.name} • {item.inventory_lots?.condition} •
+                    Qty: {item.quantity}
                   </div>
                 </div>
               </div>
@@ -222,13 +231,14 @@ export default function SoldBundleDetailsModal({ bundle, isOpen, onClose }: Prop
         <div>
           <h3 className="font-semibold mb-3">Sales History</h3>
           {loading ? (
-            <div className="text-sm text-gray-500 py-4 text-center">Loading sales information...</div>
+            <div className="text-sm text-gray-500 py-4 text-center">
+              Loading sales information...
+            </div>
           ) : salesOrders.length === 0 ? (
             <div className="text-sm text-gray-500 py-4 text-center bg-gray-50 rounded-lg">
-              {bundle.status === "sold" 
+              {bundle.status === "sold"
                 ? "This bundle is marked as sold but no sales orders were found. This may indicate the bundle was manually marked as sold."
-                : "No sales found for this bundle."
-              }
+                : "No sales found for this bundle."}
             </div>
           ) : (
             <div className="space-y-4">
@@ -239,7 +249,8 @@ export default function SoldBundleDetailsModal({ bundle, isOpen, onClose }: Prop
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <div className="font-semibold text-sm text-gray-900">
-                          Sold: {new Date(order.sold_at).toLocaleDateString()} {new Date(order.sold_at).toLocaleTimeString()}
+                          Sold: {new Date(order.sold_at).toLocaleDateString()}{" "}
+                          {new Date(order.sold_at).toLocaleTimeString()}
                         </div>
                         {order.buyers && (
                           <div className="text-xs text-gray-600 mt-1">
@@ -264,20 +275,29 @@ export default function SoldBundleDetailsModal({ bundle, isOpen, onClose }: Prop
                       <div className="text-xs font-medium text-gray-700 mb-2">Cards Sold:</div>
                       <div className="space-y-1 max-h-32 overflow-y-auto">
                         {order.sales_items.map((item, idx) => (
-                          <div key={idx} className="flex items-center gap-2 text-xs bg-white rounded p-2">
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2 text-xs bg-white rounded p-2"
+                          >
                             {item.inventory_lots?.cards?.api_image_url && (
-                              <img
-                                src={`${item.inventory_lots.cards.api_image_url}/low.webp`}
-                                alt=""
-                                className="h-8 w-auto rounded border border-gray-200"
-                              />
+                              <div className="relative h-8 w-auto rounded border border-gray-200 overflow-hidden">
+                                <Image
+                                  src={`${item.inventory_lots.cards.api_image_url}/low.webp`}
+                                  alt=""
+                                  fill
+                                  className="object-contain"
+                                  unoptimized
+                                />
+                              </div>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="font-medium truncate">
-                                #{item.inventory_lots?.cards?.number} {item.inventory_lots?.cards?.name}
+                                #{item.inventory_lots?.cards?.number}{" "}
+                                {item.inventory_lots?.cards?.name}
                               </div>
                               <div className="text-gray-600">
-                                Qty: {item.qty} × £{penceToPounds(item.sold_price_pence)} = £{penceToPounds(item.sold_price_pence * item.qty)}
+                                Qty: {item.qty} × £{penceToPounds(item.sold_price_pence)} = £
+                                {penceToPounds(item.sold_price_pence * item.qty)}
                               </div>
                             </div>
                           </div>
@@ -297,7 +317,8 @@ export default function SoldBundleDetailsModal({ bundle, isOpen, onClose }: Prop
                               <div key={idx} className="text-xs bg-white rounded p-2">
                                 <div className="flex justify-between">
                                   <span className="font-medium">
-                                    {sc.consumables?.name || "Unknown"} × {sc.qty} {sc.consumables?.unit || "each"}
+                                    {sc.consumables?.name || "Unknown"} × {sc.qty}{" "}
+                                    {sc.consumables?.unit || "each"}
                                   </span>
                                   {unitCost > 0 && (
                                     <span className="text-gray-600">
@@ -340,12 +361,16 @@ export default function SoldBundleDetailsModal({ bundle, isOpen, onClose }: Prop
                         {totals.consumablesCost > 0 && (
                           <div className="flex justify-between">
                             <span className="text-gray-600">Consumables:</span>
-                            <span className="text-red-600">-£{penceToPounds(totals.consumablesCost)}</span>
+                            <span className="text-red-600">
+                              -£{penceToPounds(totals.consumablesCost)}
+                            </span>
                           </div>
                         )}
                         <div className="flex justify-between font-semibold text-base pt-2 border-t border-gray-300 col-span-2">
                           <span>Net Profit:</span>
-                          <span className={totals.netProfit >= 0 ? "text-green-600" : "text-red-600"}>
+                          <span
+                            className={totals.netProfit >= 0 ? "text-green-600" : "text-red-600"}
+                          >
                             £{penceToPounds(totals.netProfit)} ({totals.margin.toFixed(1)}%)
                           </span>
                         </div>
@@ -361,4 +386,3 @@ export default function SoldBundleDetailsModal({ bundle, isOpen, onClose }: Prop
     </Modal>
   );
 }
-

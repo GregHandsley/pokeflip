@@ -7,7 +7,6 @@ import type {
   Consumable,
   ConsumableSelection,
   PromotionalDeal,
-  PurchaseAllocation,
 } from "../types";
 
 export function useRecordSale(isOpen: boolean) {
@@ -146,7 +145,16 @@ export function useRecordSale(isOpen: boolean) {
       setSelectedDealId(null);
       setDealDiscount(null);
     }
-  }, [isOpen, loadListedLots, loadBuyers, loadOrderGroups, loadConsumables, loadPromotionalDeals, generateOrderNumber, autoGenerateOrderNumber]);
+  }, [
+    isOpen,
+    loadListedLots,
+    loadBuyers,
+    loadOrderGroups,
+    loadConsumables,
+    loadPromotionalDeals,
+    generateOrderNumber,
+    autoGenerateOrderNumber,
+  ]);
 
   return {
     // State
@@ -189,4 +197,3 @@ export function useRecordSale(isOpen: boolean) {
     generateOrderNumber,
   };
 }
-

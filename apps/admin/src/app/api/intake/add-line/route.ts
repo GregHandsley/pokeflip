@@ -18,10 +18,7 @@ export async function POST(req: Request) {
     } = body;
 
     if (!acquisition_id || !set_id || !card_id) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const supabase = supabaseServer();
@@ -40,12 +37,12 @@ export async function POST(req: Request) {
         try {
           const englishSets = await fetchAllSets("en");
           set = englishSets.find((s) => s.id === set_id);
-        } catch (e) {
+        } catch {
           // If English doesn't exist, fall back to requested locale
           const sets = await fetchAllSets(locale);
           set = sets.find((s) => s.id === set_id);
         }
-        
+
         if (set) {
           const { error: setError } = await supabase.from("sets").upsert({
             id: set.id,
@@ -63,14 +60,13 @@ export async function POST(req: Request) {
             );
           }
         } else {
-          return NextResponse.json(
-            { error: `Set ${set_id} not found in TCGdx` },
-            { status: 404 }
-          );
+          return NextResponse.json({ error: `Set ${set_id} not found in TCGdx` }, { status: 404 });
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         return NextResponse.json(
-          { error: `Failed to fetch set from TCGdx: ${e.message}` },
+          {
+            error: `Failed to fetch set from TCGdx: ${e instanceof Error ? e.message : String(e)}`,
+          },
           { status: 500 }
         );
       }
@@ -90,20 +86,20 @@ export async function POST(req: Request) {
         // Strategy: Always try to get English version first, regardless of user's locale
         // Card IDs are consistent across languages, so we can fetch English by same ID
         let baseCard = null;
-        
+
         // Method 1: Try direct fetch by card ID in English (fastest)
         baseCard = await fetchCardById(card_id, "en");
-        
+
         // Method 2: If that fails, try fetching English set and finding the card
         if (!baseCard) {
           try {
             const englishCards = await fetchCardsForSet(set_id, "en");
             baseCard = englishCards.find((c) => c.id === card_id) || null;
-          } catch (e) {
+          } catch {
             // English set might not exist for this set_id, continue
           }
         }
-        
+
         // Method 3: If English doesn't exist, the card might be Japanese-only
         // In this case, we still store it but note that it doesn't have English
         // (This is rare - most cards have English versions)
@@ -113,23 +109,20 @@ export async function POST(req: Request) {
             try {
               const cards = await fetchCardsForSet(set_id, locale);
               baseCard = cards.find((c) => c.id === card_id) || null;
-            } catch (e) {
+            } catch {
               // Set might not exist in requested locale either
             }
           }
         }
-        
+
         if (!baseCard) {
-          return NextResponse.json(
-            { error: `Card ${card_id} not found` },
-            { status: 404 }
-          );
+          return NextResponse.json({ error: `Card ${card_id} not found` }, { status: 404 });
         }
 
         // Store English as canonical (or the card we found if English doesn't exist)
         // TCGdx uses localId for the card number (e.g., "1", "2", "3")
         let cardNumber = baseCard.localId ?? baseCard.number ?? "";
-        let { error: cardError } = await supabase.from("cards").insert({
+        const { error: cardError } = await supabase.from("cards").insert({
           id: baseCard.id,
           set_id: set_id,
           number: cardNumber,
@@ -142,12 +135,21 @@ export async function POST(req: Request) {
         // Handle different types of conflicts
         if (cardError) {
           // Check if it's a primary key conflict (card already exists with this ID)
-          if (cardError.message.includes("cards_pkey") || cardError.message.includes("duplicate key value violates unique constraint \"cards_pkey\"")) {
+          if (
+            cardError.message.includes("cards_pkey") ||
+            cardError.message.includes(
+              'duplicate key value violates unique constraint "cards_pkey"'
+            )
+          ) {
             // Card already exists with this ID - that's fine, just proceed
             // The card is already in the database, so we can continue
           }
           // Check if it's a unique constraint on (set_id, number)
-          else if (cardError.message.includes("unique constraint") || cardError.message.includes("duplicate key") || cardError.message.includes("cards_set_id_number_key")) {
+          else if (
+            cardError.message.includes("unique constraint") ||
+            cardError.message.includes("duplicate key") ||
+            cardError.message.includes("cards_set_id_number_key")
+          ) {
             // Check if there's a card with the same set_id + number
             const { data: conflictCard } = await supabase
               .from("cards")
@@ -155,7 +157,7 @@ export async function POST(req: Request) {
               .eq("set_id", set_id)
               .eq("number", cardNumber)
               .single();
-            
+
             if (conflictCard) {
               // Different card with same number - make number unique
               // Extract a unique suffix from the card_id (e.g., "015" from "sv08.5-015")
@@ -179,7 +181,9 @@ export async function POST(req: Request) {
                   // Card already exists, proceed
                 } else {
                   return NextResponse.json(
-                    { error: `Failed to save card after conflict resolution: ${retryError.message}` },
+                    {
+                      error: `Failed to save card after conflict resolution: ${retryError.message}`,
+                    },
                     { status: 500 }
                   );
                 }
@@ -192,7 +196,7 @@ export async function POST(req: Request) {
                 .select("id")
                 .eq("id", baseCard.id)
                 .single();
-              
+
               if (existingById) {
                 // Card already exists - that's fine, proceed
               } else {
@@ -210,9 +214,11 @@ export async function POST(req: Request) {
             );
           }
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         return NextResponse.json(
-          { error: `Failed to fetch card from TCGdx: ${e.message}` },
+          {
+            error: `Failed to fetch card from TCGdx: ${e instanceof Error ? e.message : String(e)}`,
+          },
           { status: 500 }
         );
       }
@@ -254,15 +260,17 @@ export async function POST(req: Request) {
       for_sale,
       list_price_pence,
       status: "draft",
-    } as any);
+    } as Record<string, unknown>);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, created: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message ?? "Unknown error" }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Unknown error" },
+      { status: 500 }
+    );
   }
 }
-

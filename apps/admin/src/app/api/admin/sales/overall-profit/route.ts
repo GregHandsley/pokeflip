@@ -3,9 +3,18 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
+type SalesOrderRow = {
+  id: string;
+};
+
+type SalesConsumableRow = {
+  consumable_id: string;
+  qty: number;
+};
+
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const supabase = supabaseServer();
 
@@ -50,11 +59,9 @@ export async function GET(req: Request) {
     );
 
     // Get sales order IDs for consumables lookup
-    const { data: salesOrders } = await supabase
-      .from("sales_orders")
-      .select("id");
-    
-    const salesOrderIds = (salesOrders || []).map((o: any) => o.id);
+    const { data: salesOrders } = await supabase.from("sales_orders").select("id");
+
+    const salesOrderIds = (salesOrders || []).map((o: SalesOrderRow) => o.id);
 
     // Get all consumables costs from sales
     let total_consumables_cost_pence = 0;
@@ -75,9 +82,7 @@ export async function GET(req: Request) {
 
       // Get consumable costs
       const consumableIds = [
-        ...new Set(
-          (salesConsumables || []).map((c: any) => c.consumable_id)
-        ),
+        ...new Set((salesConsumables || []).map((c: SalesConsumableRow) => c.consumable_id)),
       ];
 
       if (consumableIds.length > 0) {
@@ -88,10 +93,8 @@ export async function GET(req: Request) {
 
         // Calculate total consumables cost
         total_consumables_cost_pence = (salesConsumables || []).reduce(
-          (sum, sc: any) => {
-            const cost = (consumableCosts || []).find(
-              (c) => c.consumable_id === sc.consumable_id
-            );
+          (sum, sc: SalesConsumableRow) => {
+            const cost = (consumableCosts || []).find((c) => c.consumable_id === sc.consumable_id);
             const unitCost = cost?.avg_cost_pence_per_unit || 0;
             return sum + sc.qty * unitCost;
           },
@@ -117,8 +120,7 @@ export async function GET(req: Request) {
         margin_percent,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "get_overall_profit" });
   }
 }
-

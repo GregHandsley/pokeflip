@@ -3,9 +3,7 @@ import type { SaleItem, PromotionalDeal, ConsumableSelection } from "../types";
 export function autoAllocatePurchases(item: SaleItem) {
   const purchases = item.lot?.purchases || [];
   if (purchases.length === 0 || purchases.length === 1) {
-    return purchases.length === 1
-      ? [{ purchaseId: purchases[0].id, qty: item.qty }]
-      : [];
+    return purchases.length === 1 ? [{ purchaseId: purchases[0].id, qty: item.qty }] : [];
   }
 
   const totalAvailable = purchases.reduce((sum, p) => sum + p.quantity, 0);
@@ -44,10 +42,7 @@ export function calculateDealDiscount(
   const nonFreeItems = items.filter(
     (item) => !item.isFree && item.pricePence && item.pricePence > 0
   );
-  const totalRevenue = nonFreeItems.reduce(
-    (sum, item) => sum + item.pricePence! * item.qty,
-    0
-  );
+  const totalRevenue = nonFreeItems.reduce((sum, item) => sum + item.pricePence! * item.qty, 0);
 
   if (totalCardCount < deal.min_card_count) return null;
   if (deal.max_card_count && totalCardCount > deal.max_card_count) return null;
@@ -118,8 +113,10 @@ export function calculateTotals(
   const feesCost = parseFloat(fees) || 0;
   const shippingCost =
     selectedDealId && dealDiscount?.type === "free_shipping" ? 0 : parseFloat(shipping) || 0;
-  const consumablesCost =
-    selectedConsumables.reduce((sum, c) => sum + (c.qty * c.unit_cost_pence) / 100, 0);
+  const consumablesCost = selectedConsumables.reduce(
+    (sum, c) => sum + (c.qty * c.unit_cost_pence) / 100,
+    0
+  );
   const totalCosts = feesCost + shippingCost + consumablesCost;
   const netProfit = revenueAfterDiscount - totalCosts;
   const margin = revenueAfterDiscount > 0 ? (netProfit / revenueAfterDiscount) * 100 : 0;
@@ -136,4 +133,3 @@ export function calculateTotals(
     margin,
   };
 }
-

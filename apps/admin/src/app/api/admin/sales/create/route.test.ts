@@ -8,12 +8,13 @@ vi.mock("@/lib/validation", async () => {
   return {
     ...actual,
     nonEmptyString: (val: string) => val,
-    array: (val: any[]) => val,
+    array: (val: unknown[]) => val,
     uuid: (val: string) => val,
     quantity: (val: number) => val,
     pricePence: (val: number) => val,
     number: (val: number) => val,
-    optional: (val: any, fn: any) => val === undefined ? undefined : fn(val, "field"),
+    optional: (val: unknown, fn: (v: unknown, field: string) => unknown) =>
+      val === undefined ? undefined : fn(val, "field"),
     nonNegative: (val: number) => val,
   };
 });
@@ -32,7 +33,9 @@ describe.skip("POST /api/admin/sales/create", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (supabaseServer as any).mockReturnValue(mockSupabase);
+    (supabaseServer as unknown as { mockReturnValue: (value: unknown) => void }).mockReturnValue(
+      mockSupabase
+    );
   });
 
   it("Creates a sale with multiple lots", async () => {
@@ -246,9 +249,8 @@ describe.skip("POST /api/admin/sales/create", () => {
 
     expect(response.status).toBe(400);
     expect(
-      json.error.toLowerCase().includes("insufficient") || 
-      json.error.toLowerCase().includes("available")
+      json.error.toLowerCase().includes("insufficient") ||
+        json.error.toLowerCase().includes("available")
     ).toBe(true);
   });
 });
-

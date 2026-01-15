@@ -5,9 +5,127 @@ import { createApiLogger } from "@/lib/logger";
 import { Parser } from "json2csv";
 import { penceToPounds } from "@pokeflip/shared";
 
+type AcquisitionRow = {
+  id: string;
+  source_name: string;
+  source_type: string;
+  reference: string | null;
+  purchase_total_pence: number | null;
+  purchased_at: string;
+  status: string;
+  notes: string | null;
+  created_at: string;
+};
+
+type SetRow = {
+  id: string;
+  name: string;
+};
+
+type CardRow = {
+  id: string;
+  number: string | null;
+  name: string | null;
+  sets: SetRow | SetRow[] | null;
+};
+
+type InventoryLotRow = {
+  id: string;
+  card_id: string;
+  condition: string;
+  variation: string | null;
+  quantity: number;
+  for_sale: boolean;
+  list_price_pence: number | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  cards: CardRow | null;
+  acquisitions: {
+    id: string;
+    source_name: string;
+    source_type: string;
+  } | null;
+};
+
+type BuyerRow = {
+  id: string;
+  handle: string | null;
+  platform: string;
+  created_at: string;
+};
+
+type SalesItemRow = {
+  id: string;
+  qty: number;
+  sold_price_pence: number;
+  inventory_lots: {
+    cards: CardRow | null;
+    condition: string;
+    variation: string | null;
+  } | null;
+};
+
+type SalesOrderRow = {
+  id: string;
+  sold_at: string;
+  platform: string;
+  platform_order_ref: string | null;
+  order_group: string | null;
+  fees_pence: number | null;
+  shipping_pence: number | null;
+  discount_pence: number | null;
+  bundle_id: string | null;
+  created_at: string;
+  buyers: BuyerRow | null;
+  sales_items: SalesItemRow[] | null;
+};
+
+type BundleItemRow = {
+  id: string;
+  quantity: number;
+  inventory_lots: {
+    cards: CardRow | null;
+    condition: string;
+    variation: string | null;
+  } | null;
+};
+
+type BundleRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  price_pence: number;
+  quantity: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  bundle_items: BundleItemRow[] | null;
+};
+
+type ConsumableRow = {
+  id: string;
+  name: string;
+  unit: string;
+  created_at: string;
+};
+
+type ConsumablePurchaseRow = {
+  id: string;
+  qty: number;
+  total_cost_pence: number;
+  purchased_at: string;
+  consumables: {
+    id: string;
+    name: string;
+  } | null;
+};
+
+type ExportRow = Record<string, string | number>;
+
 /**
  * Full Database Export
- * 
+ *
  * Exports all critical application data to CSV format.
  * This includes:
  * - Acquisitions and intake lines
@@ -17,13 +135,13 @@ import { penceToPounds } from "@pokeflip/shared";
  * - Buyers
  * - Consumables and consumable purchases
  * - eBay listings and configuration
- * 
+ *
  * Note: This is a data export, not a database backup.
  * For true database backups, use Supabase's automated backup system.
  */
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const supabase = supabaseServer();
     const { searchParams } = new URL(req.url);
@@ -41,15 +159,13 @@ export async function GET(req: Request) {
       ebayListingsRes,
     ] = await Promise.all([
       // Acquisitions
-      supabase
-        .from("acquisitions")
-        .select("*")
-        .order("purchased_at", { ascending: false }),
-      
+      supabase.from("acquisitions").select("*").order("purchased_at", { ascending: false }),
+
       // Inventory Lots
       supabase
         .from("inventory_lots")
-        .select(`
+        .select(
+          `
           *,
           cards:card_id (
             id,
@@ -65,13 +181,15 @@ export async function GET(req: Request) {
             source_name,
             source_type
           )
-        `)
+        `
+        )
         .order("created_at", { ascending: false }),
-      
+
       // Sales Orders
       supabase
         .from("sales_orders")
-        .select(`
+        .select(
+          `
           *,
           buyers:buyer_id (
             id,
@@ -99,13 +217,15 @@ export async function GET(req: Request) {
               unit
             )
           )
-        `)
+        `
+        )
         .order("sold_at", { ascending: false }),
-      
+
       // Bundles
       supabase
         .from("bundles")
-        .select(`
+        .select(
+          `
           *,
           bundle_items (
             *,
@@ -120,37 +240,35 @@ export async function GET(req: Request) {
               variation
             )
           )
-        `)
+        `
+        )
         .order("created_at", { ascending: false }),
-      
+
       // Buyers
-      supabase
-        .from("buyers")
-        .select("*")
-        .order("created_at", { ascending: false }),
-      
+      supabase.from("buyers").select("*").order("created_at", { ascending: false }),
+
       // Consumables
-      supabase
-        .from("consumables")
-        .select("*")
-        .order("created_at", { ascending: false }),
-      
+      supabase.from("consumables").select("*").order("created_at", { ascending: false }),
+
       // Consumable Purchases
       supabase
         .from("consumable_purchases")
-        .select(`
+        .select(
+          `
           *,
           consumables:consumable_id (
             id,
             name
           )
-        `)
+        `
+        )
         .order("purchased_at", { ascending: false }),
-      
+
       // eBay Listings
       supabase
         .from("ebay_listings")
-        .select(`
+        .select(
+          `
           *,
           inventory_lots:lot_id (
             id,
@@ -160,7 +278,8 @@ export async function GET(req: Request) {
               name
             )
           )
-        `)
+        `
+        )
         .order("created_at", { ascending: false }),
     ]);
 
@@ -218,12 +337,12 @@ export async function GET(req: Request) {
     // Default: Return ZIP with multiple CSV files
     // For now, return a single comprehensive CSV with all data
     // In production, you might want to use a library like `archiver` to create a ZIP file
-    
+
     // Flatten and combine all data into a single export format
-    const allRows: Array<Record<string, any>> = [];
+    const allRows: ExportRow[] = [];
 
     // Acquisitions
-    (acquisitionsRes.data || []).forEach((acq: any) => {
+    (acquisitionsRes.data || []).forEach((acq: AcquisitionRow) => {
       allRows.push({
         table: "acquisitions",
         id: acq.id,
@@ -239,18 +358,20 @@ export async function GET(req: Request) {
     });
 
     // Inventory Lots
-    (inventoryLotsRes.data || []).forEach((lot: any) => {
+    (inventoryLotsRes.data || []).forEach((lot: InventoryLotRow) => {
+      const cards = lot.cards;
+      const sets = Array.isArray(cards?.sets) ? cards?.sets[0] : cards?.sets;
       allRows.push({
         table: "inventory_lots",
         id: lot.id,
         card_id: lot.card_id,
-        card_number: lot.cards?.number || "",
-        card_name: lot.cards?.name || "",
-        set_name: lot.cards?.sets?.name || "",
+        card_number: cards?.number || "",
+        card_name: cards?.name || "",
+        set_name: sets?.name || "",
         condition: lot.condition,
         variation: lot.variation || "standard",
         quantity: lot.quantity,
-        for_sale: lot.for_sale,
+        for_sale: lot.for_sale ? "true" : "false",
         list_price_gbp: lot.list_price_pence ? penceToPounds(lot.list_price_pence) : "",
         status: lot.status,
         acquisition_source: lot.acquisitions?.source_name || "",
@@ -260,12 +381,12 @@ export async function GET(req: Request) {
     });
 
     // Sales Orders
-    (salesOrdersRes.data || []).forEach((order: any) => {
+    (salesOrdersRes.data || []).forEach((order: SalesOrderRow) => {
       const orderRevenue = (order.sales_items || []).reduce(
-        (sum: number, item: any) => sum + (item.qty * item.sold_price_pence),
+        (sum: number, item: SalesItemRow) => sum + item.qty * item.sold_price_pence,
         0
       );
-      
+
       allRows.push({
         table: "sales_orders",
         id: order.id,
@@ -284,7 +405,7 @@ export async function GET(req: Request) {
       });
 
       // Sales Items
-      (order.sales_items || []).forEach((item: any) => {
+      (order.sales_items || []).forEach((item: SalesItemRow) => {
         allRows.push({
           table: "sales_items",
           sales_order_id: order.id,
@@ -302,7 +423,7 @@ export async function GET(req: Request) {
     });
 
     // Bundles
-    (bundlesRes.data || []).forEach((bundle: any) => {
+    (bundlesRes.data || []).forEach((bundle: BundleRow) => {
       allRows.push({
         table: "bundles",
         id: bundle.id,
@@ -316,7 +437,7 @@ export async function GET(req: Request) {
       });
 
       // Bundle Items
-      (bundle.bundle_items || []).forEach((item: any) => {
+      (bundle.bundle_items || []).forEach((item: BundleItemRow) => {
         allRows.push({
           table: "bundle_items",
           bundle_id: bundle.id,
@@ -332,7 +453,7 @@ export async function GET(req: Request) {
     });
 
     // Buyers
-    (buyersRes.data || []).forEach((buyer: any) => {
+    (buyersRes.data || []).forEach((buyer: BuyerRow) => {
       allRows.push({
         table: "buyers",
         id: buyer.id,
@@ -343,7 +464,7 @@ export async function GET(req: Request) {
     });
 
     // Consumables
-    (consumablesRes.data || []).forEach((consumable: any) => {
+    (consumablesRes.data || []).forEach((consumable: ConsumableRow) => {
       allRows.push({
         table: "consumables",
         id: consumable.id,
@@ -354,7 +475,7 @@ export async function GET(req: Request) {
     });
 
     // Consumable Purchases
-    (consumablePurchasesRes.data || []).forEach((purchase: any) => {
+    (consumablePurchasesRes.data || []).forEach((purchase: ConsumablePurchaseRow) => {
       allRows.push({
         table: "consumable_purchases",
         id: purchase.id,
@@ -380,4 +501,3 @@ export async function GET(req: Request) {
     return handleApiError(req, error, { operation: "full_export" });
   }
 }
-

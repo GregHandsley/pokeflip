@@ -19,8 +19,16 @@ type Args = {
  * Insert a draft intake line via API route.
  * The API route ensures the card and set exist in the database first.
  */
-export async function insertDraftLine({ acquisitionId, setId, cardId, locale, quantity, defaults }: Args) {
-  const hasPrice = defaults.forSale && defaults.listPricePounds && defaults.listPricePounds.trim() !== "";
+export async function insertDraftLine({
+  acquisitionId,
+  setId,
+  cardId,
+  locale,
+  quantity,
+  defaults,
+}: Args) {
+  const hasPrice =
+    defaults.forSale && defaults.listPricePounds && defaults.listPricePounds.trim() !== "";
   const res = await fetch("/api/intake/add-line", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -38,11 +46,10 @@ export async function insertDraftLine({ acquisitionId, setId, cardId, locale, qu
   });
 
   const json = await res.json();
-  
+
   if (!res.ok) {
     return { error: { message: json.error || "Failed to add card" } };
   }
 
   return { error: null };
 }
-

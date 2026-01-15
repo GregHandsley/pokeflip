@@ -1,6 +1,6 @@
 export type Condition = "NM" | "LP" | "MP" | "HP" | "DMG";
 
-export const CONDITIONS: Condition[] = ["NM","LP","MP","HP","DMG"];
+export const CONDITIONS: Condition[] = ["NM", "LP", "MP", "HP", "DMG"];
 
 export type BinderLayout = 6 | 9 | 12;
 
@@ -10,4 +10,3 @@ export function layoutToGrid(layout: BinderLayout) {
   if (layout === 9) return { cols: 3, rows: 3, perPage: 9 };
   return { cols: 4, rows: 3, perPage: 12 };
 }
-

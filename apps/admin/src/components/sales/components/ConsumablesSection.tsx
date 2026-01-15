@@ -9,7 +9,11 @@ interface Props {
   loadingConsumables: boolean;
   onAddConsumable: () => void;
   onRemoveConsumable: (index: number) => void;
-  onUpdateConsumable: (index: number, field: keyof ConsumableSelection, value: any) => void;
+  onUpdateConsumable: (
+    index: number,
+    field: keyof ConsumableSelection,
+    value: string | number
+  ) => void;
 }
 
 export default function ConsumablesSection({
@@ -54,7 +58,9 @@ export default function ConsumablesSection({
                 type="number"
                 min="1"
                 value={consumable.qty.toString()}
-                onChange={(e) => onUpdateConsumable(index, "qty", parseInt(e.target.value, 10) || 1)}
+                onChange={(e) =>
+                  onUpdateConsumable(index, "qty", parseInt(e.target.value, 10) || 1)
+                }
                 className="w-20"
                 placeholder="Qty"
               />
@@ -81,4 +87,3 @@ export default function ConsumablesSection({
     </div>
   );
 }
-

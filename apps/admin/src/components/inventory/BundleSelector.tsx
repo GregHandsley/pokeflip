@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { poundsToPence } from "@pokeflip/shared";
 import SellBundleModal from "@/components/bundles/SellBundleModal";
 import CreateBundleModal from "@/components/bundles/CreateBundleModal";
 import { logger } from "@/lib/logger";
@@ -11,6 +10,33 @@ interface Bundle {
   name: string;
   status: string;
 }
+
+type BundleWithItems = {
+  id: string;
+  name: string;
+  description: string | null;
+  price_pence: number;
+  quantity: number;
+  bundle_items: Array<{
+    id: string;
+    quantity: number;
+    inventory_lots: {
+      id: string;
+      condition: string;
+      variation: string | null;
+      cards: {
+        id: string;
+        number: string;
+        name: string;
+        api_image_url: string | null;
+        sets: {
+          id: string;
+          name: string;
+        } | null;
+      } | null;
+    };
+  }>;
+};
 
 interface BundleSelectorProps {
   lotId: string;
@@ -23,7 +49,7 @@ export default function BundleSelector({ lotId, onBundleAction }: BundleSelector
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [adding, setAdding] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [bundleToSell, setBundleToSell] = useState<any>(null);
+  const [bundleToSell, setBundleToSell] = useState<BundleWithItems | null>(null);
 
   useEffect(() => {
     loadBundles();
@@ -75,8 +101,8 @@ export default function BundleSelector({ lotId, onBundleAction }: BundleSelector
       } else {
         throw new Error("Failed to load bundle data");
       }
-    } catch (e: any) {
-      alert(e.message || "Failed to add to bundle");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to add to bundle");
     } finally {
       setAdding(false);
     }
@@ -85,9 +111,7 @@ export default function BundleSelector({ lotId, onBundleAction }: BundleSelector
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Add to Bundle
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Add to Bundle</label>
         <p className="text-xs text-gray-500 mb-3">
           Add this card to an existing bundle or create a new bundle.
         </p>
@@ -176,4 +200,3 @@ function CreateBundleModalWithLot({
     />
   );
 }
-

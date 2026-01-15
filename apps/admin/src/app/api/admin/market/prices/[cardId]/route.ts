@@ -1,7 +1,50 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/api-error-handler";
-import { createApiLogger } from "@/lib/logger";
+
+type CardmarketPricing = {
+  trend?: number;
+  avg?: number;
+  avg7?: number;
+  avg30?: number;
+  low?: number;
+  avg1?: number;
+  "avg-holo"?: number;
+  "avg7-holo"?: number;
+  "avg30-holo"?: number;
+  "trend-holo"?: number;
+  "low-holo"?: number;
+  updated?: string;
+  [key: string]: unknown;
+};
+
+type TcgplayerVariant = {
+  marketPrice?: number;
+  midPrice?: number;
+  lowPrice?: number;
+  highPrice?: number;
+  directLowPrice?: number;
+  market?: number;
+  mid?: number;
+  low?: number;
+  high?: number;
+  [key: string]: unknown;
+};
+
+type TcgplayerPricing = {
+  normal?: TcgplayerVariant;
+  "reverse-holofoil"?: TcgplayerVariant;
+  reverse?: TcgplayerVariant;
+  holofoil?: TcgplayerVariant;
+  holo?: TcgplayerVariant;
+  updated?: string;
+  [key: string]: unknown;
+};
+
+type PricingData = {
+  cardmarket?: CardmarketPricing;
+  tcgplayer?: TcgplayerPricing;
+};
 
 type PriceResult = {
   ok: boolean;
@@ -17,7 +60,7 @@ type PriceResult = {
   cardmarket?: {
     unit: string;
     updated?: string;
-    raw: any;
+    raw: CardmarketPricing;
     gbp?: {
       trend?: number;
       avg?: number;
@@ -35,7 +78,7 @@ type PriceResult = {
   tcgplayer?: {
     unit: string;
     updated?: string;
-    raw: any;
+    raw: TcgplayerPricing;
     gbp?: {
       normal?: {
         market?: number;
@@ -79,7 +122,7 @@ async function fetchFx(from: "EUR" | "USD", to: "GBP"): Promise<number> {
   }
 }
 
-function pickCardmarketEuro(pricing: any): number | null {
+function pickCardmarketEuro(pricing: PricingData | undefined): number | null {
   if (!pricing?.cardmarket) return null;
   const cm = pricing.cardmarket;
   const candidates = [
@@ -97,19 +140,20 @@ function pickCardmarketEuro(pricing: any): number | null {
   return candidates.length ? Number(candidates[0]) : null;
 }
 
-function pickTcgplayerUsd(pricing: any): number | null {
+function pickTcgplayerUsd(pricing: PricingData | undefined): number | null {
   if (!pricing?.tcgplayer) return null;
   const tp = pricing.tcgplayer;
   const variants = Object.values(tp).filter((v) => v && typeof v === "object");
-  for (const v of variants as any[]) {
+  for (const v of variants as TcgplayerVariant[]) {
     const val = v.marketPrice ?? v.midPrice ?? v.lowPrice ?? v.highPrice ?? v.directLowPrice;
     if (typeof val === "number" && Number.isFinite(val)) return Number(val);
   }
   return null;
 }
 
-function convertCmToGbp(cm: any, fx: number) {
-  const conv = (v: any) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.round(v * fx * 100)) : undefined);
+function convertCmToGbp(cm: CardmarketPricing, fx: number) {
+  const conv = (v: unknown) =>
+    typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.round(v * fx * 100)) : undefined;
   return {
     trend: conv(cm?.trend),
     avg: conv(cm?.avg),
@@ -124,9 +168,10 @@ function convertCmToGbp(cm: any, fx: number) {
   };
 }
 
-function convertTpToGbp(tp: any, fx: number) {
-  const conv = (v: any) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.round(v * fx * 100)) : undefined);
-  const shape = (v: any) =>
+function convertTpToGbp(tp: TcgplayerPricing, fx: number) {
+  const conv = (v: unknown) =>
+    typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.round(v * fx * 100)) : undefined;
+  const shape = (v: TcgplayerVariant | undefined) =>
     v
       ? {
           market: conv(v.marketPrice ?? v.market),
@@ -149,43 +194,48 @@ function chooseForCondition(
   cmGbp: ReturnType<typeof convertCmToGbp> | undefined,
   tpGbp: ReturnType<typeof convertTpToGbp> | undefined
 ) {
-  const cond = (condition || "").toUpperCase();
   const isHolo = variation?.includes("holo");
   // prefer Cardmarket trend/avg; fallback tcgplayer market/mid
   if (cmGbp) {
     if (isHolo) {
-      const val = cmGbp.trend_holo ?? cmGbp.avg_holo ?? cmGbp.avg30_holo ?? cmGbp.avg7_holo ?? cmGbp.low_holo;
-      if (val != null) return { price_pence: val, source: "tcgdex-cardmarket", basis: "cardmarket holo trend/avg" };
+      const val =
+        cmGbp.trend_holo ?? cmGbp.avg_holo ?? cmGbp.avg30_holo ?? cmGbp.avg7_holo ?? cmGbp.low_holo;
+      if (val != null)
+        return {
+          price_pence: val,
+          source: "tcgdex-cardmarket",
+          basis: "cardmarket holo trend/avg",
+        };
     }
     const val = cmGbp.trend ?? cmGbp.avg ?? cmGbp.avg30 ?? cmGbp.avg7 ?? cmGbp.low;
-    if (val != null) return { price_pence: val, source: "tcgdex-cardmarket", basis: "cardmarket trend/avg" };
+    if (val != null)
+      return { price_pence: val, source: "tcgdex-cardmarket", basis: "cardmarket trend/avg" };
   }
   if (tpGbp) {
-    const variant = isHolo ? tpGbp.reverse_holofoil ?? tpGbp.holofoil : tpGbp.normal ?? tpGbp.holofoil;
+    const variant = isHolo
+      ? (tpGbp.reverse_holofoil ?? tpGbp.holofoil)
+      : (tpGbp.normal ?? tpGbp.holofoil);
     if (variant) {
       const val = variant.market ?? variant.mid ?? variant.low ?? variant.high;
-      if (val != null) return { price_pence: val, source: "tcgdex-tcgplayer", basis: isHolo ? "tcgplayer holo/reverse market/mid" : "tcgplayer normal market/mid" };
+      if (val != null)
+        return {
+          price_pence: val,
+          source: "tcgdex-tcgplayer",
+          basis: isHolo ? "tcgplayer holo/reverse market/mid" : "tcgplayer normal market/mid",
+        };
     }
   }
   return null;
 }
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ cardId: string }> }
-) {
-  const logger = createApiLogger(req);
-  
+export async function GET(req: Request, { params }: { params: Promise<{ cardId: string }> }) {
+  const { cardId } = await params;
+
   try {
-    const { cardId } = await params;
     const supabase = supabaseServer();
 
     // ensure card exists for FK safety
-    const { data: card } = await supabase
-      .from("cards")
-      .select("id")
-      .eq("id", cardId)
-      .maybeSingle();
+    const { data: card } = await supabase.from("cards").select("id").eq("id", cardId).maybeSingle();
 
     if (!card) {
       return NextResponse.json({ error: "Card not found" }, { status: 404 });
@@ -206,8 +256,12 @@ export async function GET(
       usd != null ? fetchFx("USD", "GBP") : Promise.resolve(0),
     ]);
 
-    const cmGbp = pricing?.cardmarket && euro != null ? convertCmToGbp(pricing.cardmarket, fxEurGbp) : undefined;
-    const tpGbp = pricing?.tcgplayer && usd != null ? convertTpToGbp(pricing.tcgplayer, fxUsdGbp) : undefined;
+    const cmGbp =
+      pricing?.cardmarket && euro != null
+        ? convertCmToGbp(pricing.cardmarket, fxEurGbp)
+        : undefined;
+    const tpGbp =
+      pricing?.tcgplayer && usd != null ? convertTpToGbp(pricing.tcgplayer, fxUsdGbp) : undefined;
 
     const chosen = chooseForCondition(
       (tcgdexJson?.condition as string) || null, // may be absent
@@ -260,8 +314,7 @@ export async function GET(
     };
 
     return NextResponse.json(result);
-  } catch (e: any) {
+  } catch (e: unknown) {
     return handleApiError(req, e, { operation: "get_market_price", metadata: { cardId } });
   }
 }
-

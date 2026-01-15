@@ -10,12 +10,31 @@ import { CardGrid } from "./CardPicker/CardGrid";
 import { CardModal } from "./CardPicker/CardModal";
 
 type Props = {
-  onPickCard: (args: { setId: string; cardId: string; locale: string; condition: Condition; quantity: number; variation: CardVariation }) => void;
+  onPickCard: (args: {
+    setId: string;
+    cardId: string;
+    locale: string;
+    condition: Condition;
+    quantity: number;
+    variation: CardVariation;
+  }) => Promise<void>;
 };
 
 type View = "set" | "cards";
 
-type LocaleOption = "en" | "ja" | "zh-hant" | "zh" | "fr" | "de" | "it" | "es" | "pt" | "ko" | "zh-Hans" | "zh-Hant";
+type LocaleOption =
+  | "en"
+  | "ja"
+  | "zh-hant"
+  | "zh"
+  | "fr"
+  | "de"
+  | "it"
+  | "es"
+  | "pt"
+  | "ko"
+  | "zh-Hans"
+  | "zh-Hant";
 
 export function CardPicker({ onPickCard }: Props) {
   const [locale, setLocale] = useState<string>("en");
@@ -41,7 +60,7 @@ export function CardPicker({ onPickCard }: Props) {
         if (json.ok && json.translationsList) {
           // Get unique source_language values, always include English
           const languages = new Set<string>(["en"]);
-          (json.translationsList || []).forEach((t: any) => {
+          (json.translationsList || []).forEach((t: { source_language?: string }) => {
             if (t.source_language) {
               languages.add(t.source_language);
             }
@@ -94,15 +113,15 @@ export function CardPicker({ onPickCard }: Props) {
   // Load sets on mount / locale change
   useEffect(() => {
     if (view === "set") {
-      setLoadingSets(true);
-      setError(null);
       const apiLocale = getApiLocale(locale);
       const localeCandidates: string[] =
         apiLocale === "zh-Hant" ? ["zh-Hant", "zh-Hans", "zh"] : [apiLocale];
 
       const loadSets = async () => {
+        setLoadingSets(true);
+        setError(null);
         let fetchedSets: TcgdxSet[] | null = null;
-        let lastError: any = null;
+        let lastError: unknown = null;
 
         for (const candidate of localeCandidates) {
           try {
@@ -119,18 +138,18 @@ export function CardPicker({ onPickCard }: Props) {
         }
 
         // Deduplicate sets by ID (keep first occurrence) and apply English names
-        const uniqueSets = Array.from(new Map(fetchedSets.map(set => [set.id, set])).values()).map(
-          (set) => ({
-            ...set,
-            name: getSetDisplayName(set.id, set.name, englishSetNames, dbTranslations),
-          })
-        );
+        const uniqueSets = Array.from(
+          new Map(fetchedSets.map((set) => [set.id, set])).values()
+        ).map((set) => ({
+          ...set,
+          name: getSetDisplayName(set.id, set.name, englishSetNames, dbTranslations),
+        }));
         setSets(uniqueSets);
       };
 
-      loadSets()
-        .catch((e: any) => {
-          setError(`Failed to load sets: ${e.message}`);
+      void loadSets()
+        .catch((e: unknown) => {
+          setError(`Failed to load sets: ${e instanceof Error ? e.message : "Unknown error"}`);
         })
         .finally(() => {
           setLoadingSets(false);
@@ -141,17 +160,20 @@ export function CardPicker({ onPickCard }: Props) {
   // Load cards when set is selected (prefer English names; fall back to chosen locale)
   useEffect(() => {
     if (view === "cards" && selectedSet) {
-      setLoadingCards(true);
-      setError(null);
-      setSearchQuery(""); // Reset search when set changes
-
       const apiLocale = getApiLocale(locale);
       const localeCandidates: string[] =
-        apiLocale === "zh-Hant" ? ["en", "zh-Hant", "zh-Hans", "zh"] : locale === "en" ? ["en"] : ["en", apiLocale];
+        apiLocale === "zh-Hant"
+          ? ["en", "zh-Hant", "zh-Hans", "zh"]
+          : locale === "en"
+            ? ["en"]
+            : ["en", apiLocale];
 
       const loadCards = async () => {
+        setLoadingCards(true);
+        setError(null);
+        setSearchQuery(""); // Reset search when set changes
         let fetchedCards: TcgdxCard[] | null = null;
-        let lastError: any = null;
+        let lastError: unknown = null;
 
         for (const candidate of localeCandidates) {
           try {
@@ -170,9 +192,9 @@ export function CardPicker({ onPickCard }: Props) {
         setCards(fetchedCards);
       };
 
-      loadCards()
-        .catch((e: any) => {
-          setError(`Failed to load cards: ${e.message}`);
+      void loadCards()
+        .catch((e: unknown) => {
+          setError(`Failed to load cards: ${e instanceof Error ? e.message : "Unknown error"}`);
           setCards([]);
         })
         .finally(() => {
@@ -180,7 +202,6 @@ export function CardPicker({ onPickCard }: Props) {
         });
     }
   }, [view, selectedSet, locale]);
-
 
   const handleSetSelect = (set: TcgdxSet) => {
     setSelectedSet(set);
@@ -194,7 +215,7 @@ export function CardPicker({ onPickCard }: Props) {
   const handleCardAdded = (cardId: string) => {
     setRecentlyAdded(new Set([...recentlyAdded, cardId]));
     setTimeout(() => {
-      setRecentlyAdded(prev => {
+      setRecentlyAdded((prev) => {
         const next = new Set(prev);
         next.delete(cardId);
         return next;
@@ -204,7 +225,7 @@ export function CardPicker({ onPickCard }: Props) {
 
   return (
     <section className="rounded-2xl border border-black/10 bg-white p-6 flex flex-col h-full min-h-0">
-      <div className="flex items-start justify-between gap-4 mb-6 flex-shrink-0">
+      <div className="flex items-start justify-between gap-4 mb-6 shrink-0">
         <div className="flex-1">
           <h2 className="text-xl font-semibold">Card Browser</h2>
           <p className="mt-1.5 text-sm text-black/60">
@@ -212,7 +233,7 @@ export function CardPicker({ onPickCard }: Props) {
             {view === "cards" && `Cards in ${selectedSet?.name || "set"}`}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <label className="text-sm text-black/60" htmlFor="card-locale">
             Language
           </label>
@@ -257,7 +278,7 @@ export function CardPicker({ onPickCard }: Props) {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex-shrink-0">
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 shrink-0">
           {error}
         </div>
       )}
@@ -265,7 +286,12 @@ export function CardPicker({ onPickCard }: Props) {
       {/* Set Selection */}
       {view === "set" && (
         <div className="overflow-y-auto flex-1 pr-2">
-          <SetGrid sets={sets} loading={loadingSets} onSelectSet={handleSetSelect} locale={locale} />
+          <SetGrid
+            sets={sets}
+            loading={loadingSets}
+            onSelectSet={handleSetSelect}
+            locale={locale}
+          />
         </div>
       )}
 
@@ -273,7 +299,7 @@ export function CardPicker({ onPickCard }: Props) {
       {view === "cards" && (
         <div className="flex flex-col flex-1 min-h-0">
           <input
-            className="w-full rounded-lg border border-black/10 px-4 py-2.5 mb-5 text-sm flex-shrink-0"
+            className="w-full rounded-lg border border-black/10 px-4 py-2.5 mb-5 text-sm shrink-0"
             placeholder="Search cards by name or number..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}

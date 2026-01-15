@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
-import { createApiLogger } from "@/lib/logger";
+import { handleApiError } from "@/lib/api-error-handler";
 
 /**
  * GET /api/catalog/set-translations
  * Fetch all set translations (English display names) from database
  */
 export async function GET(req: Request) {
-  const logger = createApiLogger(req);
-  
+  // const logger = createApiLogger(req);
+
   try {
     const supabase = supabaseServer();
     const { data, error } = await supabase
@@ -27,12 +26,12 @@ export async function GET(req: Request) {
       translations[row.set_id] = row.name_en;
     });
 
-    return NextResponse.json({ 
-      ok: true, 
+    return NextResponse.json({
+      ok: true,
       translations, // Map for easy lookup
-      translationsList: data || [] // Full array for settings page
+      translationsList: data || [], // Full array for settings page
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "get_set_translations" });
   }
 }
@@ -42,17 +41,14 @@ export async function GET(req: Request) {
  * Upsert set translations (for manual curation or bulk import)
  */
 export async function POST(req: Request) {
-  const logger = createApiLogger(req);
-  
+  // const logger = createApiLogger(req);
+
   try {
     const body = await req.json();
     const { translations } = body; // Array of { set_id, name_en, source? }
 
     if (!Array.isArray(translations)) {
-      return NextResponse.json(
-        { error: "translations must be an array" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "translations must be an array" }, { status: 400 });
     }
 
     const supabase = supabaseServer();
@@ -71,8 +67,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true, count: translations.length });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "upsert_set_translations" });
   }
 }
-

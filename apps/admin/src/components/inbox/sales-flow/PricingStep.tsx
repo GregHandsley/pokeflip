@@ -6,6 +6,68 @@ import { InboxLot, SalesData } from "./types";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 import { Input } from "@/components/ui/Input";
 
+type MarketPriceResponse = {
+  ok: boolean;
+  captured_at: string;
+  chosen?: {
+    price_pence: number;
+    price_gbp: number;
+    source: string;
+    basis: string;
+    above_floor: boolean;
+    floor_gbp: number;
+  };
+  cardmarket?: {
+    unit: string;
+    updated?: string;
+    raw: unknown;
+    gbp?: {
+      trend?: number;
+      avg?: number;
+      avg7?: number;
+      avg30?: number;
+      low?: number;
+      trend_holo?: number;
+      avg_holo?: number;
+      avg7_holo?: number;
+      avg30_holo?: number;
+      low_holo?: number;
+      fx: number;
+    };
+  };
+  tcgplayer?: {
+    unit: string;
+    updated?: string;
+    raw: unknown;
+    gbp?: {
+      normal?: {
+        market?: number;
+        mid?: number;
+        low?: number;
+        high?: number;
+      };
+      reverse_holofoil?: {
+        market?: number;
+        mid?: number;
+        low?: number;
+        high?: number;
+      };
+      holofoil?: {
+        market?: number;
+        mid?: number;
+        low?: number;
+        high?: number;
+      };
+      fx: number;
+    };
+  };
+};
+
+type ForSaleUpdateBody = {
+  for_sale: boolean;
+  list_price_pence: number | null;
+};
+
 interface Props {
   lot: InboxLot;
   salesData: SalesData | null;
@@ -14,16 +76,16 @@ interface Props {
   onPublishQuantityChange?: (quantity: number) => void;
 }
 
-export default function PricingStep({ 
-  lot, 
-  salesData, 
-  loadingSalesData, 
+export default function PricingStep({
+  lot,
+  salesData,
+  loadingSalesData,
   publishQuantity,
   onPublishQuantityChange,
 }: Props) {
   const [marketPricePence, setMarketPricePence] = useState<number | null>(null);
   const [marketStatus, setMarketStatus] = useState<"idle" | "loading" | "error">("idle");
-  const [marketDetail, setMarketDetail] = useState<any>(null);
+  const [marketDetail, setMarketDetail] = useState<MarketPriceResponse | null>(null);
   const [aboveFloor, setAboveFloor] = useState(false);
   const [floorGbp, setFloorGbp] = useState<number | null>(null);
   const [priceInput, setPriceInput] = useState(
@@ -69,16 +131,19 @@ export default function PricingStep({
     setSavingPrice("saving");
     try {
       const value = priceInput.trim();
-      const body: any = { for_sale: true };
-      if (value === "") {
-        body.list_price_pence = null;
-      } else {
-        const num = Number(value);
-        if (Number.isNaN(num) || num < 0) {
-          throw new Error("Enter a valid price in GBP (e.g., 1.25)");
-        }
-        body.list_price_pence = num;
-      }
+      const body: ForSaleUpdateBody = {
+        for_sale: true,
+        list_price_pence:
+          value === ""
+            ? null
+            : (() => {
+                const num = Number(value);
+                if (Number.isNaN(num) || num < 0) {
+                  throw new Error("Enter a valid price in GBP (e.g., 1.25)");
+                }
+                return Math.round(num * 100); // Convert GBP to pence
+              })(),
+      };
 
       const res = await fetch(`/api/admin/lots/${lot.lot_id}/for-sale`, {
         method: "PATCH",
@@ -111,11 +176,7 @@ export default function PricingStep({
   }
 
   if (!salesData) {
-    return (
-      <div className="text-center py-8 text-gray-600">
-        Failed to load pricing information
-      </div>
-    );
+    return <div className="text-center py-8 text-gray-600">Failed to load pricing information</div>;
   }
 
   return (
@@ -125,7 +186,9 @@ export default function PricingStep({
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-gray-600">Card:</span>{" "}
-            <span className="font-medium">#{lot.card_number} {lot.card_name}</span>
+            <span className="font-medium">
+              #{lot.card_number} {lot.card_name}
+            </span>
           </div>
           <div>
             <span className="text-gray-600">Set:</span>{" "}
@@ -134,8 +197,7 @@ export default function PricingStep({
           <div>
             <span className="text-gray-600">Condition:</span>{" "}
             <span className="font-medium">
-              {CONDITION_LABELS[lot.condition as keyof typeof CONDITION_LABELS] ||
-                lot.condition}
+              {CONDITION_LABELS[lot.condition as keyof typeof CONDITION_LABELS] || lot.condition}
             </span>
           </div>
           <div>
@@ -153,14 +215,10 @@ export default function PricingStep({
 
       {/* Current Price */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Current List Price
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Current List Price</label>
         <div className="bg-white border border-gray-300 rounded-lg p-4 space-y-2">
           <div className="text-2xl font-bold text-green-600">
-            {lot.list_price_pence != null
-              ? `£${penceToPounds(lot.list_price_pence)}`
-              : "Not set"}
+            {lot.list_price_pence != null ? `£${penceToPounds(lot.list_price_pence)}` : "Not set"}
           </div>
           <div className="flex items-center gap-3">
             <Input
@@ -183,9 +241,7 @@ export default function PricingStep({
             {savingPrice === "error" && (
               <span className="text-xs text-red-600">Failed to save</span>
             )}
-            {savingPrice === "success" && (
-              <span className="text-xs text-green-600">Saved</span>
-            )}
+            {savingPrice === "success" && <span className="text-xs text-green-600">Saved</span>}
           </div>
           <p className="text-xs text-gray-500">
             Leave blank to keep price unset. Set a GBP list price before publishing.
@@ -195,9 +251,7 @@ export default function PricingStep({
 
       {/* Pricing Suggestions */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Pricing Suggestions
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Pricing Suggestions</label>
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="text-sm space-y-3">
             <div className="flex items-center justify-between">
@@ -247,7 +301,9 @@ export default function PricingStep({
                     <span>Normal: £{penceToPounds(marketDetail.tcgplayer.gbp.normal.market)}</span>
                   )}
                   {marketDetail.tcgplayer.gbp.reverse_holofoil?.market != null && (
-                    <span>Reverse: £{penceToPounds(marketDetail.tcgplayer.gbp.reverse_holofoil.market)}</span>
+                    <span>
+                      Reverse: £{penceToPounds(marketDetail.tcgplayer.gbp.reverse_holofoil.market)}
+                    </span>
                   )}
                   {marketDetail.tcgplayer.gbp.holofoil?.market != null && (
                     <span>Holo: £{penceToPounds(marketDetail.tcgplayer.gbp.holofoil.market)}</span>
@@ -255,7 +311,6 @@ export default function PricingStep({
                 </div>
               </div>
             ) : null}
-
           </div>
         </div>
       </div>
@@ -279,15 +334,19 @@ export default function PricingStep({
         <p className="text-xs text-gray-500 mt-1">
           {publishQuantity && publishQuantity < lot.available_qty ? (
             <>
-              <strong>{publishQuantity}</strong> card{publishQuantity !== 1 ? "s" : ""} will be published to eBay.
-              The remaining <strong>{lot.available_qty - publishQuantity}</strong> card{lot.available_qty - publishQuantity !== 1 ? "s" : ""} will remain in draft status.
+              <strong>{publishQuantity}</strong> card{publishQuantity !== 1 ? "s" : ""} will be
+              published to eBay. The remaining{" "}
+              <strong>{lot.available_qty - publishQuantity}</strong> card
+              {lot.available_qty - publishQuantity !== 1 ? "s" : ""} will remain in draft status.
             </>
           ) : (
-            <>All <strong>{lot.available_qty}</strong> available card{lot.available_qty !== 1 ? "s" : ""} will be published.</>
+            <>
+              All <strong>{lot.available_qty}</strong> available card
+              {lot.available_qty !== 1 ? "s" : ""} will be published.
+            </>
           )}
         </p>
       </div>
     </div>
   );
 }
-

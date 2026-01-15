@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST } from "./route";
 import { supabaseServer } from "@/lib/supabase/server";
-import { ValidationErrorResponse } from "@/lib/validation";
 
 // Mock Supabase
 vi.mock("@/lib/supabase/server");
@@ -11,11 +10,12 @@ vi.mock("@/lib/validation", async () => {
     ...actual,
     nonEmptyString: (val: string) => val,
     pricePence: (val: number) => val,
-    nonEmptyArray: (val: any[]) => val,
+    nonEmptyArray: (val: unknown[]) => val,
     quantity: (val: number) => val,
     uuid: (val: string) => val,
     string: (val: string) => val,
-    optional: (val: any, fn: any, name: string) => val === undefined ? undefined : fn(val, name),
+    optional: (val: unknown, fn: (v: unknown, field: string) => unknown, name: string) =>
+      val === undefined ? undefined : fn(val, name),
   };
 });
 
@@ -32,7 +32,9 @@ describe.skip("POST /api/admin/bundles", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (supabaseServer as any).mockReturnValue(mockSupabase);
+    (supabaseServer as unknown as { mockReturnValue: (value: unknown) => void }).mockReturnValue(
+      mockSupabase
+    );
   });
 
   it("Creates a bundle with valid data", async () => {
@@ -40,9 +42,7 @@ describe.skip("POST /api/admin/bundles", () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       in: vi.fn().mockResolvedValue({
-        data: [
-          { id: "lot1", quantity: 10, for_sale: true, status: "ready" },
-        ],
+        data: [{ id: "lot1", quantity: 10, for_sale: true, status: "ready" }],
         error: null,
       }),
     });
@@ -89,9 +89,7 @@ describe.skip("POST /api/admin/bundles", () => {
         description: "Test description",
         pricePence: 1000,
         quantity: 1,
-        items: [
-          { lotId: "lot1", quantity: 2 },
-        ],
+        items: [{ lotId: "lot1", quantity: 2 }],
       }),
     });
 
@@ -107,9 +105,7 @@ describe.skip("POST /api/admin/bundles", () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       in: vi.fn().mockResolvedValue({
-        data: [
-          { id: "lot1", quantity: 10, for_sale: false, status: "ready" },
-        ],
+        data: [{ id: "lot1", quantity: 10, for_sale: false, status: "ready" }],
         error: null,
       }),
     });
@@ -135,9 +131,7 @@ describe.skip("POST /api/admin/bundles", () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       in: vi.fn().mockResolvedValue({
-        data: [
-          { id: "lot1", quantity: 10, for_sale: true, status: "ready" },
-        ],
+        data: [{ id: "lot1", quantity: 10, for_sale: true, status: "ready" }],
         error: null,
       }),
     });
@@ -182,9 +176,7 @@ describe.skip("POST /api/admin/bundles", () => {
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       in: vi.fn().mockResolvedValue({
-        data: [
-          { id: "lot1", quantity: 20, for_sale: true, status: "ready" },
-        ],
+        data: [{ id: "lot1", quantity: 20, for_sale: true, status: "ready" }],
         error: null,
       }),
     });
@@ -244,4 +236,3 @@ describe.skip("POST /api/admin/bundles", () => {
     expect(json.error).toContain("Insufficient quantity");
   });
 });
-

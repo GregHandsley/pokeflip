@@ -14,16 +14,16 @@ export const SET_ENGLISH_NAME_OVERRIDES: Record<string, string> = {
 function toTitleCase(str: string): string {
   return str
     .toLowerCase()
-    .split(' ')
-    .map(word => {
+    .split(" ")
+    .map((word) => {
       // Handle special cases like "ex", "v", "vmax", etc.
-      if (word === 'ex' || word === 'v' || word === 'vmax' || word === 'vstar' || word === 'gx') {
+      if (word === "ex" || word === "v" || word === "vmax" || word === "vstar" || word === "gx") {
         return word.toUpperCase();
       }
       // Capitalize first letter
       return word.charAt(0).toUpperCase() + word.slice(1);
     })
-    .join(' ');
+    .join(" ");
 }
 
 /**
@@ -37,12 +37,10 @@ export function getSetDisplayName(
   englishSetNames: Record<string, string>,
   dbTranslations?: Record<string, string>
 ) {
-  const name = (
+  const name =
     dbTranslations?.[setId] ??
     englishSetNames[setId] ??
     SET_ENGLISH_NAME_OVERRIDES[setId] ??
-    fallbackName
-  );
+    fallbackName;
   return toTitleCase(name);
 }
-

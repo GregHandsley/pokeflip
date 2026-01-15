@@ -9,4 +9,3 @@ export const DEFAULT_CARD_BACK_IMAGE = "/card-back-default.png";
  * Place the Pokéball image at: apps/admin/public/pokeball-default.png
  */
 export const DEFAULT_SET_IMAGE = "/pokeball-default.png";
-

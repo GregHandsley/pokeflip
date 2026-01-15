@@ -33,6 +33,18 @@ export interface BusinessMetrics {
   timestamp: string;
 }
 
+type SalesOrderProfitRow = {
+  sales_order_id: string;
+  revenue_pence: number;
+  revenue_after_discount_pence?: number | null;
+  sold_at: string;
+};
+
+type SalesItemRow = {
+  qty: number;
+  lot_id: string;
+};
+
 /**
  * Fetch and calculate sales metrics
  */
@@ -55,35 +67,27 @@ export async function getSalesMetrics(days: number = 7): Promise<SalesMetrics> {
     }
 
     const totalSalesCount = allSales?.length || 0;
-    
+
     // Calculate total revenue: use revenue_after_discount_pence if available (accounts for discounts),
     // otherwise fall back to revenue_pence (base revenue before discounts).
     // This ensures accurate revenue tracking when discounts are applied.
-    const totalRevenuePence = (allSales || []).reduce(
-      (sum, sale) => {
-        // Priority: discount-adjusted revenue > base revenue > 0
-        const revenue = (sale as any).revenue_after_discount_pence ?? (sale as any).revenue_pence ?? 0;
-        return sum + revenue;
-      },
-      0
-    );
+    const totalRevenuePence = ((allSales || []) as SalesOrderProfitRow[]).reduce((sum, sale) => {
+      // Priority: discount-adjusted revenue > base revenue > 0
+      const revenue = sale.revenue_after_discount_pence ?? sale.revenue_pence ?? 0;
+      return sum + revenue;
+    }, 0);
 
     // Calculate recent sales: filter sales from the last N days.
     // Uses cutoff date to determine which sales count as "recent" for trend analysis.
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
-    const recentSales = (allSales || []).filter(
-      (sale) => new Date(sale.sold_at) >= cutoffDate
-    );
+    const recentSales = (allSales || []).filter((sale) => new Date(sale.sold_at) >= cutoffDate);
 
     const recentSalesCount = recentSales.length;
-    const recentRevenuePence = recentSales.reduce(
-      (sum, sale) => {
-        const revenue = (sale as any).revenue_after_discount_pence ?? (sale as any).revenue_pence ?? 0;
-        return sum + revenue;
-      },
-      0
-    );
+    const recentRevenuePence = (recentSales as SalesOrderProfitRow[]).reduce((sum, sale) => {
+      const revenue = sale.revenue_after_discount_pence ?? sale.revenue_pence ?? 0;
+      return sum + revenue;
+    }, 0);
 
     const averageOrderValuePence =
       totalSalesCount > 0 ? Math.round(totalRevenuePence / totalSalesCount) : 0;
@@ -105,11 +109,16 @@ export async function getSalesMetrics(days: number = 7): Promise<SalesMetrics> {
       trackMetric("sales.total_revenue_pence", totalRevenuePence, undefined, {
         operation: "get_sales_metrics",
       });
-      trackMetric("sales.recent_count", recentSalesCount, {
-        criticalMin: 0, // Alert if no sales in recent period
-      }, {
-        operation: "get_sales_metrics",
-      });
+      trackMetric(
+        "sales.recent_count",
+        recentSalesCount,
+        {
+          criticalMin: 0, // Alert if no sales in recent period
+        },
+        {
+          operation: "get_sales_metrics",
+        }
+      );
     } catch (trackError) {
       // Ignore tracking errors - don't break the metrics response
       logger.debug("Error tracking sales metrics", undefined, {
@@ -149,22 +158,17 @@ export async function getInventoryMetrics(): Promise<InventoryMetrics> {
 
     const allLots = lots || [];
     const totalLots = allLots.length;
-    
+
     // Count lots by status
     const activeLots = allLots.filter((lot) =>
       ["draft", "ready", "listed"].includes(lot.status)
     ).length;
-    
+
     const listedLots = allLots.filter((lot) => lot.status === "listed").length;
     const soldLots = allLots.filter((lot) => lot.status === "sold").length;
 
     // Calculate quantities
     const totalQuantity = allLots.reduce((sum, lot) => sum + (lot.quantity || 0), 0);
-    
-    // Available quantity (active lots that haven't been sold)
-    const availableQuantity = allLots
-      .filter((lot) => ["draft", "ready", "listed"].includes(lot.status))
-      .reduce((sum, lot) => sum + (lot.quantity || 0), 0);
 
     // Get sold quantities from sales_items to calculate actual available inventory.
     // A lot may have been partially sold (e.g., 10 cards in lot, 3 sold),
@@ -184,7 +188,7 @@ export async function getInventoryMetrics(): Promise<InventoryMetrics> {
     // Build a map of lot_id -> total sold quantity.
     // Multiple sales_items can reference the same lot_id, so we sum them up.
     const soldQuantityMap = new Map<string, number>();
-    (soldItems || []).forEach((item: any) => {
+    ((soldItems || []) as SalesItemRow[]).forEach((item: SalesItemRow) => {
       const lotId = item.lot_id;
       if (lotId) {
         const current = soldQuantityMap.get(lotId) || 0;
@@ -225,12 +229,17 @@ export async function getInventoryMetrics(): Promise<InventoryMetrics> {
       trackMetric("inventory.active_lots", activeLots, undefined, {
         operation: "get_inventory_metrics",
       });
-      trackMetric("inventory.available_quantity", actualAvailableQuantity, {
-        criticalMin: lowStockThreshold,
-        min: lowStockThreshold * 2,
-      }, {
-        operation: "get_inventory_metrics",
-      });
+      trackMetric(
+        "inventory.available_quantity",
+        actualAvailableQuantity,
+        {
+          criticalMin: lowStockThreshold,
+          min: lowStockThreshold * 2,
+        },
+        {
+          operation: "get_inventory_metrics",
+        }
+      );
       trackMetric("inventory.listed_lots", listedLots, undefined, {
         operation: "get_inventory_metrics",
       });
@@ -256,10 +265,7 @@ export async function getInventoryMetrics(): Promise<InventoryMetrics> {
  */
 export async function getBusinessMetrics(days: number = 7): Promise<BusinessMetrics> {
   try {
-    const [sales, inventory] = await Promise.all([
-      getSalesMetrics(days),
-      getInventoryMetrics(),
-    ]);
+    const [sales, inventory] = await Promise.all([getSalesMetrics(days), getInventoryMetrics()]);
 
     return {
       sales,
@@ -274,4 +280,3 @@ export async function getBusinessMetrics(days: number = 7): Promise<BusinessMetr
     throw error;
   }
 }
-

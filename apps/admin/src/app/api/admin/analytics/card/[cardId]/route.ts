@@ -31,14 +31,11 @@ const variationLabel = (v?: string | null) => {
   }
 };
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ cardId: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ cardId: string }> }) {
   const logger = createApiLogger(req);
-  
+  const { cardId } = await params;
+
   try {
-    const { cardId } = await params;
     const supabase = supabaseServer();
     let resolvedCardId = cardId; // cards.id is text (API id), not necessarily UUID
 
@@ -60,9 +57,7 @@ export async function GET(
 
     // Fallback: if no lots, try to resolve by card.number (e.g., incoming id is the API id or number)
     if (!lots || lots.length === 0) {
-      const numberCandidate = cardId.includes("-")
-        ? cardId.split("-").pop() || cardId
-        : cardId;
+      const numberCandidate = cardId.includes("-") ? cardId.split("-").pop() || cardId : cardId;
       const { data: cardRow, error: cardError } = await supabase
         .from("cards")
         .select("id")
@@ -71,7 +66,11 @@ export async function GET(
         .single();
 
       if (cardError) {
-        logger.warn("Fallback card lookup failed", cardError, undefined, { cardId, numberCandidate });
+        logger.warn("Fallback card lookup failed", undefined, {
+          cardId,
+          numberCandidate,
+          error: cardError,
+        });
       }
 
       if (cardRow?.id) {
@@ -135,10 +134,12 @@ export async function GET(
     }
 
     type LotLite = { id: string; condition: string | null; variation: string | null };
-    const lotInfoMap = new Map<
-      string,
-      { condition: string | null; variation: string | null }
-    >(((lots || []) as LotLite[]).map((l) => [l.id, { condition: l.condition, variation: l.variation || null }]));
+    const lotInfoMap = new Map<string, { condition: string | null; variation: string | null }>(
+      ((lots || []) as LotLite[]).map((l) => [
+        l.id,
+        { condition: l.condition, variation: l.variation || null },
+      ])
+    );
 
     type SalesItemRow = {
       id: string;
@@ -149,7 +150,7 @@ export async function GET(
       lot_id: string;
     };
 
-    const items = (salesItems || []) as SalesItemRow[];
+    const items = (salesItems || []) as unknown as SalesItemRow[];
     if (items.length === 0) {
       return NextResponse.json({
         ok: true,
@@ -171,13 +172,11 @@ export async function GET(
     if (profitError) {
       logger.error("Failed to load order profits for card analytics", profitError, undefined, {
         cardId,
-        salesOrderIdsCount: salesOrderIds.length,
+        salesOrderIdsCount: orderIds.length,
       });
     }
 
-    const profitMap = new Map(
-      (profits || []).map((p) => [p.sales_order_id, p])
-    );
+    const profitMap = new Map((profits || []).map((p) => [p.sales_order_id, p]));
 
     const priceByDate = new Map<string, { revenue: number; qty: number }>();
     const priceByCondition = new Map<string, { revenue: number; qty: number }>();
@@ -225,21 +224,18 @@ export async function GET(
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    const avgPriceByCondition = Array.from(priceByCondition.entries()).map(
-      ([condition, v]) => ({
-        condition,
-        avg_price_pence: v.qty > 0 ? Math.round(v.revenue / v.qty) : 0,
-        qty: v.qty,
-      })
-    );
+    const avgPriceByCondition = Array.from(priceByCondition.entries()).map(([condition, v]) => ({
+      condition,
+      avg_price_pence: v.qty > 0 ? Math.round(v.revenue / v.qty) : 0,
+      qty: v.qty,
+    }));
 
     const qtySoldOverTime = priceHistory.map((p) => ({
       date: p.date,
       qty: p.qty,
     }));
 
-    const avgMarginPercent =
-      revenueSum > 0 ? (profitSum / revenueSum) * 100 : 0;
+    const avgMarginPercent = revenueSum > 0 ? (profitSum / revenueSum) * 100 : 0;
 
     return NextResponse.json({
       ok: true,
@@ -252,4 +248,3 @@ export async function GET(
     return handleApiError(req, error, { operation: "get_card_analytics", metadata: { cardId } });
   }
 }
-

@@ -4,7 +4,6 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import {
   uuid,
-  nonEmptyString,
   sanitizedNonEmptyString,
   integer,
   min,
@@ -14,27 +13,50 @@ import {
   quantity,
 } from "@/lib/validation";
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ ruleId: string }> }
-) {
+type PackagingRuleUpdateData = {
+  name?: string;
+  is_default?: boolean;
+  card_count_min?: number;
+  card_count_max?: number | null;
+};
+
+type PackagingRuleItem = {
+  consumable_id: string;
+  qty?: number;
+};
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ ruleId: string }> }) {
   const logger = createApiLogger(req);
-  
+
   try {
     // Validate route parameters
     const { ruleId } = await params;
     const validatedRuleId = uuid(ruleId, "ruleId");
-    
+
     // Validate and sanitize request body
     const body = await req.json();
     const validatedName = optional(body.name, (v) => sanitizedNonEmptyString(v, "name"), "name");
     const validatedIsDefault = optional(body.is_default, boolean, "is_default");
-    const validatedCardCountMin = optional(body.card_count_min, (v) => min(integer(v, "card_count_min"), 1, "card_count_min"), "card_count_min");
-    const validatedCardCountMax = optional(body.card_count_max, (v) => min(integer(v, "card_count_max"), validatedCardCountMin || 1, "card_count_max"), "card_count_max");
+    const validatedCardCountMin = optional(
+      body.card_count_min,
+      (v) => min(integer(v, "card_count_min"), 1, "card_count_min"),
+      "card_count_min"
+    );
+    const validatedCardCountMax = optional(
+      body.card_count_max,
+      (v) => min(integer(v, "card_count_max"), validatedCardCountMin || 1, "card_count_max"),
+      "card_count_max"
+    );
     const validatedItems = optional(body.items, array, "items");
-    
+
     // At least one field must be provided
-    if (!validatedName && validatedIsDefault === undefined && validatedCardCountMin === undefined && validatedCardCountMax === undefined && !validatedItems) {
+    if (
+      !validatedName &&
+      validatedIsDefault === undefined &&
+      validatedCardCountMin === undefined &&
+      validatedCardCountMax === undefined &&
+      !validatedItems
+    ) {
       return createErrorResponse(
         "At least one field must be provided for update",
         400,
@@ -45,9 +67,15 @@ export async function PATCH(
     const supabase = supabaseServer();
 
     // Build update object with only provided fields
-    const updateData: any = {};
+    const updateData: PackagingRuleUpdateData = {};
     if (validatedName) updateData.name = validatedName; // Already sanitized
-    if (validatedIsDefault !== undefined) updateData.is_default = validatedIsDefault;
+    if (
+      validatedIsDefault !== undefined &&
+      validatedIsDefault !== null &&
+      typeof validatedIsDefault === "boolean"
+    ) {
+      updateData.is_default = validatedIsDefault;
+    }
     if (validatedCardCountMin !== undefined) updateData.card_count_min = validatedCardCountMin;
     if (validatedCardCountMax !== undefined) updateData.card_count_max = validatedCardCountMax;
 
@@ -83,28 +111,23 @@ export async function PATCH(
 
     // Delete existing rule items if items are being updated
     if (validatedItems) {
-      await supabase
-        .from("packaging_rule_items")
-        .delete()
-        .eq("rule_id", validatedRuleId);
+      await supabase.from("packaging_rule_items").delete().eq("rule_id", validatedRuleId);
 
       // Add new rule items if provided
       if (validatedItems.length > 0) {
         // Validate each item
-        validatedItems.forEach((item: any, index: number) => {
+        validatedItems.forEach((item: PackagingRuleItem, index: number) => {
           uuid(item.consumable_id, `items[${index}].consumable_id`);
           quantity(item.qty || 1, `items[${index}].qty`);
         });
-        
-        const ruleItems = validatedItems.map((item: any) => ({
+
+        const ruleItems = validatedItems.map((item: PackagingRuleItem) => ({
           rule_id: validatedRuleId,
           consumable_id: item.consumable_id,
           qty: item.qty || 1,
         }));
 
-        const { error: itemsError } = await supabase
-          .from("packaging_rule_items")
-          .insert(ruleItems);
+        const { error: itemsError } = await supabase.from("packaging_rule_items").insert(ruleItems);
 
         if (itemsError) {
           logger.error("Failed to update packaging rule items", itemsError, undefined, {
@@ -161,12 +184,9 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ ruleId: string }> }
-) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ ruleId: string }> }) {
   const logger = createApiLogger(req);
-  
+
   try {
     // Validate route parameters
     const { ruleId } = await params;
@@ -175,16 +195,10 @@ export async function DELETE(
     const supabase = supabaseServer();
 
     // Delete rule items first (cascade should handle this, but being explicit)
-    await supabase
-      .from("packaging_rule_items")
-      .delete()
-      .eq("rule_id", validatedRuleId);
+    await supabase.from("packaging_rule_items").delete().eq("rule_id", validatedRuleId);
 
     // Delete the rule
-    const { error } = await supabase
-      .from("packaging_rules")
-      .delete()
-      .eq("id", validatedRuleId);
+    const { error } = await supabase.from("packaging_rules").delete().eq("id", validatedRuleId);
 
     if (error) {
       logger.error("Failed to delete packaging rule", error, undefined, {
@@ -217,5 +231,3 @@ export async function DELETE(
     });
   }
 }
-
-

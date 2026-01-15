@@ -5,16 +5,15 @@ import { createApiLogger } from "@/lib/logger";
 import { validateImageFile, validateFileKind, getSafeFilename } from "@/lib/file-validation";
 import { uuid } from "@/lib/validation";
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
-  
+
+  // Extract lotId outside try block so it's available in catch
+  const { lotId } = await params;
+
   try {
-    const { lotId } = await params;
     const validatedLotId = uuid(lotId, "lotId");
-    
+
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const kindParam = formData.get("kind") as string;
@@ -35,10 +34,7 @@ export async function POST(
     // Validate image file (type, size, content)
     const fileValidation = await validateImageFile(file);
     if (!fileValidation.valid) {
-      return NextResponse.json(
-        { error: fileValidation.error || "Invalid file" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: fileValidation.error || "Invalid file" }, { status: 400 });
     }
 
     // Verify the lot exists
@@ -55,13 +51,19 @@ export async function POST(
 
     // Generate object key with safe filename
     const photoId = crypto.randomUUID();
-    const extension = file.type.includes("webp") ? "webp" : file.type.includes("png") ? "png" : file.type.includes("gif") ? "gif" : "jpg";
+    const extension = file.type.includes("webp")
+      ? "webp"
+      : file.type.includes("png")
+        ? "png"
+        : file.type.includes("gif")
+          ? "gif"
+          : "jpg";
     const safeFilename = getSafeFilename(`${photoId}-${kind}`, "");
     const objectKey = `lots/${validatedLotId}/${safeFilename}.${extension}`;
 
     // Upload to storage using service role (private bucket)
     const fileBuffer = await file.arrayBuffer();
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("card-photos")
       .upload(objectKey, fileBuffer, {
         contentType: file.type,
@@ -69,7 +71,11 @@ export async function POST(
       });
 
     if (uploadError) {
-      logger.error("Failed to upload file", uploadError, undefined, { lotId: validatedLotId, objectKey, kind });
+      logger.error("Failed to upload file", uploadError, undefined, {
+        lotId: validatedLotId,
+        objectKey,
+        kind,
+      });
       return createErrorResponse(
         uploadError.message || "Failed to upload file",
         500,
@@ -90,7 +96,11 @@ export async function POST(
       .single();
 
     if (insertError) {
-      logger.error("Failed to insert lot_photo", insertError, undefined, { lotId: validatedLotId, objectKey, kind });
+      logger.error("Failed to insert lot_photo", insertError, undefined, {
+        lotId: validatedLotId,
+        objectKey,
+        kind,
+      });
       // Try to clean up uploaded file
       await supabase.storage.from("card-photos").remove([objectKey]);
       return createErrorResponse(
@@ -117,8 +127,7 @@ export async function POST(
         signedUrl: signedError ? null : signedData?.signedUrl || null,
       },
     });
-  } catch (error: any) {
-    return handleApiError(req, error, { operation: "upload_lot_photo", metadata: { lotId: validatedLotId } });
+  } catch (error: unknown) {
+    return handleApiError(req, error, { operation: "upload_lot_photo", metadata: { lotId } });
   }
 }
-

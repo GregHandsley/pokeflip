@@ -32,13 +32,7 @@ type Props = {
   cardName: string;
 };
 
-export default function MergeLotsModal({
-  isOpen,
-  onClose,
-  onMerge,
-  lots,
-  cardName,
-}: Props) {
+export default function MergeLotsModal({ isOpen, onClose, onMerge, lots, cardName }: Props) {
   const [targetLotId, setTargetLotId] = useState(lots[0]?.id || "");
   const [merging, setMerging] = useState(false);
 
@@ -51,9 +45,9 @@ export default function MergeLotsModal({
     try {
       await onMerge(targetLotId);
       onClose();
-    } catch (e) {
+    } catch (e: unknown) {
       logger.error("Failed to merge lots", e, undefined, {
-        lotIds: selectedLots,
+        lotIds: lots.map((lot) => lot.id),
         targetLotId,
       });
     } finally {
@@ -124,11 +118,14 @@ export default function MergeLotsModal({
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-sm font-medium">
-                        {CONDITION_LABELS[lot.condition as keyof typeof CONDITION_LABELS] || lot.condition}
+                        {CONDITION_LABELS[lot.condition as keyof typeof CONDITION_LABELS] ||
+                          lot.condition}
                       </span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${
-                        STATUS_COLORS[lot.status] || STATUS_COLORS.draft
-                      }`}>
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${
+                          STATUS_COLORS[lot.status] || STATUS_COLORS.draft
+                        }`}
+                      >
                         {lot.status}
                       </span>
                     </div>
@@ -150,12 +147,11 @@ export default function MergeLotsModal({
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
           <p className="text-xs text-yellow-800">
-            <strong>Note:</strong> The target lot's settings (for sale, price) will be used for the merged lot.
-            Photos from all lots will be combined.
+            <strong>Note:</strong> The target lot&apos;s settings (for sale, price) will be used for
+            the merged lot. Photos from all lots will be combined.
           </p>
         </div>
       </div>
     </Modal>
   );
 }
-

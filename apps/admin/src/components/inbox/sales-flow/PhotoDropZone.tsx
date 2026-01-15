@@ -1,6 +1,6 @@
 "use client";
 
-import { Photo } from "./types";
+// import { Photo } from "./types";
 
 interface Props {
   kind: "front" | "back" | "extra";
@@ -16,7 +16,7 @@ interface Props {
 }
 
 export default function PhotoDropZone({
-  kind,
+  // kind,
   label,
   hasPhoto,
   isUploading,
@@ -36,8 +36,8 @@ export default function PhotoDropZone({
         isDisabled
           ? "border-gray-200 bg-gray-100 cursor-not-allowed"
           : isDragOver
-          ? "border-blue-500 bg-blue-50"
-          : "border-gray-300 bg-gray-50 hover:border-gray-400 cursor-pointer"
+            ? "border-blue-500 bg-blue-50"
+            : "border-gray-300 bg-gray-50 hover:border-gray-400 cursor-pointer"
       }`}
       onClick={!isDisabled ? onFileSelect : undefined}
     >
@@ -85,5 +85,3 @@ export default function PhotoDropZone({
     </div>
   );
 }
-
-

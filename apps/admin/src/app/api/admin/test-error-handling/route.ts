@@ -4,7 +4,7 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 
 /**
  * Test endpoint for error handling and logging
- * 
+ *
  * Usage:
  * GET /api/admin/test-error-handling?type=success - Returns success
  * GET /api/admin/test-error-handling?type=error - Returns a test error
@@ -26,9 +26,10 @@ export async function GET(req: Request) {
         });
 
       case "error":
-        logger.error("Test error case", new Error("This is a test error"), undefined, {
+        logger.error("Test error case", undefined, {
           testType: "error",
           timestamp: new Date().toISOString(),
+          error: new Error("This is a test error"),
         });
         return createErrorResponse(
           "This is a test error",
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
         );
 
       case "validation":
-        logger.warn("Test validation error", undefined, undefined, {
+        logger.warn("Test validation error", undefined, {
           testType: "validation",
         });
         return createErrorResponse(
@@ -49,10 +50,13 @@ export async function GET(req: Request) {
         );
 
       case "log":
-        logger.debug("Test debug log", null, undefined, { level: "debug" });
-        logger.info("Test info log", null, undefined, { level: "info" });
-        logger.warn("Test warning log", null, undefined, { level: "warn" });
-        logger.error("Test error log", new Error("Test error"), undefined, { level: "error" });
+        logger.debug("Test debug log", undefined, { level: "debug" });
+        logger.info("Test info log", undefined, { level: "info" });
+        logger.warn("Test warning log", undefined, { level: "warn" });
+        logger.error("Test error log", undefined, {
+          level: "error",
+          error: new Error("Test error"),
+        });
         return NextResponse.json({
           ok: true,
           message: "All log levels tested. Check server logs.",
@@ -60,17 +64,12 @@ export async function GET(req: Request) {
         });
 
       default:
-        return createErrorResponse(
-          `Unknown test type: ${testType}`,
-          400,
-          "INVALID_TEST_TYPE"
-        );
+        return createErrorResponse(`Unknown test type: ${testType}`, 400, "INVALID_TEST_TYPE");
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, {
       operation: "test_error_handling",
       metadata: { testType },
     });
   }
 }
-

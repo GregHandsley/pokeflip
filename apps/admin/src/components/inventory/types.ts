@@ -34,9 +34,4 @@ export type LotsResponse = {
   sold: LotRow[];
 };
 
-export type BulkActionType =
-  | "set_for_sale"
-  | "set_list_price"
-  | "set_status"
-  | "merge";
-
+export type BulkActionType = "set_for_sale" | "set_list_price" | "set_status" | "merge";

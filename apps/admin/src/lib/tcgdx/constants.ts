@@ -17,7 +17,7 @@ export const SUPPORTED_LANGUAGES = [
 
 // Helper to get English name for a language code
 export function getLanguageNameEn(code: string): string {
-  const lang = SUPPORTED_LANGUAGES.find(l => l.code === code || l.code === code.toLowerCase());
+  const lang = SUPPORTED_LANGUAGES.find((l) => l.code === code || l.code === code.toLowerCase());
   return lang?.nameEn || code.toUpperCase();
 }
 
@@ -29,5 +29,4 @@ export const CARD_CONDITIONS = [
   { value: "DMG", label: "DMG" },
 ] as const;
 
-export type CardCondition = typeof CARD_CONDITIONS[number]["value"];
-
+export type CardCondition = (typeof CARD_CONDITIONS)[number]["value"];

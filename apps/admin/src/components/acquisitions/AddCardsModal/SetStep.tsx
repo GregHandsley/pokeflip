@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { TcgdxSet } from "@/lib/tcgdx/types";
 
 interface SetStepProps {
@@ -19,10 +20,7 @@ export default function SetStep({ sets, loading, onSetSelect, onBack }: SetStepP
   return (
     <div>
       <div className="mb-4 flex items-center gap-2">
-        <button
-          onClick={onBack}
-          className="text-blue-600 hover:underline text-sm"
-        >
+        <button onClick={onBack} className="text-blue-600 hover:underline text-sm">
           ← Back to Languages
         </button>
       </div>
@@ -39,11 +37,15 @@ export default function SetStep({ sets, loading, onSetSelect, onBack }: SetStepP
               className="border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all p-3 text-center"
             >
               {imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt={set.name}
-                  className="w-full h-24 object-contain mb-2"
-                />
+                <div className="relative w-full h-24 mb-2">
+                  <Image
+                    src={imageUrl}
+                    alt={set.name}
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
               ) : (
                 <div className="w-full h-24 bg-gray-100 rounded flex items-center justify-center mb-2">
                   <span className="text-gray-400 text-xs">No Image</span>
@@ -52,9 +54,7 @@ export default function SetStep({ sets, loading, onSetSelect, onBack }: SetStepP
               <div className="text-xs font-medium truncate">{set.name}</div>
               <div className="text-xs text-gray-500 mt-1">{set.id}</div>
               {set.cardCount && (
-                <div className="text-xs text-gray-400 mt-1">
-                  {set.cardCount.total} cards
-                </div>
+                <div className="text-xs text-gray-400 mt-1">{set.cardCount.total} cards</div>
               )}
             </button>
           );
@@ -63,4 +63,3 @@ export default function SetStep({ sets, loading, onSetSelect, onBack }: SetStepP
     </div>
   );
 }
-

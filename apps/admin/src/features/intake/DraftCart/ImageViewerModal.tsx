@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 type Props = {
   url: string;
   name: string;
@@ -8,7 +10,7 @@ type Props = {
 
 export function ImageViewerModal({ url, name, onClose }: Props) {
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
       onClick={onClose}
     >
@@ -22,14 +24,11 @@ export function ImageViewerModal({ url, name, onClose }: Props) {
         </button>
         <div className="bg-white rounded-lg p-4">
           <h3 className="text-lg font-semibold mb-3">{name}</h3>
-          <img 
-            src={url} 
-            alt={name}
-            className="w-full h-auto rounded-lg"
-          />
+          <div className="relative w-full aspect-auto min-h-[200px] rounded-lg overflow-hidden">
+            <Image src={url} alt={name} fill className="object-contain rounded-lg" unoptimized />
+          </div>
         </div>
       </div>
     </div>
   );
 }
-

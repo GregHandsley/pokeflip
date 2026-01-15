@@ -21,10 +21,10 @@ export function useCatalogSets() {
     const loadSets = async () => {
       setLoading(true);
       setError(null);
-      
+
       try {
         const cacheKey = getSetsCacheKey(locale);
-        
+
         // Use cache with 1 hour TTL
         const cachedSets = await catalogCache.get(
           cacheKey,
@@ -42,9 +42,16 @@ export function useCatalogSets() {
         if (!abortController.signal.aborted) {
           setSets(cachedSets);
         }
-      } catch (e: any) {
-        if (e.name !== "AbortError" && !abortController.signal.aborted) {
-          setError(`Failed to load sets: ${e.message}`);
+      } catch (e: unknown) {
+        const isAbortError =
+          (e instanceof Error && e.name === "AbortError") ||
+          (typeof e === "object" &&
+            e !== null &&
+            "name" in e &&
+            (e as { name: string }).name === "AbortError");
+
+        if (!isAbortError && !abortController.signal.aborted) {
+          setError(`Failed to load sets: ${e instanceof Error ? e.message : "Unknown error"}`);
         }
       } finally {
         if (!abortController.signal.aborted) {
@@ -62,4 +69,3 @@ export function useCatalogSets() {
 
   return { sets, loading, error };
 }
-

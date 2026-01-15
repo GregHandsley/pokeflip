@@ -45,11 +45,12 @@ export function sanitizeFilenameClient(filename: string): string {
     return "file";
   }
 
-  return filename
-    .replace(/[\/\\]/g, "") // Remove path separators
-    .replace(/\0/g, "") // Remove null bytes
-    .replace(/\.\./g, "") // Remove parent directory references
-    .replace(/^\.+/, "") // Remove leading dots
-    .trim() || "file";
+  return (
+    filename
+      .replace(/[\/\\]/g, "") // Remove path separators
+      .replace(/\0/g, "") // Remove null bytes
+      .replace(/\.\./g, "") // Remove parent directory references
+      .replace(/^\.+/, "") // Remove leading dots
+      .trim() || "file"
+  );
 }
-

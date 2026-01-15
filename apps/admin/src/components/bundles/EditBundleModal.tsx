@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -79,7 +80,9 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
   const [description, setDescription] = useState(bundle.description || "");
   const [price, setPrice] = useState(penceToPounds(bundle.price_pence).toString());
   const [quantity, setQuantity] = useState((bundle.quantity || 1).toString());
-  const [selectedLots, setSelectedLots] = useState<Map<string, { lot: Lot; quantity: number; bundleItemId?: string }>>(new Map());
+  const [selectedLots, setSelectedLots] = useState<
+    Map<string, { lot: Lot; quantity: number; bundleItemId?: string }>
+  >(new Map());
   const [availableLots, setAvailableLots] = useState<Lot[]>([]);
   const [filteredLots, setFilteredLots] = useState<Lot[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -88,49 +91,7 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Map<string, string>>(new Map());
 
-  // Initialize selected lots from bundle items
-  useEffect(() => {
-    if (isOpen && bundle) {
-      setName(bundle.name);
-      setDescription(bundle.description || "");
-      setPrice(penceToPounds(bundle.price_pence).toString());
-      setQuantity((bundle.quantity || 1).toString());
-      
-      // Load available lots first, then populate selected lots
-      loadAvailableLots().then((loadedLots) => {
-        const initialSelected = new Map<string, { lot: Lot; quantity: number; bundleItemId?: string }>();
-        bundle.bundle_items.forEach((item) => {
-          if (item.inventory_lots) {
-            // Try to find the lot in loaded lots for full data
-            const loadedLot = loadedLots.find(l => l.id === item.inventory_lots!.id);
-            const lot: Lot = loadedLot || {
-              id: item.inventory_lots.id,
-              card_id: item.inventory_lots.cards?.id || "",
-              condition: item.inventory_lots.condition,
-              variation: item.inventory_lots.variation,
-              quantity: 0,
-              available_qty: item.quantity, // At least what's in the bundle
-              card: item.inventory_lots.cards ? {
-                id: item.inventory_lots.cards.id,
-                number: item.inventory_lots.cards.number,
-                name: item.inventory_lots.cards.name,
-                api_image_url: item.inventory_lots.cards.api_image_url,
-                set: item.inventory_lots.cards.sets,
-              } : null,
-            };
-            initialSelected.set(item.inventory_lots.id, {
-              lot,
-              quantity: item.quantity,
-              bundleItemId: item.id,
-            });
-          }
-        });
-        setSelectedLots(initialSelected);
-      });
-    }
-  }, [isOpen, bundle]);
-
-  const loadAvailableLots = async (): Promise<Lot[]> => {
+  const loadAvailableLots = useCallback(async (): Promise<Lot[]> => {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/sales/listed-lots");
@@ -138,14 +99,14 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
       if (json.ok) {
         // Include lots that are already in this bundle (they should still show up)
         const lots = (json.lots || []).filter((lot: Lot) => {
-          return lot.available_qty > 0 && (lot.for_sale !== false);
+          return lot.available_qty > 0 && lot.for_sale !== false;
         });
-        
+
         // For lots already in bundle, we need to add the reserved quantity back to available
         // Reserved = bundle.quantity * bundle_item.quantity (total cards reserved)
         const bundleQuantity = bundle.quantity || 1;
         const lotsWithBundleQty = lots.map((lot: Lot) => {
-          const bundleItem = bundle.bundle_items.find(item => item.inventory_lots?.id === lot.id);
+          const bundleItem = bundle.bundle_items.find((item) => item.inventory_lots?.id === lot.id);
           if (bundleItem) {
             // Add back the reserved quantity: bundle.quantity * cards_per_bundle
             const reservedQty = bundleQuantity * bundleItem.quantity;
@@ -156,10 +117,13 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
           }
           return lot;
         });
-        
+
         // Also add bundle items that might not be in the listed lots (edge case)
         bundle.bundle_items.forEach((item) => {
-          if (item.inventory_lots && !lotsWithBundleQty.some(l => l.id === item.inventory_lots!.id)) {
+          if (
+            item.inventory_lots &&
+            !lotsWithBundleQty.some((l: Lot) => l.id === item.inventory_lots!.id)
+          ) {
             const lot: Lot = {
               id: item.inventory_lots.id,
               card_id: item.inventory_lots.cards?.id || "",
@@ -167,18 +131,20 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
               variation: item.inventory_lots.variation || null,
               quantity: 0,
               available_qty: item.quantity, // At least what's in the bundle
-              card: item.inventory_lots.cards ? {
-                id: item.inventory_lots.cards.id,
-                number: item.inventory_lots.cards.number,
-                name: item.inventory_lots.cards.name,
-                api_image_url: item.inventory_lots.cards.api_image_url,
-                set: item.inventory_lots.cards.sets,
-              } : null,
+              card: item.inventory_lots.cards
+                ? {
+                    id: item.inventory_lots.cards.id,
+                    number: item.inventory_lots.cards.number,
+                    name: item.inventory_lots.cards.name,
+                    api_image_url: item.inventory_lots.cards.api_image_url,
+                    set: item.inventory_lots.cards.sets,
+                  }
+                : null,
             };
             lotsWithBundleQty.push(lot);
           }
         });
-        
+
         setAvailableLots(lotsWithBundleQty);
         setFilteredLots(lotsWithBundleQty);
         return lotsWithBundleQty;
@@ -190,41 +156,90 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
     } finally {
       setLoading(false);
     }
-  };
+  }, [bundle]);
+
+  // Initialize selected lots from bundle items
+  useEffect(() => {
+    if (isOpen && bundle) {
+      setName(bundle.name);
+      setDescription(bundle.description || "");
+      setPrice(penceToPounds(bundle.price_pence).toString());
+      setQuantity((bundle.quantity || 1).toString());
+
+      // Load available lots first, then populate selected lots
+      loadAvailableLots().then((loadedLots) => {
+        const initialSelected = new Map<
+          string,
+          { lot: Lot; quantity: number; bundleItemId?: string }
+        >();
+        bundle.bundle_items.forEach((item) => {
+          if (item.inventory_lots) {
+            // Try to find the lot in loaded lots for full data
+            const loadedLot = loadedLots.find((l) => l.id === item.inventory_lots!.id);
+            const lot: Lot = loadedLot || {
+              id: item.inventory_lots.id,
+              card_id: item.inventory_lots.cards?.id || "",
+              condition: item.inventory_lots.condition,
+              variation: item.inventory_lots.variation,
+              quantity: 0,
+              available_qty: item.quantity, // At least what's in the bundle
+              card: item.inventory_lots.cards
+                ? {
+                    id: item.inventory_lots.cards.id,
+                    number: item.inventory_lots.cards.number,
+                    name: item.inventory_lots.cards.name,
+                    api_image_url: item.inventory_lots.cards.api_image_url,
+                    set: item.inventory_lots.cards.sets,
+                  }
+                : null,
+            };
+            initialSelected.set(item.inventory_lots.id, {
+              lot,
+              quantity: item.quantity,
+              bundleItemId: item.id,
+            });
+          }
+        });
+        setSelectedLots(initialSelected);
+      });
+    }
+  }, [isOpen, bundle, loadAvailableLots]);
 
   // Validation function to check if a card would exceed stock
-  const validateCardStock = (lotId: string, cardsPerBundle: number): string | null => {
-    const bundleQuantity = parseInt(quantity, 10) || 1;
-    const lot = availableLots.find(l => l.id === lotId);
-    if (!lot) return "Lot not found";
-    
-    const totalCardsNeeded = bundleQuantity * cardsPerBundle;
-    if (totalCardsNeeded > lot.available_qty) {
-      const maxCardsPerBundle = Math.floor(lot.available_qty / bundleQuantity);
-      return `Insufficient stock. Available: ${lot.available_qty}, Needed: ${totalCardsNeeded} (${cardsPerBundle} × ${bundleQuantity} bundles). Maximum ${maxCardsPerBundle} per bundle.`;
-    }
-    return null;
-  };
+  const validateCardStock = useCallback(
+    (lotId: string, cardsPerBundle: number): string | null => {
+      const bundleQuantity = parseInt(quantity, 10) || 1;
+      const lot = availableLots.find((l) => l.id === lotId);
+      if (!lot) return "Lot not found";
+
+      const totalCardsNeeded = bundleQuantity * cardsPerBundle;
+      if (totalCardsNeeded > lot.available_qty) {
+        const maxCardsPerBundle = Math.floor(lot.available_qty / bundleQuantity);
+        return `Insufficient stock. Available: ${lot.available_qty}, Needed: ${totalCardsNeeded} (${cardsPerBundle} × ${bundleQuantity} bundles). Maximum ${maxCardsPerBundle} per bundle.`;
+      }
+      return null;
+    },
+    [quantity, availableLots]
+  );
 
   // Validate all selected cards whenever quantity or bundle quantity changes
   useEffect(() => {
     const errors = new Map<string, string>();
-    const bundleQuantity = parseInt(quantity, 10) || 1;
-    
+
     selectedLots.forEach((item, lotId) => {
       const error = validateCardStock(lotId, item.quantity);
       if (error) {
         errors.set(lotId, error);
       }
     });
-    
+
     setValidationErrors(errors);
-  }, [selectedLots, quantity, availableLots]);
+  }, [selectedLots, validateCardStock]);
 
   // Filter lots based on search query and stock availability
   useEffect(() => {
     const bundleQuantity = parseInt(quantity, 10) || 1;
-    
+
     // First filter by stock availability - only show lots that have enough stock
     // For lots already selected, always show them (so user can see validation errors)
     // For other lots, only show if they have enough stock for at least 1 card per bundle
@@ -248,7 +263,7 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
       const setName = lot.card?.set?.name?.toLowerCase() || "";
       const condition = lot.condition?.toLowerCase() || "";
       const variation = lot.variation?.toLowerCase() || "";
-      
+
       const purchaseNames = (lot.purchases || [])
         .map((p) => p.source_name?.toLowerCase() || "")
         .join(" ");
@@ -272,9 +287,9 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
       newSelected.delete(lot.id);
     } else {
       // Check if this lot is already in the bundle
-      const existingItem = bundle.bundle_items.find(item => item.inventory_lots?.id === lot.id);
-      newSelected.set(lot.id, { 
-        lot, 
+      const existingItem = bundle.bundle_items.find((item) => item.inventory_lots?.id === lot.id);
+      newSelected.set(lot.id, {
+        lot,
         quantity: existingItem?.quantity || 1,
         bundleItemId: existingItem?.id,
       });
@@ -287,13 +302,13 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
     const item = newSelected.get(lotId);
     if (item) {
       const bundleQuantity = parseInt(quantity, 10) || 1;
-      const lot = availableLots.find(l => l.id === lotId);
+      const lot = availableLots.find((l) => l.id === lotId);
       if (!lot) return;
-      
+
       // Calculate maximum cards per bundle based on available stock
       const maxCardsPerBundle = Math.floor(lot.available_qty / bundleQuantity);
       const finalQty = Math.min(Math.max(1, qty), maxCardsPerBundle);
-      
+
       newSelected.set(lotId, { ...item, quantity: finalQty });
       setSelectedLots(newSelected);
     }
@@ -316,12 +331,11 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
     }
 
     // Validate all cards before submitting
-    const bundleQuantity = parseInt(quantity, 10) || 1;
     const errors: string[] = [];
     selectedLots.forEach((item, lotId) => {
       const error = validateCardStock(lotId, item.quantity);
       if (error) {
-        const lot = availableLots.find(l => l.id === lotId);
+        const lot = availableLots.find((l) => l.id === lotId);
         const cardName = lot?.card?.name || "Card";
         errors.push(`${cardName}: ${error}`);
       }
@@ -362,12 +376,11 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
 
       // Update bundle items
       // First, identify items to add, update, and delete
-      const currentItemIds = new Set(bundle.bundle_items.map(item => item.id));
       const newItemLotIds = new Set(selectedLots.keys());
-      
+
       // Items to delete (in bundle but not selected)
       const itemsToDelete = bundle.bundle_items.filter(
-        item => item.inventory_lots && !newItemLotIds.has(item.inventory_lots.id)
+        (item) => item.inventory_lots && !newItemLotIds.has(item.inventory_lots.id)
       );
 
       // Delete removed items
@@ -387,13 +400,16 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
       for (const [lotId, item] of selectedLots.entries()) {
         if (item.bundleItemId) {
           // Update existing item
-          const updateItemRes = await fetch(`/api/admin/bundles/${bundle.id}/items/${item.bundleItemId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              quantity: item.quantity,
-            }),
-          });
+          const updateItemRes = await fetch(
+            `/api/admin/bundles/${bundle.id}/items/${item.bundleItemId}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                quantity: item.quantity,
+              }),
+            }
+          );
           if (!updateItemRes.ok) {
             const updateItemJson = await updateItemRes.json();
             throw new Error(updateItemJson.error || "Failed to update bundle item");
@@ -417,13 +433,13 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
 
       onBundleUpdated();
       onClose();
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error("Failed to update bundle", e, undefined, {
         bundleId: bundle.id,
         name,
         pricePence: poundsToPence(price),
       });
-      setError(e.message || "Failed to update bundle");
+      setError(e instanceof Error ? e.message : "Failed to update bundle");
     } finally {
       setSubmitting(false);
     }
@@ -439,7 +455,7 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
       isOpen={isOpen}
       onClose={onClose}
       title="Edit Bundle"
-      maxWidth="4xl"
+      maxWidth="6xl"
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={onClose} disabled={submitting}>
@@ -450,11 +466,11 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
             onClick={handleSubmit}
             disabled={submitting || selectedLots.size < 2 || validationErrors.size > 0}
             title={
-              selectedLots.size < 2 
-                ? "Please select at least 2 cards" 
+              selectedLots.size < 2
+                ? "Please select at least 2 cards"
                 : validationErrors.size > 0
-                ? "Please fix stock validation errors before saving"
-                : undefined
+                  ? "Please fix stock validation errors before saving"
+                  : undefined
             }
           >
             {submitting ? "Saving..." : "Save Changes"}
@@ -473,7 +489,7 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
             <div className="font-semibold mb-2">⚠️ Stock Validation Errors:</div>
             <ul className="list-disc list-inside space-y-1 text-sm">
               {Array.from(validationErrors.entries()).map(([lotId, errorMsg]) => {
-                const lot = availableLots.find(l => l.id === lotId);
+                const lot = availableLots.find((l) => l.id === lotId);
                 const cardName = lot?.card?.name || "Unknown card";
                 return (
                   <li key={lotId}>
@@ -486,9 +502,7 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Bundle Name *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Bundle Name *</label>
           <Input
             type="text"
             value={name}
@@ -512,9 +526,7 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Bundle Price (£) *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Bundle Price (£) *</label>
           <Input
             type="number"
             step="0.01"
@@ -548,9 +560,7 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
             <label className="block text-sm font-medium text-gray-700">
               Select Cards ({selectedLots.size} selected, {totalCards} total cards)
               {selectedLots.size < 2 && (
-                <span className="ml-2 text-xs text-yellow-600">
-                  (Need at least 2 cards)
-                </span>
+                <span className="ml-2 text-xs text-yellow-600">(Need at least 2 cards)</span>
               )}
             </label>
           </div>
@@ -570,12 +580,11 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
             <div className="text-sm text-gray-500 py-4">Loading available cards...</div>
           ) : filteredLots.length === 0 ? (
             <div className="text-sm text-gray-500 py-4">
-              {searchQuery 
-                ? "No cards match your search" 
+              {searchQuery
+                ? "No cards match your search"
                 : availableLots.length === 0
-                ? "No available cards found"
-                : `No cards have enough stock for ${parseInt(quantity, 10) || 1} bundle(s). Try reducing the bundle quantity.`
-              }
+                  ? "No available cards found"
+                  : `No cards have enough stock for ${parseInt(quantity, 10) || 1} bundle(s). Try reducing the bundle quantity.`}
             </div>
           ) : (
             <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
@@ -586,8 +595,10 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
                   <div
                     key={lot.id}
                     className={`p-3 border-b border-gray-200 last:border-b-0 ${
-                      isSelected 
-                        ? (validationErrors.has(lot.id) ? "bg-red-50 border-red-200" : "bg-blue-50")
+                      isSelected
+                        ? validationErrors.has(lot.id)
+                          ? "bg-red-50 border-red-200"
+                          : "bg-blue-50"
                         : "hover:bg-gray-50"
                     }`}
                   >
@@ -599,11 +610,15 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
                         className="w-4 h-4 text-blue-600 rounded border-gray-300"
                       />
                       {lot.card?.api_image_url && (
-                        <img
-                          src={`${lot.card.api_image_url}/low.webp`}
-                          alt=""
-                          className="h-12 w-auto rounded border border-gray-200"
-                        />
+                        <div className="relative h-12 w-auto rounded border border-gray-200 overflow-hidden">
+                          <Image
+                            src={`${lot.card.api_image_url}/low.webp`}
+                            alt=""
+                            fill
+                            className="object-contain"
+                            unoptimized
+                          />
+                        </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm flex items-center gap-2">
@@ -651,7 +666,10 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
                             min="1"
                             max={(() => {
                               const bundleQty = parseInt(quantity, 10) || 1;
-                              const maxCardsPerBundle = bundleQty > 0 ? Math.floor((selectedItem?.lot.available_qty || 0) / bundleQty) : selectedItem?.lot.available_qty || 1;
+                              const maxCardsPerBundle =
+                                bundleQty > 0
+                                  ? Math.floor((selectedItem?.lot.available_qty || 0) / bundleQty)
+                                  : selectedItem?.lot.available_qty || 1;
                               return Math.max(1, maxCardsPerBundle);
                             })()}
                             value={selectedItem?.quantity || 1}
@@ -677,4 +695,3 @@ export default function EditBundleModal({ isOpen, onClose, onBundleUpdated, bund
     </Modal>
   );
 }
-

@@ -6,16 +6,16 @@ import { createApiLogger } from "@/lib/logger";
 function toTitleCase(str: string): string {
   return str
     .toLowerCase()
-    .split(' ')
-    .map(word => {
+    .split(" ")
+    .map((word) => {
       // Handle special cases like "ex", "v", "vmax", etc.
-      if (word === 'ex' || word === 'v' || word === 'vmax' || word === 'vstar' || word === 'gx') {
+      if (word === "ex" || word === "v" || word === "vmax" || word === "vstar" || word === "gx") {
         return word.toUpperCase();
       }
       // Capitalize first letter
       return word.charAt(0).toUpperCase() + word.slice(1);
     })
-    .join(' ');
+    .join(" ");
 }
 
 /**
@@ -27,7 +27,7 @@ async function translateText(text: string, sourceLang: string): Promise<string |
   try {
     const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=en&dt=t&q=${encodeURIComponent(text)}`;
     const googleRes = await fetch(googleUrl);
-    
+
     if (googleRes.ok) {
       const googleJson = await googleRes.json();
       const translated = googleJson?.[0]?.[0]?.[0];
@@ -40,16 +40,19 @@ async function translateText(text: string, sourceLang: string): Promise<string |
     } else {
       console.warn(`Google Translate failed with status ${googleRes.status} for "${text}"`);
     }
-  } catch (e: any) {
-    console.warn(`Google Translate error for "${text}":`, e.message);
+  } catch (e: unknown) {
+    console.warn(
+      `Google Translate error for "${text}":`,
+      e instanceof Error ? e.message : String(e)
+    );
     // Fall through to MyMemory
   }
-  
+
   // Fallback to MyMemory
   try {
     const myMemoryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|en`;
     const myMemoryRes = await fetch(myMemoryUrl);
-    
+
     if (myMemoryRes.ok && myMemoryRes.status !== 429 && myMemoryRes.status !== 403) {
       const myMemoryJson = await myMemoryRes.json();
       const translated = myMemoryJson?.responseData?.translatedText;
@@ -62,11 +65,11 @@ async function translateText(text: string, sourceLang: string): Promise<string |
     } else {
       console.warn(`MyMemory failed with status ${myMemoryRes.status} for "${text}"`);
     }
-  } catch (e: any) {
-    console.warn(`MyMemory error for "${text}":`, e.message);
+  } catch (e: unknown) {
+    console.warn(`MyMemory error for "${text}":`, e instanceof Error ? e.message : String(e));
   }
-  
-  logger.warn(`Both translation APIs failed`, undefined, undefined, { text, sourceLang });
+
+  console.warn(`Both translation APIs failed for "${text}" (${sourceLang})`);
   return null;
 }
 
@@ -79,7 +82,7 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      const sendProgress = (data: any) => {
+      const sendProgress = (data: Record<string, unknown>) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 
@@ -103,10 +106,11 @@ export async function POST(req: Request) {
           .select("set_id");
 
         if (existingError) {
-          if (existingError.message?.includes("does not exist") || (existingError as any).code === "42P01") {
-            sendProgress({ 
+          const supabaseError = existingError as { code?: string; message?: string };
+          if (existingError.message?.includes("does not exist") || supabaseError.code === "42P01") {
+            sendProgress({
               error: "Database table 'set_translations' does not exist. Please run migrations.",
-              migrationRequired: true
+              migrationRequired: true,
             });
             controller.close();
             return;
@@ -120,28 +124,32 @@ export async function POST(req: Request) {
         const localeToCode: Record<string, string> = {
           "zh-Hans": "zh-Hans",
           "zh-Hant": "zh-Hant",
-          "zh": "zh-Hant",
+          zh: "zh-Hant",
         };
 
         const allSetsByLocale = new Map<string, Array<{ id: string; name: string }>>();
 
-        sendProgress({ stage: "fetching", message: `Fetching sets from ${enabledLocales.length} language(s)...` });
+        sendProgress({
+          stage: "fetching",
+          message: `Fetching sets from ${enabledLocales.length} language(s)...`,
+        });
 
         for (let i = 0; i < enabledLocales.length; i++) {
           const locale = enabledLocales[i];
           try {
             const code = localeToCode[locale] || locale;
-            sendProgress({ 
-              stage: "fetching", 
+            sendProgress({
+              stage: "fetching",
               message: `Fetching ${locale} sets...`,
-              progress: { current: i + 1, total: enabledLocales.length }
+              progress: { current: i + 1, total: enabledLocales.length },
             });
             const sets = await fetchAllSets(code);
             allSetsByLocale.set(locale, sets);
-          } catch (e: any) {
-            console.warn(`Failed to fetch sets for locale ${locale}:`, e.message);
-            sendProgress({ 
-              warning: `Failed to fetch sets for ${locale}: ${e.message}` 
+          } catch (e: unknown) {
+            const errorMessage = e instanceof Error ? e.message : String(e);
+            console.warn(`Failed to fetch sets for locale ${locale}:`, errorMessage);
+            sendProgress({
+              warning: `Failed to fetch sets for ${locale}: ${errorMessage}`,
             });
           }
         }
@@ -160,10 +168,10 @@ export async function POST(req: Request) {
           (set) => !existingSetIds.has(set.id)
         );
 
-        sendProgress({ 
-          stage: "translating", 
+        sendProgress({
+          stage: "translating",
           message: `Translating ${setsToTranslate.length} sets...`,
-          progress: { current: 0, total: setsToTranslate.length }
+          progress: { current: 0, total: setsToTranslate.length },
         });
 
         let savedCount = 0;
@@ -183,14 +191,13 @@ export async function POST(req: Request) {
 
           try {
             // Translate
-            const translateLang = set.locale === "zh-Hans" ? "zh-CN" : 
-                                  set.locale === "zh-Hant" ? "zh-TW" : 
-                                  set.locale;
-            
+            const translateLang =
+              set.locale === "zh-Hans" ? "zh-CN" : set.locale === "zh-Hant" ? "zh-TW" : set.locale;
+
             sendProgress({
               stage: "translating",
               message: `Translating "${set.name}" (${set.id})...`,
-              progress: { current: i + 1, total: setsToTranslate.length }
+              progress: { current: i + 1, total: setsToTranslate.length },
             });
 
             const translated = await translateText(set.name, translateLang);
@@ -200,7 +207,7 @@ export async function POST(req: Request) {
               sendProgress({
                 stage: "saving",
                 message: `Saving "${translated}" (${set.id})...`,
-                progress: { current: i + 1, total: setsToTranslate.length }
+                progress: { current: i + 1, total: setsToTranslate.length },
               });
 
               // First, ensure the set exists in the sets table (foreign key requirement)
@@ -216,7 +223,7 @@ export async function POST(req: Request) {
                 try {
                   const englishSets = await fetchAllSets("en");
                   const englishSet = englishSets.find((s) => s.id === set.id);
-                  
+
                   if (englishSet) {
                     const { error: setError } = await supabase.from("sets").upsert({
                       id: englishSet.id,
@@ -229,14 +236,16 @@ export async function POST(req: Request) {
                     });
 
                     if (setError) {
-                      logger.error(`Failed to create set during bulk import`, setError, undefined, { setId: set.id });
+                      logger.error(`Failed to create set during bulk import`, setError, undefined, {
+                        setId: set.id,
+                      });
                       sendProgress({
-                        warning: `Set ${set.id} doesn't exist in database and couldn't be created: ${setError.message}`
+                        warning: `Set ${set.id} doesn't exist in database and couldn't be created: ${setError.message}`,
                       });
                       skippedCount++;
                       continue;
                     } else {
-                      logger.info(`Created set in database`, undefined, undefined, { setId: set.id });
+                      logger.info(`Created set in database`, undefined, { setId: set.id });
                     }
                   } else {
                     // If English doesn't exist, create with the translated name
@@ -249,38 +258,49 @@ export async function POST(req: Request) {
                     });
 
                     if (setError) {
-                      logger.error(`Failed to create set during bulk import`, setError, undefined, { setId: set.id });
+                      logger.error(`Failed to create set during bulk import`, setError, undefined, {
+                        setId: set.id,
+                      });
                       sendProgress({
-                        warning: `Set ${set.id} doesn't exist in database and couldn't be created: ${setError.message}`
+                        warning: `Set ${set.id} doesn't exist in database and couldn't be created: ${setError.message}`,
                       });
                       skippedCount++;
                       continue;
                     } else {
-                      logger.info(`Created set in database with translated name`, undefined, undefined, { setId: set.id });
+                      logger.info(`Created set in database with translated name`, undefined, {
+                        setId: set.id,
+                      });
                     }
                   }
-                } catch (e: any) {
+                } catch (e: unknown) {
+                  const errorMessage = e instanceof Error ? e.message : String(e);
                   console.warn(`Failed to fetch/create set ${set.id}:`, e);
                   sendProgress({
-                    warning: `Failed to create set ${set.id}: ${e.message}`
+                    warning: `Failed to create set ${set.id}: ${errorMessage}`,
                   });
                   continue;
                 }
               }
 
-              const { error: saveError, data: saveData } = await supabase
-                .from("set_translations")
-                .upsert({
+              const { error: saveError } = await supabase.from("set_translations").upsert(
+                {
                   set_id: set.id,
                   name_en: toTitleCase(translated),
                   source: "translated",
                   source_language: sourceLanguage,
-                }, { onConflict: "set_id" });
+                },
+                { onConflict: "set_id" }
+              );
 
               if (saveError) {
-                logger.error(`Failed to save translation during bulk import`, saveError, undefined, { setId: set.id });
+                logger.error(
+                  `Failed to save translation during bulk import`,
+                  saveError,
+                  undefined,
+                  { setId: set.id }
+                );
                 sendProgress({
-                  warning: `Failed to save ${set.id}: ${saveError.message}`
+                  warning: `Failed to save ${set.id}: ${saveError.message}`,
                 });
               } else {
                 savedCount++;
@@ -288,16 +308,24 @@ export async function POST(req: Request) {
               }
             } else {
               failedCount++;
-              console.warn(`Translation returned null for ${set.id} (${set.name}) from locale ${set.locale}`);
+              console.warn(
+                `Translation returned null for ${set.id} (${set.name}) from locale ${set.locale}`
+              );
               sendProgress({
-                warning: `Translation failed for ${set.id} (${set.name}), skipping...`
+                warning: `Translation failed for ${set.id} (${set.name}), skipping...`,
               });
             }
-          } catch (e: any) {
+          } catch (e: unknown) {
             failedCount++;
-            logger.error(`Error processing set during bulk import`, e instanceof Error ? e : new Error(String(e)), undefined, { setId: set.id });
+            const errorMessage = e instanceof Error ? e.message : String(e);
+            logger.error(
+              `Error processing set during bulk import`,
+              e instanceof Error ? e : new Error(String(e)),
+              undefined,
+              { setId: set.id }
+            );
             sendProgress({
-              warning: `Error processing ${set.id}: ${e.message}`
+              warning: `Error processing ${set.id}: ${errorMessage}`,
             });
           }
 
@@ -317,15 +345,19 @@ export async function POST(req: Request) {
             skipped: skippedCount,
             localesProcessed: enabledLocales,
             totalProcessed: setsToTranslate.length,
-          }
+          },
         });
 
         controller.close();
-      } catch (error: any) {
-        logger.error("Error in bulk import stream", error instanceof Error ? error : new Error(String(error)));
+      } catch (error: unknown) {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        logger.error("Error in bulk import stream", errorObj);
         sendProgress({
-          error: error.message || "Failed to bulk import translations",
-          details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+          error: errorObj.message || "Failed to bulk import translations",
+          details:
+            process.env.NODE_ENV === "development" && error instanceof Error
+              ? error.stack
+              : undefined,
         });
         controller.close();
       }
@@ -336,8 +368,7 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
     },
   });
 }
-

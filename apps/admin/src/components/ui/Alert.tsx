@@ -14,11 +14,6 @@ export default function Alert({ type = "info", children, className = "" }: Alert
   };
 
   return (
-    <div
-      className={`rounded-lg border p-3 text-sm ${styles[type]} ${className}`}
-    >
-      {children}
-    </div>
+    <div className={`rounded-lg border p-3 text-sm ${styles[type]} ${className}`}>{children}</div>
   );
 }
-

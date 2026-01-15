@@ -135,7 +135,11 @@ export default function TestErrorHandlingPage() {
               ⚠️ Warning: This will crash the component. The ErrorBoundary should catch it.
             </p>
           </div>
-          <Button onClick={testComponentError} variant="secondary" className="bg-red-600 hover:bg-red-700">
+          <Button
+            onClick={testComponentError}
+            variant="secondary"
+            className="bg-red-600 hover:bg-red-700"
+          >
             Trigger Component Error
           </Button>
         </div>
@@ -154,4 +158,3 @@ export default function TestErrorHandlingPage() {
     </div>
   );
 }
-

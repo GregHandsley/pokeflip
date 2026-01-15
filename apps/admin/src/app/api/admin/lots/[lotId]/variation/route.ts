@@ -16,17 +16,14 @@ const ALLOWED_VARIATIONS = [
   "non_holo",
 ] as const;
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
-  
+
   try {
     // Validate route parameters
     const { lotId } = await params;
     const validatedLotId = uuid(lotId, "lotId");
-    
+
     // Validate request body
     const body = await req.json();
     const variationInput = optional(body.variation, string, "variation") || "standard";
@@ -61,5 +58,3 @@ export async function PATCH(
     });
   }
 }
-
-

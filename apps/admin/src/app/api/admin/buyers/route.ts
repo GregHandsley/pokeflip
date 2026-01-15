@@ -3,9 +3,27 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
+type BuyerRow = {
+  id: string;
+  handle: string;
+  platform: string;
+  sales_orders: Array<{ id: string }> | null;
+};
+
+type OrderRow = {
+  id: string;
+  buyer_id: string;
+};
+
+type SalesItemRow = {
+  sales_order_id: string;
+  sold_price_pence: number;
+  qty: number;
+};
+
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const supabase = supabaseServer();
     const { searchParams } = new URL(req.url);
@@ -42,8 +60,8 @@ export async function GET(req: Request) {
     }
 
     // Calculate stats for each buyer using a more efficient query
-    const buyerIds = (buyers || []).map((b: any) => b.id);
-    
+    const buyerIds = (buyers || []).map((b: BuyerRow) => b.id);
+
     // Get all orders for these buyers
     const { data: allOrders } = await supabase
       .from("sales_orders")
@@ -51,27 +69,30 @@ export async function GET(req: Request) {
       .in("buyer_id", buyerIds);
 
     const orderCounts = new Map<string, number>();
-    (allOrders || []).forEach((order: any) => {
+    (allOrders || []).forEach((order: OrderRow) => {
       const count = orderCounts.get(order.buyer_id) || 0;
       orderCounts.set(order.buyer_id, count + 1);
     });
 
     // Get all sales items for these orders
-    const orderIds = (allOrders || []).map((o: any) => o.id);
-    const { data: allItems } = orderIds.length > 0 ? await supabase
-      .from("sales_items")
-      .select("sales_order_id, sold_price_pence, qty")
-      .in("sales_order_id", orderIds) : { data: [] };
+    const orderIds = (allOrders || []).map((o: OrderRow) => o.id);
+    const { data: allItems } =
+      orderIds.length > 0
+        ? await supabase
+            .from("sales_items")
+            .select("sales_order_id, sold_price_pence, qty")
+            .in("sales_order_id", orderIds)
+        : { data: [] };
 
     // Map order_id to buyer_id
     const orderToBuyer = new Map<string, string>();
-    (allOrders || []).forEach((order: any) => {
+    (allOrders || []).forEach((order: OrderRow) => {
       orderToBuyer.set(order.id, order.buyer_id);
     });
 
     // Calculate total spend per buyer
     const totalSpend = new Map<string, number>();
-    (allItems || []).forEach((item: any) => {
+    (allItems || []).forEach((item: SalesItemRow) => {
       const buyerId = orderToBuyer.get(item.sales_order_id);
       if (buyerId) {
         const current = totalSpend.get(buyerId) || 0;
@@ -79,7 +100,7 @@ export async function GET(req: Request) {
       }
     });
 
-    const buyersWithStats = (buyers || []).map((buyer: any) => ({
+    const buyersWithStats = (buyers || []).map((buyer: BuyerRow) => ({
       id: buyer.id,
       handle: buyer.handle,
       platform: buyer.platform,
@@ -91,8 +112,7 @@ export async function GET(req: Request) {
       ok: true,
       buyers: buyersWithStats,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "fetch_buyers" });
   }
 }
-

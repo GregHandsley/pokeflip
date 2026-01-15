@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  calculateTotals,
-  calculateDealDiscount,
-  autoAllocatePurchases,
-} from "./saleCalculations";
+import { calculateTotals, calculateDealDiscount, autoAllocatePurchases } from "./saleCalculations";
 import type { SaleItem, PromotionalDeal, ConsumableSelection } from "../types";
 
 describe("Calculate Totals", () => {
@@ -65,7 +61,6 @@ describe("Calculate Totals", () => {
       {
         consumable_id: "cons1",
         consumable_name: "Bubble Wrap",
-        unit: "m",
         qty: 2,
         unit_cost_pence: 500, // £5 per meter
       },
@@ -154,6 +149,7 @@ describe("Calculate Deal Discount", () => {
     const deal: PromotionalDeal = {
       id: "deal1",
       name: "Test Deal",
+      description: null,
       is_active: false,
       deal_type: "percentage_off",
       discount_percent: 10,
@@ -162,8 +158,6 @@ describe("Calculate Deal Discount", () => {
       discount_amount_pence: null,
       buy_quantity: null,
       get_quantity: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     };
 
     const items: SaleItem[] = [
@@ -178,6 +172,7 @@ describe("Calculate Deal Discount", () => {
     const deal: PromotionalDeal = {
       id: "deal1",
       name: "Test Deal",
+      description: null,
       is_active: true,
       deal_type: "percentage_off",
       discount_percent: 10,
@@ -186,8 +181,6 @@ describe("Calculate Deal Discount", () => {
       discount_amount_pence: null,
       buy_quantity: null,
       get_quantity: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     };
 
     const items: SaleItem[] = [
@@ -202,6 +195,7 @@ describe("Calculate Deal Discount", () => {
     const deal: PromotionalDeal = {
       id: "deal1",
       name: "10% Off",
+      description: null,
       is_active: true,
       deal_type: "percentage_off",
       discount_percent: 10,
@@ -210,8 +204,6 @@ describe("Calculate Deal Discount", () => {
       discount_amount_pence: null,
       buy_quantity: null,
       get_quantity: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     };
 
     const items: SaleItem[] = [
@@ -229,6 +221,7 @@ describe("Calculate Deal Discount", () => {
     const deal: PromotionalDeal = {
       id: "deal1",
       name: "£5 Off",
+      description: null,
       is_active: true,
       deal_type: "fixed_off",
       discount_percent: null,
@@ -237,8 +230,6 @@ describe("Calculate Deal Discount", () => {
       discount_amount_pence: 500, // £5
       buy_quantity: null,
       get_quantity: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     };
 
     const items: SaleItem[] = [
@@ -256,6 +247,7 @@ describe("Calculate Deal Discount", () => {
     const deal: PromotionalDeal = {
       id: "deal1",
       name: "Buy 5 Get 1 Free",
+      description: null,
       is_active: true,
       deal_type: "buy_x_get_y",
       discount_percent: 100,
@@ -264,8 +256,6 @@ describe("Calculate Deal Discount", () => {
       discount_amount_pence: null,
       buy_quantity: 5,
       get_quantity: 1,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     };
 
     const items: SaleItem[] = [
@@ -285,7 +275,19 @@ describe("Auto Allocate Purchases", () => {
     const item: SaleItem = {
       lotId: "lot1",
       qty: 5,
-      lot: { purchases: [] },
+      pricePence: null,
+      isFree: false,
+      lot: {
+        id: "lot1",
+        condition: "NM",
+        variation: "standard",
+        quantity: 10,
+        available_qty: 10,
+        sold_qty: 0,
+        list_price_pence: null,
+        purchases: [],
+        card: null,
+      },
     };
 
     const result = autoAllocatePurchases(item);
@@ -296,8 +298,27 @@ describe("Auto Allocate Purchases", () => {
     const item: SaleItem = {
       lotId: "lot1",
       qty: 5,
+      pricePence: null,
+      isFree: false,
       lot: {
-        purchases: [{ id: "purchase1", quantity: 10 }],
+        id: "lot1",
+        condition: "NM",
+        variation: "standard",
+        quantity: 10,
+        available_qty: 10,
+        sold_qty: 0,
+        list_price_pence: null,
+        purchases: [
+          {
+            id: "purchase1",
+            source_name: "Test Source",
+            source_type: "test",
+            purchased_at: new Date().toISOString(),
+            status: "active",
+            quantity: 10,
+          },
+        ],
+        card: null,
       },
     };
 
@@ -309,24 +330,55 @@ describe("Auto Allocate Purchases", () => {
     const item: SaleItem = {
       lotId: "lot1",
       qty: 10,
+      pricePence: null,
+      isFree: false,
       lot: {
+        id: "lot1",
+        condition: "NM",
+        variation: "standard",
+        quantity: 40,
+        available_qty: 40,
+        sold_qty: 0,
+        list_price_pence: null,
         purchases: [
-          { id: "purchase1", quantity: 20 }, // 50% of total
-          { id: "purchase2", quantity: 15 }, // 37.5% of total
-          { id: "purchase3", quantity: 5 },  // 12.5% of total
+          {
+            id: "purchase1",
+            source_name: "Test Source 1",
+            source_type: "test",
+            purchased_at: new Date().toISOString(),
+            status: "active",
+            quantity: 20, // 50% of total
+          },
+          {
+            id: "purchase2",
+            source_name: "Test Source 2",
+            source_type: "test",
+            purchased_at: new Date().toISOString(),
+            status: "active",
+            quantity: 15, // 37.5% of total
+          },
+          {
+            id: "purchase3",
+            source_name: "Test Source 3",
+            source_type: "test",
+            purchased_at: new Date().toISOString(),
+            status: "active",
+            quantity: 5, // 12.5% of total
+          },
         ],
+        card: null,
       },
     };
 
     const result = autoAllocatePurchases(item);
-    
+
     // Should allocate proportionally
     expect(result.length).toBeGreaterThan(0);
     const totalAllocated = result.reduce((sum, alloc) => sum + alloc.qty, 0);
     expect(totalAllocated).toBe(10);
-    
+
     // First purchase should get the most
-    const purchase1Alloc = result.find(a => a.purchaseId === "purchase1");
+    const purchase1Alloc = result.find((a) => a.purchaseId === "purchase1");
     expect(purchase1Alloc?.qty).toBeGreaterThanOrEqual(4);
   });
 
@@ -334,11 +386,35 @@ describe("Auto Allocate Purchases", () => {
     const item: SaleItem = {
       lotId: "lot1",
       qty: 100, // More than available
+      pricePence: null,
+      isFree: false,
       lot: {
+        id: "lot1",
+        condition: "NM",
+        variation: "standard",
+        quantity: 35,
+        available_qty: 35,
+        sold_qty: 0,
+        list_price_pence: null,
         purchases: [
-          { id: "purchase1", quantity: 20 },
-          { id: "purchase2", quantity: 15 },
+          {
+            id: "purchase1",
+            source_name: "Test Source 1",
+            source_type: "test",
+            purchased_at: new Date().toISOString(),
+            status: "active",
+            quantity: 20,
+          },
+          {
+            id: "purchase2",
+            source_name: "Test Source 2",
+            source_type: "test",
+            purchased_at: new Date().toISOString(),
+            status: "active",
+            quantity: 15,
+          },
         ],
+        card: null,
       },
     };
 
@@ -347,4 +423,3 @@ describe("Auto Allocate Purchases", () => {
     expect(totalAllocated).toBeLessThanOrEqual(35); // Max available
   });
 });
-

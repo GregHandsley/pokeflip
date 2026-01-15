@@ -29,5 +29,3 @@ export default function ErrorModal({ isOpen, onClose, title = "Error", message }
     </Modal>
   );
 }
-
-

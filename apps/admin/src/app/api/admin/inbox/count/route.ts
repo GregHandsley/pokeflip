@@ -5,7 +5,7 @@ import { createApiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const supabase = supabaseServer();
 
@@ -30,8 +30,7 @@ export async function GET(req: Request) {
       ok: true,
       count: count || 0,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "fetch_inbox_count" });
   }
 }
-

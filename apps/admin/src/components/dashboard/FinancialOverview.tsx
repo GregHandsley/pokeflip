@@ -62,18 +62,23 @@ export default function FinancialOverview({ data, loading }: Props) {
           <div className="pt-2 border-t border-gray-200">
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium text-gray-700">Net Profit/Loss</span>
-              <span className={`text-xl font-bold ${
-                data.net_profit_pence >= 0 ? "text-green-600" : "text-red-600"
-              }`}>
+              <span
+                className={`text-xl font-bold ${
+                  data.net_profit_pence >= 0 ? "text-green-600" : "text-red-600"
+                }`}
+              >
                 £{penceToPounds(data.net_profit_pence)}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500">Margin</span>
-              <span className={`text-sm font-semibold ${
-                data.margin_percent >= 0 ? "text-green-600" : "text-red-600"
-              }`}>
-                {data.margin_percent >= 0 ? "+" : ""}{data.margin_percent.toFixed(1)}%
+              <span
+                className={`text-sm font-semibold ${
+                  data.margin_percent >= 0 ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {data.margin_percent >= 0 ? "+" : ""}
+                {data.margin_percent.toFixed(1)}%
               </span>
             </div>
           </div>
@@ -82,4 +87,3 @@ export default function FinancialOverview({ data, loading }: Props) {
     </Card>
   );
 }
-

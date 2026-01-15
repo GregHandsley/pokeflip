@@ -1,11 +1,11 @@
 "use client";
 
-import { Photo, InboxLot } from "./types";
+import Image from "next/image";
+import { Photo } from "./types";
 
 interface Props {
   photos: Photo[];
   loadingPhotos: boolean;
-  lot: InboxLot;
   onDownloadImage: (photo: Photo) => void;
   onDownloadAllImages: () => void;
   onDeletePhoto: (photoId: string, photoKind: string) => void;
@@ -15,7 +15,6 @@ interface Props {
 export default function PhotoGallery({
   photos,
   loadingPhotos,
-  lot,
   onDownloadImage,
   onDownloadAllImages,
   onDeletePhoto,
@@ -53,10 +52,12 @@ export default function PhotoGallery({
             className="relative aspect-square bg-gray-100 rounded border border-gray-200 overflow-hidden group"
           >
             {photo.signedUrl ? (
-              <img
+              <Image
                 src={photo.signedUrl}
                 alt={`${photo.kind} photo`}
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
+                unoptimized
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
@@ -91,11 +92,10 @@ export default function PhotoGallery({
       </div>
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
         <p className="text-xs text-gray-600">
-          Download images to easily upload them to your eBay listing. Hover over an image to download it individually, or use the "Download All Images" button above.
+          Download images to easily upload them to your eBay listing. Hover over an image to
+          download it individually, or use the &quot;Download All Images&quot; button above.
         </p>
       </div>
     </div>
   );
 }
-
-

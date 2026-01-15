@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { penceToPounds, poundsToPence } from "@pokeflip/shared";
+import { penceToPounds } from "@pokeflip/shared";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
@@ -37,14 +37,17 @@ export default function ConsumablesPage() {
   const [showAddConsumable, setShowAddConsumable] = useState(false);
   const [showEditConsumable, setShowEditConsumable] = useState(false);
   const [showAddPurchase, setShowAddPurchase] = useState(false);
-  const [selectedConsumable, setSelectedConsumable] = useState<Consumable | null>(null);
-  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: "" });
-  
+  // const [selectedConsumable, setSelectedConsumable] = useState<Consumable | null>(null);
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; message: string }>({
+    isOpen: false,
+    message: "",
+  });
+
   // Add/Edit consumable form
   const [newConsumableName, setNewConsumableName] = useState("");
   const [newConsumableUnit, setNewConsumableUnit] = useState("each");
   const [editingConsumableId, setEditingConsumableId] = useState<string | null>(null);
-  
+
   // Add purchase form
   const [purchaseConsumableId, setPurchaseConsumableId] = useState("");
   const [purchaseQty, setPurchaseQty] = useState<string>("");
@@ -110,8 +113,11 @@ export default function ConsumablesPage() {
       setNewConsumableName("");
       setNewConsumableUnit("each");
       await loadConsumables();
-    } catch (e: any) {
-      setErrorModal({ isOpen: true, message: e.message || "Failed to create consumable" });
+    } catch (e: unknown) {
+      setErrorModal({
+        isOpen: true,
+        message: e instanceof Error ? e.message : "Failed to create consumable",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -153,8 +159,11 @@ export default function ConsumablesPage() {
       setNewConsumableName("");
       setNewConsumableUnit("each");
       await loadConsumables();
-    } catch (e: any) {
-      setErrorModal({ isOpen: true, message: e.message || "Failed to update consumable" });
+    } catch (e: unknown) {
+      setErrorModal({
+        isOpen: true,
+        message: e instanceof Error ? e.message : "Failed to update consumable",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -199,8 +208,11 @@ export default function ConsumablesPage() {
       setPurchaseDate(new Date().toISOString().split("T")[0]);
       await loadConsumables();
       await loadPurchases();
-    } catch (e: any) {
-      setErrorModal({ isOpen: true, message: e.message || "Failed to record purchase" });
+    } catch (e: unknown) {
+      setErrorModal({
+        isOpen: true,
+        message: e instanceof Error ? e.message : "Failed to record purchase",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -238,18 +250,32 @@ export default function ConsumablesPage() {
         {loading ? (
           <div className="p-4 text-center text-gray-500">Loading...</div>
         ) : consumables.length === 0 ? (
-          <div className="p-4 text-center text-gray-500">No consumables yet. Add one to get started.</div>
+          <div className="p-4 text-center text-gray-500">
+            No consumables yet. Add one to get started.
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Unit</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Total Purchased</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Total Cost</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Avg Cost/Unit</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Name
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Unit
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Total Purchased
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Total Cost
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Avg Cost/Unit
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -258,7 +284,9 @@ export default function ConsumablesPage() {
                     <td className="px-4 py-3 font-medium">{consumable.name}</td>
                     <td className="px-4 py-3 text-gray-600">{consumable.unit}</td>
                     <td className="px-4 py-3 text-gray-600">{consumable.total_purchased_qty}</td>
-                    <td className="px-4 py-3 text-gray-600">£{penceToPounds(consumable.total_cost_pence)}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      £{penceToPounds(consumable.total_cost_pence)}
+                    </td>
                     <td className="px-4 py-3 font-medium">
                       {consumable.avg_cost_pence_per_unit > 0
                         ? `£${penceToPounds(consumable.avg_cost_pence_per_unit)}`
@@ -292,11 +320,21 @@ export default function ConsumablesPage() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Consumable</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Quantity</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Total Cost</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Cost/Unit</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Consumable
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Quantity
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Total Cost
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Cost/Unit
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -307,9 +345,15 @@ export default function ConsumablesPage() {
                       <td className="px-4 py-3 text-gray-600">
                         {formatUKDate(purchase.purchased_at)}
                       </td>
-                      <td className="px-4 py-3 font-medium">{purchase.consumables?.name || "Unknown"}</td>
-                      <td className="px-4 py-3 text-gray-600">{purchase.qty} {purchase.consumables?.unit || ""}</td>
-                      <td className="px-4 py-3 text-gray-600">£{penceToPounds(purchase.total_cost_pence)}</td>
+                      <td className="px-4 py-3 font-medium">
+                        {purchase.consumables?.name || "Unknown"}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {purchase.qty} {purchase.consumables?.unit || ""}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        £{penceToPounds(purchase.total_cost_pence)}
+                      </td>
                       <td className="px-4 py-3 font-medium">£{penceToPounds(unitCost)}</td>
                     </tr>
                   );
@@ -328,7 +372,11 @@ export default function ConsumablesPage() {
         maxWidth="md"
         footer={
           <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => setShowAddConsumable(false)} disabled={submitting}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowAddConsumable(false)}
+              disabled={submitting}
+            >
               Cancel
             </Button>
             <Button variant="primary" onClick={handleAddConsumable} disabled={submitting}>
@@ -381,7 +429,11 @@ export default function ConsumablesPage() {
         maxWidth="md"
         footer={
           <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => setShowAddPurchase(false)} disabled={submitting}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowAddPurchase(false)}
+              disabled={submitting}
+            >
               Cancel
             </Button>
             <Button variant="primary" onClick={handleAddPurchase} disabled={submitting}>
@@ -508,4 +560,3 @@ export default function ConsumablesPage() {
     </div>
   );
 }
-

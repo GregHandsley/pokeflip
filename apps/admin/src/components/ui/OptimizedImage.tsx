@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Image from "next/image";
 
 type OptimizedImageProps = {
   src: string;
@@ -56,7 +57,12 @@ export function OptimizedImage({
       return fallback;
     }
     // If src already ends with .webp or has a quality suffix, don't add another
-    if (src.endsWith(".webp") || src.includes("/low.webp") || src.includes("/medium.webp") || src.includes("/high.webp")) {
+    if (
+      src.endsWith(".webp") ||
+      src.includes("/low.webp") ||
+      src.includes("/medium.webp") ||
+      src.includes("/high.webp")
+    ) {
       return src;
     }
     // Add quality suffix if URL pattern suggests it (e.g., API URLs)
@@ -78,27 +84,42 @@ export function OptimizedImage({
     setIsLoading(false);
   };
 
+  // Use fill if width/height not provided
+  const useFill = !width || !height;
+
   return (
-    <div className={`relative ${className}`} style={{ width, height }}>
+    <div className={`relative ${className}`} style={useFill ? undefined : { width, height }}>
       {isLoading && (
         <div className="absolute inset-0 bg-gray-100 animate-pulse rounded" aria-hidden="true" />
       )}
-      <img
-        src={optimizedSrc}
-        alt={alt}
-        className={`${className} ${isLoading ? "opacity-0" : "opacity-100"} transition-opacity duration-200`}
-        loading={priority ? "eager" : "lazy"}
-        decoding="async"
-        width={width}
-        height={height}
-        onError={handleError}
-        onLoad={handleLoad}
-        style={{
-          width: width ? `${width}px` : undefined,
-          height: height ? `${height}px` : undefined,
-        }}
-      />
+      {hasError && fallback ? (
+        <Image
+          src={fallback}
+          alt={alt}
+          className={className}
+          width={useFill ? undefined : width}
+          height={useFill ? undefined : height}
+          fill={useFill}
+          unoptimized
+          onError={onError}
+        />
+      ) : (
+        <Image
+          src={optimizedSrc}
+          alt={alt}
+          className={`${className} ${isLoading ? "opacity-0" : "opacity-100"} transition-opacity duration-200`}
+          width={useFill ? undefined : width}
+          height={useFill ? undefined : height}
+          fill={useFill}
+          priority={priority}
+          unoptimized
+          onError={handleError}
+          onLoad={handleLoad}
+          style={{
+            objectFit: "contain",
+          }}
+        />
+      )}
     </div>
   );
 }
-

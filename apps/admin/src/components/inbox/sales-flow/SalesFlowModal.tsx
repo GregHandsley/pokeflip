@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { InboxLot, Photo, SalesData, SalesFlowStep } from "./types";
@@ -9,6 +9,7 @@ import PhotosStep from "./PhotosStep";
 import ListingDetailsStep from "./ListingDetailsStep";
 import PricingStep from "./PricingStep";
 import DeletePhotoModal from "./DeletePhotoModal";
+import { logger } from "@/lib/logger";
 
 interface Props {
   lot: InboxLot | null;
@@ -35,6 +36,61 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
   const [showMenu, setShowMenu] = useState(false);
   const [markingNotForSale, setMarkingNotForSale] = useState(false);
 
+  const loadPhotos = useCallback(async () => {
+    if (!lot) return;
+    setLoadingPhotos(true);
+    try {
+      const res = await fetch(`/api/admin/lots/${lot.lot_id}/photos`);
+      const json = await res.json();
+      if (json.ok) {
+        setPhotos(json.photos || []);
+      }
+    } catch (e) {
+      logger.error("Failed to load photos", e, undefined, { lotId: lot.lot_id });
+    } finally {
+      setLoadingPhotos(false);
+    }
+  }, [lot]);
+
+  const loadSalesData = useCallback(async () => {
+    if (!lot) return;
+    setLoadingSalesData(true);
+    try {
+      const res = await fetch(`/api/admin/inbox/lots/${lot.lot_id}/sales-data`);
+      if (!res.ok) {
+        const text = await res.text();
+        logger.error(
+          "Failed to load sales data",
+          new Error(`HTTP ${res.status}: ${text}`),
+          undefined,
+          {
+            lotId: lot.lot_id,
+            status: res.status,
+          }
+        );
+        return;
+      }
+      const json = await res.json();
+      if (json.ok && json.data) {
+        setSalesData(json.data);
+      } else {
+        logger.error(
+          "Invalid sales data response",
+          new Error("Invalid response format"),
+          undefined,
+          {
+            lotId: lot.lot_id,
+            response: json,
+          }
+        );
+      }
+    } catch (e) {
+      logger.error("Failed to load sales data", e, undefined, { lotId: lot.lot_id });
+    } finally {
+      setLoadingSalesData(false);
+    }
+  }, [lot]);
+
   useEffect(() => {
     if (lot) {
       setUseApiImage(lot.use_api_image || false);
@@ -43,7 +99,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       loadPhotos();
       loadSalesData();
     }
-  }, [lot?.lot_id]);
+  }, [lot, loadPhotos, loadSalesData]);
 
   // Prevent default drag behavior on the document
   useEffect(() => {
@@ -63,51 +119,6 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
     };
   }, []);
 
-  const loadPhotos = async () => {
-    if (!lot) return;
-    setLoadingPhotos(true);
-    try {
-      const res = await fetch(`/api/admin/lots/${lot.lot_id}/photos`);
-      const json = await res.json();
-      if (json.ok) {
-        setPhotos(json.photos || []);
-      }
-    } catch (e) {
-      logger.error("Failed to load photos", e, undefined, { lotId: lot.lot_id });
-    } finally {
-      setLoadingPhotos(false);
-    }
-  };
-
-  const loadSalesData = async () => {
-    if (!lot) return;
-    setLoadingSalesData(true);
-    try {
-      const res = await fetch(`/api/admin/inbox/lots/${lot.lot_id}/sales-data`);
-      if (!res.ok) {
-        const text = await res.text();
-        logger.error("Failed to load sales data", new Error(`HTTP ${res.status}: ${text}`), undefined, {
-          lotId: lot.lot_id,
-          status: res.status,
-        });
-        return;
-      }
-      const json = await res.json();
-      if (json.ok && json.data) {
-        setSalesData(json.data);
-      } else {
-        logger.error("Invalid sales data response", new Error("Invalid response format"), undefined, {
-          lotId: lot.lot_id,
-          response: json,
-        });
-      }
-    } catch (e) {
-      logger.error("Failed to load sales data", e, undefined, { lotId: lot.lot_id });
-    } finally {
-      setLoadingSalesData(false);
-    }
-  };
-
   const handlePhotoUploaded = async (newPhoto: Photo) => {
     setPhotos((prev) => [...prev, newPhoto]);
     await loadPhotos();
@@ -124,14 +135,14 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       alert("Please select an image file");
       return;
     }
-    
+
     // Check file size (10MB limit)
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
       alert("File size exceeds 10MB limit");
       return;
     }
-    
+
     // Validate allowed image types
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
     if (!allowedTypes.includes(file.type)) {
@@ -171,8 +182,9 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
           signedUrl: uploadJson.photo.signedUrl || null,
         });
       }
-    } catch (e: any) {
-      alert(e.message || "Upload failed");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      alert(error.message || "Upload failed");
     } finally {
       setUploadingKind(null);
     }
@@ -227,8 +239,8 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       onUpdated();
       // Dispatch event to update inbox count in sidebar
       window.dispatchEvent(new CustomEvent("inboxUpdated"));
-    } catch (e: any) {
-      alert(e.message || "Failed to delete photo");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to delete photo");
       await loadPhotos();
     } finally {
       setDeletingPhotoId(null);
@@ -251,8 +263,9 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       onUpdated();
       // Dispatch event to update inbox count in sidebar
       window.dispatchEvent(new CustomEvent("inboxUpdated"));
-    } catch (e: any) {
-      alert(e.message || "Failed to update variation");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      alert(error.message || "Failed to update variation");
     }
   };
 
@@ -277,8 +290,9 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       onUpdated();
       // Dispatch event to update inbox count in sidebar
       window.dispatchEvent(new CustomEvent("inboxUpdated"));
-    } catch (e: any) {
-      alert(e.message || "Failed to update API image flag");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      alert(error.message || "Failed to update API image flag");
     } finally {
       setUpdatingApiImage(false);
     }
@@ -305,7 +319,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
         // Split the lot: split off the remaining quantity (stays for sale, in draft/ready status)
         // The original lot will keep the publish quantity and be marked as listed
         const remainingQty = lot.available_qty - qtyToPublish;
-        
+
         const splitRes = await fetch(`/api/admin/lots/${lot.lot_id}/split`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -382,8 +396,9 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       // Dispatch event to update inbox count in sidebar
       window.dispatchEvent(new CustomEvent("inboxUpdated"));
       onClose();
-    } catch (e: any) {
-      alert(e.message || "Failed to update status");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      alert(error.message || "Failed to update status");
     } finally {
       setUpdatingStatus(false);
     }
@@ -430,7 +445,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
 
   const handleMarkNotForSale = async () => {
     if (!lot) return;
-    
+
     setMarkingNotForSale(true);
     setShowMenu(false);
     try {
@@ -447,8 +462,9 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
 
       onUpdated();
       onClose();
-    } catch (e: any) {
-      alert(e.message || "Failed to mark as not for sale");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      alert(error.message || "Failed to mark as not for sale");
     } finally {
       setMarkingNotForSale(false);
     }
@@ -481,15 +497,17 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
               disabled={markingNotForSale}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                />
               </svg>
             </button>
             {showMenu && (
               <>
-                <div 
-                  className="fixed inset-0 z-10" 
-                  onClick={() => setShowMenu(false)}
-                />
+                <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
                 <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
                   <button
                     onClick={(e) => {
@@ -535,10 +553,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
                 </Button>
               )}
               {currentStep === "details" && (
-                <Button
-                  variant="primary"
-                  onClick={() => setCurrentStep("pricing")}
-                >
+                <Button variant="primary" onClick={() => setCurrentStep("pricing")}>
                   Next
                 </Button>
               )}
@@ -591,16 +606,14 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
             />
           )}
 
-          {currentStep === "details" && (
+          {currentStep === "details" && lot && (
             <ListingDetailsStep
-              lot={lot ? { ...lot, variation } : (lot as any)}
+              lot={{ ...lot, variation }}
               salesData={salesData}
               loadingSalesData={loadingSalesData}
-              onUpdateTitle={(title) =>
-                setSalesData((prev) => prev ? { ...prev, title } : null)
-              }
+              onUpdateTitle={(title) => setSalesData((prev) => (prev ? { ...prev, title } : null))}
               onUpdateDescription={(description) =>
-                setSalesData((prev) => prev ? { ...prev, description } : null)
+                setSalesData((prev) => (prev ? { ...prev, description } : null))
               }
               onUpdateVariation={handleVariationChange}
             />
@@ -628,4 +641,3 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
     </>
   );
 }
-

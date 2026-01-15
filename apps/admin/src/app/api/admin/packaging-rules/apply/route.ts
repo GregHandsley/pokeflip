@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/api-error-handler";
-import { createApiLogger } from "@/lib/logger";
+
+type ConsumableRow = {
+  id: string;
+  name: string;
+  unit: string;
+};
+
+type PackagingRuleItemRow = {
+  id: string;
+  consumable_id: string;
+  qty: number;
+  consumables: ConsumableRow | null;
+};
 
 export async function POST(req: Request) {
-  const logger = createApiLogger(req);
-  
   try {
     const body = await req.json();
     const { card_count } = body;
@@ -80,7 +90,7 @@ export async function POST(req: Request) {
     }
 
     // Format the consumables list
-    const consumables = (rule.packaging_rule_items || []).map((item: any) => ({
+    const consumables = (rule.packaging_rule_items || []).map((item: PackagingRuleItemRow) => ({
       consumable_id: item.consumable_id,
       consumable_name: item.consumables?.name || "",
       qty: item.qty,
@@ -92,9 +102,7 @@ export async function POST(req: Request) {
       consumables,
       rule_name: rule.name,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "apply_packaging_rule" });
   }
 }
-
-

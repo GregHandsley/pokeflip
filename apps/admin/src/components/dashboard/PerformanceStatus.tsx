@@ -30,7 +30,7 @@ export default function PerformanceStatus() {
             indexes: json.metrics.indexes,
           });
         }
-      } catch (e) {
+      } catch {
         // Silently fail - this is just a status widget
       } finally {
         setLoading(false);
@@ -81,9 +81,7 @@ export default function PerformanceStatus() {
         </div>
         <div className="flex items-center justify-between text-xs">
           <span className="text-gray-600">Query Time</span>
-          <span className="font-medium">
-            {metrics.database.queryTimeMs}ms
-          </span>
+          <span className="font-medium">{metrics.database.queryTimeMs}ms</span>
         </div>
         <div className="flex items-center justify-between text-xs">
           <span className="text-gray-600">Indexes</span>
@@ -95,4 +93,3 @@ export default function PerformanceStatus() {
     </Card>
   );
 }
-

@@ -43,7 +43,7 @@ export async function fetchAllSets(locale: string = "en"): Promise<TcgdxSet[]> {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "Accept": "application/json",
+        Accept: "application/json",
       },
     });
 
@@ -53,7 +53,7 @@ export async function fetchAllSets(locale: string = "en"): Promise<TcgdxSet[]> {
     }
 
     const json = await response.json();
-    
+
     if (!json.ok || !json.data) {
       throw new Error("Invalid API response: expected data array");
     }
@@ -64,11 +64,11 @@ export async function fetchAllSets(locale: string = "en"): Promise<TcgdxSet[]> {
 
   // Server-side: call external API directly
   const url = `${BASE_URL}/${locale}/sets`;
-  
+
   const response = await fetch(url, {
     method: "GET",
     headers: {
-      "Accept": "application/json",
+      Accept: "application/json",
     },
     cache: "no-store",
   });
@@ -79,7 +79,7 @@ export async function fetchAllSets(locale: string = "en"): Promise<TcgdxSet[]> {
   }
 
   const json = await response.json();
-  
+
   if (!Array.isArray(json)) {
     throw new Error("Invalid API response: expected array");
   }
@@ -98,7 +98,7 @@ export async function fetchCardsForSet(setId: string, locale: string = "en"): Pr
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "Accept": "application/json",
+        Accept: "application/json",
       },
     });
 
@@ -108,7 +108,7 @@ export async function fetchCardsForSet(setId: string, locale: string = "en"): Pr
     }
 
     const json = await response.json();
-    
+
     if (!json.ok || !json.data) {
       throw new Error("Invalid API response: expected data array");
     }
@@ -122,7 +122,7 @@ export async function fetchCardsForSet(setId: string, locale: string = "en"): Pr
   const response = await fetch(url, {
     method: "GET",
     headers: {
-      "Accept": "application/json",
+      Accept: "application/json",
     },
     cache: "no-store",
   });
@@ -133,7 +133,7 @@ export async function fetchCardsForSet(setId: string, locale: string = "en"): Pr
   }
 
   const json = await response.json();
-  
+
   // TCGdx returns set object with cards array
   if (json && json.cards && Array.isArray(json.cards)) {
     return json.cards as TcgdxCard[];
@@ -152,14 +152,17 @@ export async function fetchCardsForSet(setId: string, locale: string = "en"): Pr
  * Endpoint: GET https://api.tcgdx.net/v2/{locale}/cards/{cardId}
  * Returns null if card doesn't exist in the requested locale (404)
  */
-export async function fetchCardById(cardId: string, locale: string = "en"): Promise<TcgdxCard | null> {
+export async function fetchCardById(
+  cardId: string,
+  locale: string = "en"
+): Promise<TcgdxCard | null> {
   const url = `${BASE_URL}/${locale}/cards/${cardId}`;
 
   try {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "Accept": "application/json",
+        Accept: "application/json",
       },
       cache: "no-store",
     });
@@ -175,12 +178,11 @@ export async function fetchCardById(cardId: string, locale: string = "en"): Prom
 
     const json = await response.json();
     return json as TcgdxCard;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle network errors or other issues
-    if (error.message?.includes("404")) {
+    if (error instanceof Error && error.message?.includes("404")) {
       return null; // Card doesn't exist in this locale
     }
     throw error; // Re-throw other errors
   }
 }
-

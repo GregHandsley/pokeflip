@@ -3,20 +3,18 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
-  
+  const { lotId } = await params;
+
   try {
-    const { lotId } = await params;
     const supabase = supabaseServer();
 
     // Fetch the lot with card and set info
     const { data: lot, error: lotError } = await supabase
       .from("inventory_lots")
-      .select(`
+      .select(
+        `
         *,
         cards (
           id,
@@ -29,7 +27,8 @@ export async function GET(
             name
           )
         )
-      `)
+      `
+      )
       .eq("id", lotId)
       .single();
 
@@ -60,10 +59,7 @@ export async function GET(
       .single();
 
     // Get photo count
-    const { data: photos } = await supabase
-      .from("lot_photos")
-      .select("id")
-      .eq("lot_id", lotId);
+    const { data: photos } = await supabase.from("lot_photos").select("id").eq("lot_id", lotId);
 
     // Get purchase (acquisition) info if available
     let purchase = null;
@@ -73,7 +69,7 @@ export async function GET(
         .select("id, source_name, source_type, purchased_at, status")
         .eq("id", lot.acquisition_id)
         .single();
-      
+
       if (acq) {
         purchase = {
           id: acq.id,
@@ -103,21 +99,24 @@ export async function GET(
         ebay_status: ebayListing?.status || "not_listed",
         photo_count: photos?.length || 0,
         purchase: purchase,
-        card: lot.cards ? {
-          id: lot.cards.id,
-          number: lot.cards.number,
-          name: lot.cards.name,
-          rarity: lot.cards.rarity,
-          image_url: lot.cards.api_image_url,
-          set: lot.cards.sets ? {
-            id: lot.cards.sets.id,
-            name: lot.cards.sets.name,
-          } : null,
-        } : null,
+        card: lot.cards
+          ? {
+              id: lot.cards.id,
+              number: lot.cards.number,
+              name: lot.cards.name,
+              rarity: lot.cards.rarity,
+              image_url: lot.cards.api_image_url,
+              set: lot.cards.sets
+                ? {
+                    id: lot.cards.sets.id,
+                    name: lot.cards.sets.name,
+                  }
+                : null,
+            }
+          : null,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "fetch_lot", metadata: { lotId } });
   }
 }
-

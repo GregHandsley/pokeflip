@@ -4,22 +4,18 @@ import { poundsToPence } from "@pokeflip/shared";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ lineId: string }> }
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ lineId: string }> }) {
   const logger = createApiLogger(req);
-  
+
+  // Extract lineId outside try block so it's available in catch
+  const { lineId } = await params;
+
   try {
-    const { lineId } = await params;
     const body = await req.json();
     const { split_qty, for_sale, list_price_pence, condition } = body;
 
     if (!split_qty || split_qty < 1) {
-      return NextResponse.json(
-        { error: "Invalid split quantity" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid split quantity" }, { status: 400 });
     }
 
     const supabase = supabaseServer();
@@ -32,10 +28,7 @@ export async function POST(
       .single();
 
     if (fetchError || !originalLine) {
-      return NextResponse.json(
-        { error: "Intake line not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Intake line not found" }, { status: 404 });
     }
 
     if (split_qty >= originalLine.quantity) {
@@ -46,24 +39,32 @@ export async function POST(
     }
 
     // Create the new split line
-    const newLine: any = {
+    const newLine: {
+      acquisition_id: string;
+      card_id: string;
+      set_id: string;
+      condition: string;
+      variation: string;
+      quantity: number;
+      for_sale: boolean;
+      list_price_pence: number | null;
+      note: string | null;
+    } = {
       acquisition_id: originalLine.acquisition_id,
       set_id: originalLine.set_id,
       card_id: originalLine.card_id,
       condition: condition || originalLine.condition,
+      variation: originalLine.variation || "standard",
       quantity: split_qty,
       for_sale: for_sale ?? originalLine.for_sale,
-      list_price_pence: list_price_pence != null ? poundsToPence(list_price_pence) : originalLine.list_price_pence,
+      list_price_pence:
+        list_price_pence != null ? poundsToPence(list_price_pence) : originalLine.list_price_pence,
       note: originalLine.note,
-      status: "draft",
     };
 
     const { data: createdLine, error: insertError } = await supabase
       .from("intake_lines")
-      .insert({
-        ...newLine,
-        variation: originalLine.variation || "standard",
-      })
+      .insert(newLine)
       .select()
       .single();
 
@@ -102,8 +103,7 @@ export async function POST(
       original_line: { id: lineId, quantity: newQuantity },
       split_line: createdLine,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "split_intake_line", metadata: { lineId } });
   }
 }
-

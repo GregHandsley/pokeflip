@@ -29,7 +29,7 @@ const requestStartTimes = new Map<string, number>();
 export function trackResponseTime(req: NextRequest, res: NextResponse) {
   const startTime = Date.now();
   const url = new URL(req.url);
-  
+
   // Generate a unique request ID based on URL and timestamp
   const requestId = `${req.method}:${url.pathname}:${startTime}`;
   requestStartTimes.set(requestId, startTime);
@@ -55,7 +55,7 @@ export function trackResponseTime(req: NextRequest, res: NextResponse) {
  */
 export function logResponseTime(req: Request, responseTimeMs: number, statusCode: number) {
   const url = new URL(req.url);
-  
+
   const stats: ResponseTimeStats = {
     path: url.pathname,
     method: req.method,
@@ -103,4 +103,3 @@ export function getRequestStartTime(req: Request): number | null {
   }
   return null;
 }
-

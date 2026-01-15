@@ -130,7 +130,10 @@ function getEnvironment(): Environment {
  * @param validateServerOnly - Whether to validate server-only variables (default: true)
  * @param skipValidation - If true, skip all validation (for client-side safety)
  */
-function createConfig(validateServerOnly: boolean = true, skipValidation: boolean = false): EnvConfig {
+function createConfig(
+  validateServerOnly: boolean = true,
+  skipValidation: boolean = false
+): EnvConfig {
   // Skip validation if requested (client-side safety)
   if (!skipValidation) {
     validateRequiredEnvVars(validateServerOnly);
@@ -142,12 +145,10 @@ function createConfig(validateServerOnly: boolean = true, skipValidation: boolea
   const isProduction = environment === "production";
 
   // Get Sentry DSN (prefer NEXT_PUBLIC_SENTRY_DSN, fallback to SENTRY_DSN)
-  const sentryDsn =
-    process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN || null;
+  const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN || null;
 
   // Sentry is enabled in production, or if explicitly enabled
-  const sentryEnabled =
-    isProduction || process.env.NEXT_PUBLIC_SENTRY_ENABLED === "true";
+  const sentryEnabled = isProduction || process.env.NEXT_PUBLIC_SENTRY_ENABLED === "true";
 
   // Site URL with fallback
   const siteUrl =
@@ -210,7 +211,7 @@ export function getEnvConfig(skipValidation: boolean = false): EnvConfig {
     const isClient = !isServer();
     const shouldSkipValidation = skipValidation || isClient;
     const validateServerOnly = !shouldSkipValidation && isServer();
-    
+
     config = createConfig(validateServerOnly, shouldSkipValidation);
   }
   return config;
@@ -266,4 +267,3 @@ export const env = (): EnvConfig["env"] => getEnvConfig(!isServer()).env;
 export const sentry = (): EnvConfig["sentry"] => getEnvConfig(!isServer()).sentry;
 export const app = (): EnvConfig["app"] => getEnvConfig(!isServer()).app;
 export const runtime = (): EnvConfig["runtime"] => getEnvConfig(!isServer()).runtime;
-

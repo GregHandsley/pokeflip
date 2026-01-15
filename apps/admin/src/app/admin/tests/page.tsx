@@ -30,7 +30,18 @@ type TestStatus = {
       duration: number;
       failureMessages: string[];
     }>;
-    testsByCategory: Record<string, any[]>;
+    testsByCategory: Record<
+      string,
+      Array<{
+        title: string;
+        fullName: string;
+        status: string;
+        category: string;
+        subcategory: string | null;
+        duration: number;
+        failureMessages: string[];
+      }>
+    >;
     categories: string[];
   }>;
   timestamp: string;
@@ -48,7 +59,7 @@ export default function TestsPage() {
       const res = await fetch("/api/admin/tests/status");
       const data = await res.json();
       setTestStatus(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error("Failed to load test status", error);
       setTestStatus({
         ok: false,
@@ -56,7 +67,7 @@ export default function TestsPage() {
         summary: { total: 0, passed: 0, failed: 0, skipped: 0 },
         testFiles: [],
         timestamp: new Date().toISOString(),
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       });
     } finally {
       setLoading(false);
@@ -105,11 +116,7 @@ export default function TestsPage() {
         title="Test Status"
         description="View test results and system health"
         action={
-          <Button
-            variant="secondary"
-            onClick={handleRefresh}
-            disabled={refreshing || loading}
-          >
+          <Button variant="secondary" onClick={handleRefresh} disabled={refreshing || loading}>
             {refreshing ? "Refreshing..." : "Refresh Tests"}
           </Button>
         }
@@ -129,20 +136,14 @@ export default function TestsPage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Overall Status</h2>
                 <div className="flex items-center gap-3">
-                  <div
-                    className={`w-4 h-4 rounded-full ${getStatusColor(
-                      testStatus.status
-                    )}`}
-                  />
+                  <div className={`w-4 h-4 rounded-full ${getStatusColor(testStatus.status)}`} />
                   <span className="font-medium">{getStatusText(testStatus.status)}</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-gray-900">
-                    {testStatus.summary.total}
-                  </div>
+                  <div className="text-2xl font-bold text-gray-900">{testStatus.summary.total}</div>
                   <div className="text-sm text-gray-600 mt-1">Total Tests</div>
                 </div>
 
@@ -154,9 +155,7 @@ export default function TestsPage() {
                 </div>
 
                 <div className="text-center p-4 bg-red-50 rounded-lg">
-                  <div className="text-2xl font-bold text-red-600">
-                    {testStatus.summary.failed}
-                  </div>
+                  <div className="text-2xl font-bold text-red-600">{testStatus.summary.failed}</div>
                   <div className="text-sm text-red-700 mt-1">Failed</div>
                 </div>
 
@@ -199,8 +198,8 @@ export default function TestsPage() {
                               file.status === "passed"
                                 ? "bg-green-500"
                                 : file.status === "failed"
-                                ? "bg-red-500"
-                                : "bg-yellow-500"
+                                  ? "bg-red-500"
+                                  : "bg-yellow-500"
                             }`}
                           />
                           <div className="flex-1 min-w-0">
@@ -220,8 +219,10 @@ export default function TestsPage() {
                         {file.categories && file.categories.length > 0 ? (
                           file.categories.map((category, catIndex) => {
                             const categoryTests = file.testsByCategory[category] || [];
-                            const categoryPassing = categoryTests.filter((t) => t.status === "passed").length;
-                            const categoryFailing = categoryTests.filter((t) => t.status === "failed").length;
+                            const categoryPassing = categoryTests.filter(
+                              (t) => t.status === "passed"
+                            ).length;
+                            // const categoryFailing = categoryTests.filter((t) => t.status === "failed").length;
 
                             return (
                               <div key={catIndex} className="space-y-2">
@@ -241,8 +242,8 @@ export default function TestsPage() {
                                         test.status === "passed"
                                           ? "bg-green-50 border border-green-200"
                                           : test.status === "failed"
-                                          ? "bg-red-50 border border-red-200"
-                                          : "bg-yellow-50 border border-yellow-200"
+                                            ? "bg-red-50 border border-red-200"
+                                            : "bg-yellow-50 border border-yellow-200"
                                       }`}
                                     >
                                       <div
@@ -250,8 +251,8 @@ export default function TestsPage() {
                                           test.status === "passed"
                                             ? "bg-green-500"
                                             : test.status === "failed"
-                                            ? "bg-red-500"
-                                            : "bg-yellow-500"
+                                              ? "bg-red-500"
+                                              : "bg-yellow-500"
                                         }`}
                                       />
                                       <div className="flex-1 min-w-0">
@@ -260,8 +261,8 @@ export default function TestsPage() {
                                             test.status === "passed"
                                               ? "text-green-800"
                                               : test.status === "failed"
-                                              ? "text-red-800"
-                                              : "text-yellow-800"
+                                                ? "text-red-800"
+                                                : "text-yellow-800"
                                           }`}
                                         >
                                           {test.title}
@@ -271,11 +272,12 @@ export default function TestsPage() {
                                             {test.subcategory}
                                           </div>
                                         )}
-                                        {test.failureMessages && test.failureMessages.length > 0 && (
-                                          <div className="mt-1 text-red-700 font-mono text-xs">
-                                            {test.failureMessages.join("\n")}
-                                          </div>
-                                        )}
+                                        {test.failureMessages &&
+                                          test.failureMessages.length > 0 && (
+                                            <div className="mt-1 text-red-700 font-mono text-xs">
+                                              {test.failureMessages.join("\n")}
+                                            </div>
+                                          )}
                                       </div>
                                     </div>
                                   ))}
@@ -346,7 +348,8 @@ export default function TestsPage() {
                   <div>
                     <div className="font-medium text-sm">Test Coverage</div>
                     <div className="text-xs text-gray-600">
-                      {testStatus.testFiles.length} file{testStatus.testFiles.length !== 1 ? "s" : ""}
+                      {testStatus.testFiles.length} file
+                      {testStatus.testFiles.length !== 1 ? "s" : ""}
                     </div>
                   </div>
                 </div>
@@ -356,12 +359,9 @@ export default function TestsPage() {
         </>
       ) : (
         <Card>
-          <div className="p-6 text-center text-gray-600">
-            No test data available
-          </div>
+          <div className="p-6 text-center text-gray-600">No test data available</div>
         </Card>
       )}
     </div>
   );
 }
-

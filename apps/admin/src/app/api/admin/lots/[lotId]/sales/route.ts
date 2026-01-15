@@ -3,14 +3,48 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
+type SalesItemRow = {
+  id: string;
+  qty: number;
+  sold_price_pence: number;
+  created_at: string;
+  sales_order_id: string;
+};
+
+type SalesOrderRow = {
+  id: string;
+  sold_at: string | null;
+  order_group: string | null;
+  platform: string;
+  platform_order_ref: string | null;
+  buyer_id: string | null;
+};
+
+type BuyerRow = {
+  id: string;
+  handle: string;
+  platform: string;
+};
+
+type FormattedSalesItem = {
+  id: string;
+  qty: number;
+  sold_price_pence: number;
+  sold_at: string;
+  order_group: string | null;
+  platform: string;
+  platform_order_ref: string | null;
+  buyer_handle: string | null;
+  created_at: string;
+};
+
+export async function GET(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
-  
+
+  // Extract lotId outside try block so it's available in catch
+  const { lotId } = await params;
+
   try {
-    const { lotId } = await params;
     const supabase = supabaseServer();
 
     // Fetch sales items
@@ -38,7 +72,7 @@ export async function GET(
     }
 
     // Fetch sales orders for these items
-    const orderIds = [...new Set(salesItems.map((item: any) => item.sales_order_id))];
+    const orderIds = [...new Set(salesItems.map((item: SalesItemRow) => item.sales_order_id))];
     const { data: salesOrders, error: ordersError } = await supabase
       .from("sales_orders")
       .select("id, sold_at, order_group, platform, platform_order_ref, buyer_id")
@@ -58,30 +92,36 @@ export async function GET(
     }
 
     // Fetch buyers if needed
-    const buyerIds = [...new Set((salesOrders || []).map((order: any) => order.buyer_id).filter(Boolean))];
-    let buyersMap = new Map();
+    const buyerIds = [
+      ...new Set(
+        (salesOrders || [])
+          .map((order: SalesOrderRow) => order.buyer_id)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+    const buyersMap = new Map<string, BuyerRow>();
     if (buyerIds.length > 0) {
       const { data: buyers } = await supabase
         .from("buyers")
         .select("id, handle, platform")
         .in("id", buyerIds);
 
-      (buyers || []).forEach((buyer: any) => {
+      (buyers || []).forEach((buyer: BuyerRow) => {
         buyersMap.set(buyer.id, buyer);
       });
     }
 
     // Create orders map
-    const ordersMap = new Map();
-    (salesOrders || []).forEach((order: any) => {
+    const ordersMap = new Map<string, SalesOrderRow>();
+    (salesOrders || []).forEach((order: SalesOrderRow) => {
       ordersMap.set(order.id, order);
     });
 
     // Format the response
-    const formattedItems = salesItems.map((item: any) => {
+    const formattedItems = salesItems.map((item: SalesItemRow): FormattedSalesItem => {
       const order = ordersMap.get(item.sales_order_id);
       const buyer = order?.buyer_id ? buyersMap.get(order.buyer_id) : null;
-      
+
       return {
         id: item.id,
         qty: item.qty,
@@ -99,8 +139,7 @@ export async function GET(
       ok: true,
       sales_items: formattedItems,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "get_lot_sales", metadata: { lotId } });
   }
 }
-

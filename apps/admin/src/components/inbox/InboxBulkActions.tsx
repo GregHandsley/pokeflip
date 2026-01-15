@@ -94,9 +94,7 @@ export default function InboxBulkActions({
             Update the list price for {selectedCount} selected lot{selectedCount !== 1 ? "s" : ""}.
           </p>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              New Price (£)
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">New Price (£)</label>
             <input
               type="number"
               step="0.01"
@@ -113,4 +111,3 @@ export default function InboxBulkActions({
     </>
   );
 }
-

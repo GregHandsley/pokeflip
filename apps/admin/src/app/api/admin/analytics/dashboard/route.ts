@@ -17,15 +17,20 @@ type SalesItemRow = {
   sales_orders?: { sold_at: string | null } | null;
 };
 
+type ProfitRow = {
+  sales_order_id: string;
+  revenue_after_discount_pence: number | null;
+  revenue_pence: number | null;
+  net_profit_pence: number | null;
+  sold_at: string | null;
+};
+
 const dateKey = (date: string | null | undefined) => {
   if (!date) return "";
   return new Date(date).toISOString().split("T")[0];
 };
 
-const sumByDate = (
-  dates: string[],
-  rangeDays: number
-): { date: string; value: number }[] => {
+const sumByDate = (dates: string[], rangeDays: number): { date: string; value: number }[] => {
   const start = new Date();
   start.setDate(start.getDate() - (rangeDays - 1));
   const counts = new Map<string, number>();
@@ -44,25 +49,22 @@ const sumByDate = (
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const rangeDays = 90; // default lookback
     const supabase = supabaseServer();
 
-    const [lotsRes, salesItemsRes, profitRes, cardsRes, setsRes] =
-      await Promise.all([
-        supabase
-          .from("inventory_lots")
-          .select("id, created_at, status, quantity, card_id"),
-        supabase
-          .from("sales_items")
-          .select("qty, lot_id, sales_orders!inner(sold_at)"),
-        supabase
-          .from("v_sales_order_profit")
-          .select("sales_order_id, revenue_after_discount_pence, revenue_pence, net_profit_pence, sold_at"),
-        supabase.from("cards").select("id, set_id"),
-        supabase.from("sets").select("id, name"),
-      ]);
+    const [lotsRes, salesItemsRes, profitRes, cardsRes, setsRes] = await Promise.all([
+      supabase.from("inventory_lots").select("id, created_at, status, quantity, card_id"),
+      supabase.from("sales_items").select("qty, lot_id, sales_orders!inner(sold_at)"),
+      supabase
+        .from("v_sales_order_profit")
+        .select(
+          "sales_order_id, revenue_after_discount_pence, revenue_pence, net_profit_pence, sold_at"
+        ),
+      supabase.from("cards").select("id, set_id"),
+      supabase.from("sets").select("id, name"),
+    ]);
 
     if (lotsRes.error || salesItemsRes.error || profitRes.error) {
       logger.error("Failed to load dashboard analytics", undefined, undefined, {
@@ -79,14 +81,12 @@ export async function GET(req: Request) {
     }
 
     const lots = (lotsRes.data || []) as LotRow[];
-    const salesItems = (salesItemsRes.data || []) as SalesItemRow[];
-    const profits = profitRes.data || [];
+    const salesItems = (salesItemsRes.data || []) as unknown as SalesItemRow[];
+    const profits = (profitRes.data || []) as ProfitRow[];
     const cardSetMap = new Map<string, string | null>(
       (cardsRes.data || []).map((c) => [c.id, c.set_id || null])
     );
-    const setNameMap = new Map<string, string>(
-      (setsRes.data || []).map((s) => [s.id, s.name])
-    );
+    const setNameMap = new Map<string, string>((setsRes.data || []).map((s) => [s.id, s.name]));
 
     // Items added / listed / sold
     const itemsAdded = sumByDate(
@@ -108,10 +108,7 @@ export async function GET(req: Request) {
       soldQtyByLot.set(s.lot_id, (soldQtyByLot.get(s.lot_id) || 0) + (s.qty || 0));
     });
 
-    const setTotals = new Map<
-      string,
-      { sold: number; total: number; setName: string }
-    >();
+    const setTotals = new Map<string, { sold: number; total: number; setName: string }>();
 
     for (const lot of lots) {
       const setId = cardSetMap.get(lot.card_id || "") || "unknown";
@@ -134,14 +131,10 @@ export async function GET(req: Request) {
       .slice(0, 10); // top sets
 
     // Profit trend (group by day)
-    const profitTrendMap = new Map<
-      string,
-      { revenue: number; profit: number }
-    >();
-    profits.forEach((p: any) => {
-      const key = dateKey(p.sold_at as string);
-      if (!profitTrendMap.has(key))
-        profitTrendMap.set(key, { revenue: 0, profit: 0 });
+    const profitTrendMap = new Map<string, { revenue: number; profit: number }>();
+    profits.forEach((p: ProfitRow) => {
+      const key = dateKey(p.sold_at);
+      if (!profitTrendMap.has(key)) profitTrendMap.set(key, { revenue: 0, profit: 0 });
       const entry = profitTrendMap.get(key)!;
       // Use revenue_after_discount_pence if available, fallback to revenue_pence
       entry.revenue += (p.revenue_after_discount_pence ?? p.revenue_pence) || 0;
@@ -170,4 +163,3 @@ export async function GET(req: Request) {
     return handleApiError(req, error, { operation: "get_dashboard_analytics" });
   }
 }
-

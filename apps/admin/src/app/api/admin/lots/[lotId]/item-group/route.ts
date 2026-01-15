@@ -3,14 +3,32 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
+type InventoryLotRow = {
+  id: string;
+  quantity: number;
+  status: string;
+  use_api_image: boolean;
+  card_id: string;
+  condition: string;
+};
+
+type SalesItemRow = {
+  lot_id: string;
+  qty: number;
+};
+
+type PhotoRow = {
+  lot_id: string;
+  kind: string;
+};
+
+export async function GET(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
-  
+
+  // Extract lotId outside try block so it's available in catch
+  const { lotId } = await params;
+
   try {
-    const { lotId } = await params;
     const supabase = supabaseServer();
 
     // Get the current lot to find its item_number
@@ -21,10 +39,7 @@ export async function GET(
       .single();
 
     if (lotError || !currentLot) {
-      return NextResponse.json(
-        { error: "Lot not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Lot not found" }, { status: 404 });
     }
 
     // If no item_number, return empty group
@@ -41,14 +56,16 @@ export async function GET(
     // Find all lots with the same item_number
     const { data: groupedLots, error: groupedError } = await supabase
       .from("inventory_lots")
-      .select(`
+      .select(
+        `
         id,
         quantity,
         status,
         use_api_image,
         card_id,
         condition
-      `)
+      `
+      )
       .eq("item_number", currentLot.item_number)
       .eq("status", "ready")
       .order("created_at", { ascending: true });
@@ -67,14 +84,14 @@ export async function GET(
     }
 
     // Get sold quantities for all lots
-    const allLotIds = (groupedLots || []).map((l: any) => l.id);
+    const allLotIds = (groupedLots || []).map((l: InventoryLotRow) => l.id);
     const { data: soldItems } = await supabase
       .from("sales_items")
       .select("lot_id, qty")
       .in("lot_id", allLotIds);
 
     const soldItemsMap = new Map<string, number>();
-    (soldItems || []).forEach((item: any) => {
+    (soldItems || []).forEach((item: SalesItemRow) => {
       const current = soldItemsMap.get(item.lot_id) || 0;
       soldItemsMap.set(item.lot_id, current + (item.qty || 0));
     });
@@ -86,7 +103,7 @@ export async function GET(
       .in("lot_id", allLotIds);
 
     const photoMap = new Map<string, Set<string>>();
-    (photos || []).forEach((photo: any) => {
+    (photos || []).forEach((photo: PhotoRow) => {
       if (!photoMap.has(photo.lot_id)) {
         photoMap.set(photo.lot_id, new Set());
       }
@@ -97,7 +114,7 @@ export async function GET(
     const currentLotPhotos = photoMap.get(lotId) || new Set();
     const currentLotUseApiImage = currentLot.use_api_image || false;
 
-    const lotsWithDetails = (groupedLots || []).map((lot: any) => {
+    const lotsWithDetails = (groupedLots || []).map((lot: InventoryLotRow) => {
       const soldQty = soldItemsMap.get(lot.id) || 0;
       const availableQty = Math.max(0, lot.quantity - soldQty);
       const lotPhotos = photoMap.get(lot.id) || new Set();
@@ -106,13 +123,13 @@ export async function GET(
       // Check if photos differ from current lot
       const hasPhotos = lotPhotos.size > 0 || lotUseApiImage;
       const currentHasPhotos = currentLotPhotos.size > 0 || currentLotUseApiImage;
-      
-      const photosDiffer = 
-        (hasPhotos || currentHasPhotos) && 
+
+      const photosDiffer =
+        (hasPhotos || currentHasPhotos) &&
         (lotPhotos.size !== currentLotPhotos.size ||
-         Array.from(lotPhotos).some(kind => !currentLotPhotos.has(kind)) ||
-         Array.from(currentLotPhotos).some(kind => !lotPhotos.has(kind)) ||
-         lotUseApiImage !== currentLotUseApiImage);
+          Array.from(lotPhotos).some((kind) => !currentLotPhotos.has(kind)) ||
+          Array.from(currentLotPhotos).some((kind) => !lotPhotos.has(kind)) ||
+          lotUseApiImage !== currentLotUseApiImage);
 
       return {
         id: lot.id,
@@ -128,7 +145,7 @@ export async function GET(
     });
 
     // Check if any lots have different photos
-    const hasPhotoDifferences = lotsWithDetails.some(l => l.photos_differ);
+    const hasPhotoDifferences = lotsWithDetails.some((l) => l.photos_differ);
 
     // Calculate total available quantity across all lots
     const totalAvailableQty = lotsWithDetails.reduce((sum, lot) => sum + lot.available_qty, 0);
@@ -141,9 +158,7 @@ export async function GET(
       has_photo_differences: hasPhotoDifferences,
       group_count: lotsWithDetails.length,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "get_item_group", metadata: { lotId } });
   }
 }
-
-

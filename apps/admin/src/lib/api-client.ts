@@ -35,20 +35,22 @@ export async function apiFetch<T = unknown>(
 
     if (!response.ok) {
       const errorMessage = data.error || `Request failed with status ${response.status}`;
-      
+
       // Check for validation errors
       const validationErrors = data.errors || undefined;
-      
+
       // Log error
       logger.error("API request failed", new Error(errorMessage), {
         path: url,
         method: options?.method || "GET",
         status: response.status,
         statusText: response.statusText,
-        validationErrors: validationErrors?.map((e: any) => ({
-          field: e.field,
-          code: e.code,
-        })),
+        validationErrors: validationErrors?.map(
+          (e: { field: string; message: string; code?: string }) => ({
+            field: e.field,
+            code: e.code,
+          })
+        ),
       });
 
       // Show toast if enabled
@@ -73,7 +75,7 @@ export async function apiFetch<T = unknown>(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Network error";
-    
+
     logger.error("API request failed", error instanceof Error ? error : new Error(errorMessage), {
       path: url,
       method: options?.method || "GET",
@@ -112,4 +114,3 @@ export function useApiClient() {
 
   return { fetch };
 }
-

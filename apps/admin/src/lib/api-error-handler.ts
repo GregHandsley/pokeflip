@@ -92,22 +92,17 @@ export function handleApiError(
   }
 
   // Log the error
-  const logMessage = context?.operation 
-    ? `${context.operation} failed` 
-    : "API request failed";
-  
+  const logMessage = context?.operation ? `${context.operation} failed` : "API request failed";
+
   // Use enhanced error alerting for critical errors
   if (statusCode >= 500) {
-    handleErrorWithAlert(
-      logMessage,
-      error instanceof Error ? error : new Error(message),
-      {
-        userId: context?.userId,
-        userEmail: context?.userEmail,
-        operation: context?.operation,
-        metadata: context?.metadata,
-      }
-    );
+    handleErrorWithAlert(logMessage, error instanceof Error ? error : new Error(message), {
+      severity: "high",
+      userId: context?.userId,
+      userEmail: context?.userEmail,
+      operation: context?.operation,
+      metadata: context?.metadata,
+    });
   } else {
     logger.error(
       logMessage,
@@ -138,4 +133,3 @@ export function withErrorHandling<T extends unknown[]>(
     }
   };
 }
-

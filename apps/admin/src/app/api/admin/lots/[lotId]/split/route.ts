@@ -3,32 +3,35 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { poundsToPence } from "@pokeflip/shared";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
-import {
-  uuid,
-  quantity,
-  optional,
-  boolean,
-  pricePence,
-  cardCondition,
-} from "@/lib/validation";
+import { uuid, quantity, optional, boolean, pricePence, cardCondition } from "@/lib/validation";
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ lotId: string }> }
-) {
+type NewLotData = {
+  card_id: string;
+  condition: string;
+  variation: string;
+  quantity: number;
+  for_sale: boolean;
+  list_price_pence: number | null;
+  status: string;
+  acquisition_id: string | null;
+  note: string | null;
+  use_api_image: boolean;
+};
+
+export async function POST(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
-  
+  const { lotId } = await params;
+
   try {
     // Validate route parameters
-    const { lotId } = await params;
     const validatedLotId = uuid(lotId, "lotId");
-    
+
     // Validate request body
     const body = await req.json();
     const validatedSplitQty = quantity(body.split_qty, "split_qty");
     const validatedForSale = optional(body.for_sale, boolean, "for_sale");
     const validatedCondition = optional(body.condition, cardCondition, "condition");
-    
+
     // Handle list_price_pence - can be string (pounds) or number (pence)
     let validatedPrice: number | undefined = undefined;
     if (body.list_price_pence !== undefined && body.list_price_pence !== null) {
@@ -50,10 +53,7 @@ export async function POST(
       .single();
 
     if (fetchError || !originalLot) {
-      return NextResponse.json(
-        { error: "Lot not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Lot not found" }, { status: 404 });
     }
 
     // Check available quantity (can't split more than available)
@@ -85,7 +85,7 @@ export async function POST(
       newLotStatus = "ready";
     }
 
-    const newLot: any = {
+    const newLot: NewLotData = {
       card_id: originalLot.card_id,
       condition: validatedCondition || originalLot.condition,
       variation: originalLot.variation || "standard",
@@ -130,15 +130,14 @@ export async function POST(
         object_key: photo.object_key,
       }));
 
-      const { error: photoError } = await supabase
-        .from("lot_photos")
-        .insert(photoInserts);
+      const { error: photoError } = await supabase.from("lot_photos").insert(photoInserts);
 
       if (photoError) {
-        logger.warn("Failed to copy photos during split", photoError, undefined, {
+        logger.warn("Failed to copy photos during split", undefined, {
           lotId,
           newLotId: createdLot.id,
           photosCount: photos.length,
+          error: photoError,
         });
         // Don't fail the whole operation if photos fail
       }
@@ -173,8 +172,9 @@ export async function POST(
       .eq("lot_id", validatedLotId);
 
     if (historyError) {
-      logger.warn("Failed to fetch purchase history during split", historyError, undefined, {
+      logger.warn("Failed to fetch purchase history during split", undefined, {
         lotId: validatedLotId,
+        error: historyError,
       });
       // Don't fail the split if history fetch fails, but log it
     } else if (purchaseHistory && purchaseHistory.length > 0) {
@@ -197,9 +197,10 @@ export async function POST(
             .eq("acquisition_id", historyEntry.acquisition_id);
 
           if (updateHistoryError) {
-            logger.warn("Failed to update purchase history during split", updateHistoryError, undefined, {
+            logger.warn("Failed to update purchase history during split", undefined, {
               lotId: validatedLotId,
               acquisitionId: historyEntry.acquisition_id,
+              error: updateHistoryError,
             });
           }
         } else {
@@ -213,18 +214,17 @@ export async function POST(
 
         // Create purchase history entry for new split lot
         if (splitHistoryQty > 0) {
-          const { error: insertHistoryError } = await supabase
-            .from("lot_purchase_history")
-            .insert({
-              lot_id: createdLot.id,
-              acquisition_id: historyEntry.acquisition_id,
-              quantity: splitHistoryQty,
-            });
+          const { error: insertHistoryError } = await supabase.from("lot_purchase_history").insert({
+            lot_id: createdLot.id,
+            acquisition_id: historyEntry.acquisition_id,
+            quantity: splitHistoryQty,
+          });
 
           if (insertHistoryError) {
-            logger.warn("Failed to create purchase history for split lot", insertHistoryError, undefined, {
+            logger.warn("Failed to create purchase history for split lot", undefined, {
               newLotId: createdLot.id,
               acquisitionId: historyEntry.acquisition_id,
+              error: insertHistoryError,
             });
           }
         }
@@ -247,32 +247,32 @@ export async function POST(
           });
 
         if (insertNewHistoryError) {
-          logger.warn("Failed to create purchase history for split lot (legacy)", insertNewHistoryError, undefined, {
+          logger.warn("Failed to create purchase history for split lot (legacy)", undefined, {
             newLotId: createdLot.id,
             acquisitionId: originalLot.acquisition_id,
+            error: insertNewHistoryError,
           });
         }
       }
 
       // Create/update history entry for original lot with remaining quantity
       if (remainingHistoryQty > 0) {
-        const { error: upsertHistoryError } = await supabase
-          .from("lot_purchase_history")
-          .upsert(
-            {
-              lot_id: validatedLotId,
-              acquisition_id: originalLot.acquisition_id,
-              quantity: remainingHistoryQty,
-            },
-            {
-              onConflict: "lot_id,acquisition_id",
-            }
-          );
+        const { error: upsertHistoryError } = await supabase.from("lot_purchase_history").upsert(
+          {
+            lot_id: validatedLotId,
+            acquisition_id: originalLot.acquisition_id,
+            quantity: remainingHistoryQty,
+          },
+          {
+            onConflict: "lot_id,acquisition_id",
+          }
+        );
 
         if (upsertHistoryError) {
-          logger.warn("Failed to update purchase history for original lot", upsertHistoryError, undefined, {
+          logger.warn("Failed to update purchase history for original lot", undefined, {
             lotId: validatedLotId,
             acquisitionId: originalLot.acquisition_id,
+            error: upsertHistoryError,
           });
         }
       } else {
@@ -294,8 +294,7 @@ export async function POST(
     // ValidationErrorResponse is automatically handled by handleApiError
     return handleApiError(req, error, {
       operation: "split_lot",
-      metadata: { lotId: validatedLotId },
+      metadata: { lotId },
     });
   }
 }
-

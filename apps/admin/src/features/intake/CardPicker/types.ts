@@ -14,4 +14,3 @@ export const CONDITION_LABELS: Record<Condition, string> = {
   HP: "Heavily Played",
   DMG: "Damaged",
 };
-

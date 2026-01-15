@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -127,10 +128,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
     setShowBuyerSuggestions(false);
   };
 
-  const totalCards = bundle.bundle_items.reduce(
-    (sum, item) => sum + item.quantity,
-    0
-  );
+  const totalCards = bundle.bundle_items.reduce((sum, item) => sum + item.quantity, 0);
 
   const loadConsumables = async () => {
     setLoadingConsumables(true);
@@ -147,38 +145,49 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
     }
   };
 
-  const applyPackagingRule = async (cardCount: number) => {
-    try {
-      const res = await fetch("/api/admin/packaging-rules/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ card_count: cardCount }),
-      });
-
-      const json = await res.json();
-      if (json.ok && json.consumables) {
-        const selections: ConsumableSelection[] = json.consumables.map((c: any) => {
-          const consumable = consumables.find((cons) => cons.consumable_id === c.consumable_id);
-          return {
-            consumable_id: c.consumable_id,
-            consumable_name: c.consumable_name,
-            qty: c.qty,
-            unit_cost_pence: consumable?.avg_cost_pence_per_unit || 0,
-          };
-        });
-        setSelectedConsumables(selections);
-      }
-    } catch (e) {
-      logger.error("Failed to apply packaging rule", e);
-    }
+  type PackagingRuleConsumable = {
+    consumable_id: string;
+    consumable_name: string;
+    qty: number;
   };
+
+  const applyPackagingRule = useCallback(
+    async (cardCount: number) => {
+      try {
+        const res = await fetch("/api/admin/packaging-rules/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ card_count: cardCount }),
+        });
+
+        const json = await res.json();
+        if (json.ok && json.consumables) {
+          const selections: ConsumableSelection[] = json.consumables.map(
+            (c: PackagingRuleConsumable) => {
+              const consumable = consumables.find((cons) => cons.consumable_id === c.consumable_id);
+              return {
+                consumable_id: c.consumable_id,
+                consumable_name: c.consumable_name,
+                qty: c.qty,
+                unit_cost_pence: consumable?.avg_cost_pence_per_unit || 0,
+              };
+            }
+          );
+          setSelectedConsumables(selections);
+        }
+      } catch (e) {
+        logger.error("Failed to apply packaging rule", e);
+      }
+    },
+    [consumables]
+  );
 
   // Auto-apply packaging rule when bundle opens (based on total card count)
   useEffect(() => {
     if (isOpen && totalCards > 0 && consumables.length > 0) {
       applyPackagingRule(totalCards);
     }
-  }, [isOpen, totalCards, consumables.length]);
+  }, [isOpen, totalCards, consumables.length, applyPackagingRule]);
 
   const handleAddConsumable = () => {
     setSelectedConsumables([
@@ -196,13 +205,17 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
     setSelectedConsumables(selectedConsumables.filter((_, i) => i !== index));
   };
 
-  const handleUpdateConsumable = (index: number, field: keyof ConsumableSelection, value: any) => {
+  const handleUpdateConsumable = (
+    index: number,
+    field: keyof ConsumableSelection,
+    value: string | number
+  ) => {
     const updated = [...selectedConsumables];
     if (field === "consumable_id") {
       const consumable = consumables.find((c) => c.consumable_id === value);
       updated[index] = {
         ...updated[index],
-        consumable_id: value,
+        consumable_id: value as string,
         consumable_name: consumable?.name || "",
         unit_cost_pence: consumable?.avg_cost_pence_per_unit || 0,
       };
@@ -259,8 +272,8 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
       }
 
       onBundleSold();
-    } catch (e: any) {
-      setError(e.message || "Failed to record sale");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to record sale");
     } finally {
       setSubmitting(false);
     }
@@ -336,9 +349,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Quantity to Sell *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Quantity to Sell *</label>
           <Input
             type="number"
             min="1"
@@ -348,9 +359,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
             placeholder="1"
             className="w-full"
           />
-          <p className="mt-1 text-xs text-gray-500">
-            {bundle.quantity || 1} bundle(s) available
-          </p>
+          <p className="mt-1 text-xs text-gray-500">{bundle.quantity || 1} bundle(s) available</p>
         </div>
 
         <div>
@@ -359,11 +368,15 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
             {bundle.bundle_items.map((item, idx) => (
               <div key={idx} className="flex items-center gap-3 text-sm">
                 {item.inventory_lots?.cards?.api_image_url && (
-                  <img
-                    src={`${item.inventory_lots.cards.api_image_url}/low.webp`}
-                    alt=""
-                    className="h-10 w-auto rounded border border-gray-200"
-                  />
+                  <div className="relative h-10 w-auto rounded border border-gray-200 overflow-hidden">
+                    <Image
+                      src={`${item.inventory_lots.cards.api_image_url}/low.webp`}
+                      alt=""
+                      fill
+                      className="object-contain"
+                      unoptimized
+                    />
+                  </div>
                 )}
                 <div className="flex-1">
                   <div className="font-medium">
@@ -380,9 +393,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
 
         <div className="grid grid-cols-2 gap-4">
           <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Buyer Handle *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Buyer Handle *</label>
             <Input
               type="text"
               value={buyerHandle}
@@ -403,7 +414,8 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
               <div className="mt-1 text-xs text-gray-600">
                 {selectedBuyer.order_count ? (
                   <>
-                    Repeat buyer: {selectedBuyer.order_count} order{selectedBuyer.order_count !== 1 ? "s" : ""}
+                    Repeat buyer: {selectedBuyer.order_count} order
+                    {selectedBuyer.order_count !== 1 ? "s" : ""}
                     {selectedBuyer.total_spend_pence != null && (
                       <> • Total spend: £{penceToPounds(selectedBuyer.total_spend_pence)}</>
                     )}
@@ -449,9 +461,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Fees (£)
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Fees (£)</label>
             <Input
               type="number"
               step="0.01"
@@ -464,9 +474,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Shipping (£)
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Shipping (£)</label>
             <Input
               type="number"
               step="0.01"
@@ -482,9 +490,7 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
         {/* Consumables */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-sm">
-              Packaging Consumables
-            </h3>
+            <h3 className="font-semibold text-sm">Packaging Consumables</h3>
             <Button variant="secondary" size="sm" onClick={handleAddConsumable}>
               Add Consumable
             </Button>
@@ -493,7 +499,9 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
           {loadingConsumables ? (
             <div className="text-sm text-gray-500">Loading consumables...</div>
           ) : selectedConsumables.length === 0 ? (
-            <div className="text-sm text-gray-400 italic">No consumables added (auto-applied based on card count)</div>
+            <div className="text-sm text-gray-400 italic">
+              No consumables added (auto-applied based on card count)
+            </div>
           ) : (
             <div className="space-y-2">
               {selectedConsumables.map((consumable, index) => (
@@ -514,7 +522,9 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
                     type="number"
                     min="1"
                     value={consumable.qty.toString()}
-                    onChange={(e) => handleUpdateConsumable(index, "qty", parseInt(e.target.value, 10) || 1)}
+                    onChange={(e) =>
+                      handleUpdateConsumable(index, "qty", parseInt(e.target.value, 10) || 1)
+                    }
                     className="w-20"
                     placeholder="Qty"
                   />
@@ -565,9 +575,11 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
             </div>
             <div className="flex justify-between items-center pt-2">
               <span className="text-sm font-medium">Margin:</span>
-              <span className={`text-lg font-bold ${
-                totals.margin >= 0 ? "text-green-600" : "text-red-600"
-              }`}>
+              <span
+                className={`text-lg font-bold ${
+                  totals.margin >= 0 ? "text-green-600" : "text-red-600"
+                }`}
+              >
                 {totals.margin.toFixed(1)}%
               </span>
             </div>
@@ -577,4 +589,3 @@ export default function SellBundleModal({ bundle, isOpen, onClose, onBundleSold 
     </Modal>
   );
 }
-

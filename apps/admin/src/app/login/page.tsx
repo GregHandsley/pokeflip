@@ -29,7 +29,7 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -45,7 +45,7 @@ function LoginForm() {
           window.location.href = next;
         }, 100);
       }
-    } catch (err) {
+    } catch {
       setMsg("An unexpected error occurred.");
       setLoading(false);
     }
@@ -94,9 +94,7 @@ function LoginForm() {
 
         {msg && (
           <p
-            className={`mt-3 text-sm ${
-              msg.includes("Error") ? "text-red-600" : "text-green-600"
-            }`}
+            className={`mt-3 text-sm ${msg.includes("Error") ? "text-red-600" : "text-green-600"}`}
           >
             {msg}
           </p>
@@ -108,11 +106,13 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen flex items-center justify-center bg-white text-black p-6">
-        <div className="text-center">Loading...</div>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center bg-white text-black p-6">
+          <div className="text-center">Loading...</div>
+        </main>
+      }
+    >
       <LoginForm />
     </Suspense>
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import Modal from "@/components/ui/Modal";
 import LotPhotoUpload from "@/components/inventory/LotPhotoUpload";
 import Button from "@/components/ui/Button";
@@ -41,14 +42,7 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
   const [showDeletePhotoConfirm, setShowDeletePhotoConfirm] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<{ id: string; kind: string } | null>(null);
 
-  useEffect(() => {
-    if (lot) {
-      setUseApiImage(lot.use_api_image || false);
-      loadPhotos();
-    }
-  }, [lot?.lot_id]);
-
-  const loadPhotos = async () => {
+  const loadPhotos = useCallback(async () => {
     if (!lot) return;
     setLoadingPhotos(true);
     try {
@@ -62,7 +56,14 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
     } finally {
       setLoadingPhotos(false);
     }
-  };
+  }, [lot]);
+
+  useEffect(() => {
+    if (lot) {
+      setUseApiImage(lot.use_api_image || false);
+      loadPhotos();
+    }
+  }, [lot, loadPhotos]);
 
   const handlePhotoUploaded = async (newPhoto: Photo) => {
     setPhotos((prev) => [...prev, newPhoto]);
@@ -94,8 +95,9 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
       setPhotoToDelete(null);
       await loadPhotos();
       onUpdated();
-    } catch (e: any) {
-      alert(e.message || "Failed to delete photo");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      alert(error.message || "Failed to delete photo");
       await loadPhotos();
     } finally {
       setDeletingPhotoId(null);
@@ -121,8 +123,9 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
 
       setUseApiImage(newValue);
       onUpdated();
-    } catch (e: any) {
-      alert(e.message || "Failed to update API image flag");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      alert(error.message || "Failed to update API image flag");
     } finally {
       setUpdatingApiImage(false);
     }
@@ -168,16 +171,22 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
                   className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50"
                 />
                 <span className="text-sm font-medium">
-                  {updatingApiImage ? "Updating..." : useApiImage ? "Using API Image" : "Use API Image"}
+                  {updatingApiImage
+                    ? "Updating..."
+                    : useApiImage
+                      ? "Using API Image"
+                      : "Use API Image"}
                 </span>
               </label>
             </div>
             {useApiImage && (
-              <div className="mt-3">
-                <img
+              <div className="mt-3 relative h-32 w-auto rounded border border-gray-200 overflow-hidden">
+                <Image
                   src={`${lot.api_image_url}/low.webp`}
                   alt="API card image"
-                  className="h-32 w-auto rounded border border-gray-200"
+                  fill
+                  className="object-contain"
+                  unoptimized
                 />
               </div>
             )}
@@ -186,16 +195,16 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
 
         {/* Photo Requirements Status */}
         {!useApiImage && (
-          <div className={`rounded-lg p-3 ${
-            hasRequiredPhotos
-              ? "bg-green-50 border border-green-200"
-              : "bg-yellow-50 border border-yellow-200"
-          }`}>
+          <div
+            className={`rounded-lg p-3 ${
+              hasRequiredPhotos
+                ? "bg-green-50 border border-green-200"
+                : "bg-yellow-50 border border-yellow-200"
+            }`}
+          >
             <div className="flex items-center gap-2">
               <svg
-                className={`w-5 h-5 ${
-                  hasRequiredPhotos ? "text-green-600" : "text-yellow-600"
-                }`}
+                className={`w-5 h-5 ${hasRequiredPhotos ? "text-green-600" : "text-yellow-600"}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -218,9 +227,7 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
               </svg>
               <div className="flex-1">
                 <div className="text-sm font-medium">
-                  {hasRequiredPhotos
-                    ? "Ready to publish"
-                    : "Missing required photos"}
+                  {hasRequiredPhotos ? "Ready to publish" : "Missing required photos"}
                 </div>
                 <div className="text-xs text-gray-600 mt-1">
                   {hasRequiredPhotos
@@ -238,21 +245,9 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
             <div>
               <h3 className="font-medium text-sm mb-3">Upload Photos</h3>
               <div className="flex gap-2 flex-wrap">
-                <LotPhotoUpload
-                  lotId={lot.lot_id}
-                  kind="front"
-                  onUploaded={handlePhotoUploaded}
-                />
-                <LotPhotoUpload
-                  lotId={lot.lot_id}
-                  kind="back"
-                  onUploaded={handlePhotoUploaded}
-                />
-                <LotPhotoUpload
-                  lotId={lot.lot_id}
-                  kind="extra"
-                  onUploaded={handlePhotoUploaded}
-                />
+                <LotPhotoUpload lotId={lot.lot_id} kind="front" onUploaded={handlePhotoUploaded} />
+                <LotPhotoUpload lotId={lot.lot_id} kind="back" onUploaded={handlePhotoUploaded} />
+                <LotPhotoUpload lotId={lot.lot_id} kind="extra" onUploaded={handlePhotoUploaded} />
               </div>
             </div>
 
@@ -273,10 +268,12 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
                       className="relative aspect-square bg-gray-100 rounded border border-gray-200 overflow-hidden"
                     >
                       {photo.signedUrl ? (
-                        <img
+                        <Image
                           src={photo.signedUrl}
                           alt={`${photo.kind} photo`}
-                          className="w-full h-full object-cover"
+                          fill
+                          className="object-cover"
+                          unoptimized
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
@@ -385,4 +382,3 @@ export default function InboxLotPhotoModal({ lot, onClose, onUpdated }: Props) {
     </Modal>
   );
 }
-

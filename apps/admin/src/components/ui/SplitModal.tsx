@@ -2,14 +2,19 @@
 
 import { useState } from "react";
 import Modal from "./Modal";
-import { penceToPounds, poundsToPence } from "@pokeflip/shared";
+import { penceToPounds } from "@pokeflip/shared";
 import { CONDITIONS, Condition } from "@/features/intake/types";
 import { logger } from "@/lib/logger";
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  onSplit: (splitQty: number, forSale: boolean, price: string | null, condition?: Condition) => Promise<void>;
+  onSplit: (
+    splitQty: number,
+    forSale: boolean,
+    price: string | null,
+    condition?: Condition
+  ) => Promise<void>;
   currentQuantity: number;
   currentForSale: boolean;
   currentPrice: number | null;
@@ -92,7 +97,8 @@ export default function SplitModal({
       <div className="space-y-4">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <p className="text-sm text-gray-700">
-            Split <strong>{currentQuantity}</strong> card{currentQuantity !== 1 ? "s" : ""} into two separate entries.
+            Split <strong>{currentQuantity}</strong> card{currentQuantity !== 1 ? "s" : ""} into two
+            separate entries.
           </p>
         </div>
 
@@ -106,11 +112,14 @@ export default function SplitModal({
               min={1}
               max={maxSplitQty}
               value={splitQty}
-              onChange={(e) => setSplitQty(Math.max(1, Math.min(maxSplitQty, Number(e.target.value))))}
+              onChange={(e) =>
+                setSplitQty(Math.max(1, Math.min(maxSplitQty, Number(e.target.value))))
+              }
               className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Original will have <strong>{remainingQty}</strong> card{remainingQty !== 1 ? "s" : ""} remaining
+              Original will have <strong>{remainingQty}</strong> card{remainingQty !== 1 ? "s" : ""}{" "}
+              remaining
             </p>
           </div>
 
@@ -152,9 +161,7 @@ export default function SplitModal({
 
           {forSale && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Price (£)
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Price (£)</label>
               <input
                 type="text"
                 value={price}
@@ -170,5 +177,3 @@ export default function SplitModal({
     </Modal>
   );
 }
-
-

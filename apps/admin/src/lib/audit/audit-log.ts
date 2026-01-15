@@ -48,6 +48,17 @@ export interface AuditLogRecord extends AuditLogEntry {
   created_at: string;
 }
 
+// Type for Supabase errors that may have a code property
+type SupabaseError = Error & {
+  code?: string;
+};
+
+// Type for custom table not found error
+interface TableNotFoundError extends Error {
+  code: string;
+  originalError: unknown;
+}
+
 /**
  * Log an audit entry
  * @param entry The audit log entry to record
@@ -67,8 +78,8 @@ export async function logAudit(entry: AuditLogEntry): Promise<AuditLogRecord | n
         action_type: entry.action_type,
         entity_type: entry.entity_type,
         entity_id: entry.entity_id,
-        old_values: entry.old_values ? (entry.old_values as any) : null,
-        new_values: entry.new_values ? (entry.new_values as any) : null,
+        old_values: entry.old_values ? (entry.old_values as Record<string, unknown>) : null,
+        new_values: entry.new_values ? (entry.new_values as Record<string, unknown>) : null,
         description: entry.description || null,
         ip_address: entry.ip_address || null,
         user_agent: entry.user_agent || null,
@@ -78,7 +89,7 @@ export async function logAudit(entry: AuditLogEntry): Promise<AuditLogRecord | n
 
     if (error) {
       const errorMessage = error.message || String(error);
-      const errorCode = (error as any).code;
+      const errorCode = (error as SupabaseError).code;
       logger.error(
         `Failed to log audit entry: ${errorMessage}`,
         error instanceof Error ? error : new Error(errorMessage),
@@ -94,10 +105,15 @@ export async function logAudit(entry: AuditLogEntry): Promise<AuditLogRecord | n
 
     return data as AuditLogRecord;
   } catch (error) {
-    logger.error("Error logging audit entry", error instanceof Error ? error : new Error(String(error)), undefined, {
-      operation: "log_audit",
-      entry: entry,
-    });
+    logger.error(
+      "Error logging audit entry",
+      error instanceof Error ? error : new Error(String(error)),
+      undefined,
+      {
+        operation: "log_audit",
+        entry: entry,
+      }
+    );
     return null;
   }
 }
@@ -128,7 +144,7 @@ export async function getAuditLogs(
 
     if (error) {
       const errorMessage = error.message || String(error);
-      const errorCode = (error as any).code;
+      const errorCode = (error as SupabaseError).code;
       logger.error(
         `Failed to fetch audit logs: ${errorMessage}`,
         error instanceof Error ? error : new Error(errorMessage),
@@ -145,11 +161,16 @@ export async function getAuditLogs(
 
     return (data || []) as AuditLogRecord[];
   } catch (error) {
-    logger.error("Error fetching audit logs", error instanceof Error ? error : new Error(String(error)), undefined, {
-      operation: "get_audit_logs",
-      entityType,
-      entityId,
-    });
+    logger.error(
+      "Error fetching audit logs",
+      error instanceof Error ? error : new Error(String(error)),
+      undefined,
+      {
+        operation: "get_audit_logs",
+        entityType,
+        entityId,
+      }
+    );
     return [];
   }
 }
@@ -170,9 +191,7 @@ export async function getAllAuditLogs(filters?: {
   const logger = createApiLogger(new Request("http://localhost"));
 
   try {
-    let query = supabase
-      .from("audit_log")
-      .select("*", { count: "exact" });
+    let query = supabase.from("audit_log").select("*", { count: "exact" });
 
     if (filters?.userId) {
       query = query.eq("user_id", filters.userId);
@@ -201,12 +220,13 @@ export async function getAllAuditLogs(filters?: {
     if (error) {
       // Better error logging - check if table doesn't exist
       const errorMessage = error.message || String(error);
-      const errorCode = (error as any).code;
-      const isTableNotFound = errorMessage.includes("does not exist") || 
-                             errorMessage.includes("relation") ||
-                             errorMessage.includes("Could not find") ||
-                             errorCode === "42P01"; // PostgreSQL relation does not exist
-      
+      const errorCode = (error as SupabaseError).code;
+      const isTableNotFound =
+        errorMessage.includes("does not exist") ||
+        errorMessage.includes("relation") ||
+        errorMessage.includes("Could not find") ||
+        errorCode === "42P01"; // PostgreSQL relation does not exist
+
       if (isTableNotFound) {
         logger.error(
           "Audit log table does not exist. Please run the migration: supabase/migrations/20260111000000_add_audit_log.sql",
@@ -220,16 +240,23 @@ export async function getAllAuditLogs(filters?: {
           }
         );
         // Throw a specific error so the API can handle it properly
-        const tableNotFoundError = new Error("AUDIT_TABLE_NOT_FOUND: Audit log table does not exist. Please run the migration: supabase/migrations/20260111000000_add_audit_log.sql");
-        (tableNotFoundError as any).code = "AUDIT_TABLE_NOT_FOUND";
-        (tableNotFoundError as any).originalError = error;
+        const tableNotFoundError = new Error(
+          "AUDIT_TABLE_NOT_FOUND: Audit log table does not exist. Please run the migration: supabase/migrations/20260111000000_add_audit_log.sql"
+        ) as TableNotFoundError;
+        tableNotFoundError.code = "AUDIT_TABLE_NOT_FOUND";
+        tableNotFoundError.originalError = error;
         throw tableNotFoundError;
       } else {
-        logger.error("Failed to fetch audit logs", error instanceof Error ? error : new Error(errorMessage), undefined, {
-          operation: "get_all_audit_logs",
-          filters,
-          errorCode,
-        });
+        logger.error(
+          "Failed to fetch audit logs",
+          error instanceof Error ? error : new Error(errorMessage),
+          undefined,
+          {
+            operation: "get_all_audit_logs",
+            filters,
+            errorCode,
+          }
+        );
       }
       return { data: [], count: 0 };
     }
@@ -239,10 +266,15 @@ export async function getAllAuditLogs(filters?: {
       count: count || 0,
     };
   } catch (error) {
-    logger.error("Error fetching audit logs", error instanceof Error ? error : new Error(String(error)), undefined, {
-      operation: "get_all_audit_logs",
-      filters,
-    });
+    logger.error(
+      "Error fetching audit logs",
+      error instanceof Error ? error : new Error(String(error)),
+      undefined,
+      {
+        operation: "get_all_audit_logs",
+        filters,
+      }
+    );
     return { data: [], count: 0 };
   }
 }
@@ -273,11 +305,15 @@ export async function getAuditLogById(auditLogId: string): Promise<AuditLogRecor
 
     return data as AuditLogRecord;
   } catch (error) {
-    logger.error("Error fetching audit log", error instanceof Error ? error : new Error(String(error)), undefined, {
-      operation: "get_audit_log_by_id",
-      auditLogId,
-    });
+    logger.error(
+      "Error fetching audit log",
+      error instanceof Error ? error : new Error(String(error)),
+      undefined,
+      {
+        operation: "get_audit_log_by_id",
+        auditLogId,
+      }
+    );
     return null;
   }
 }
-

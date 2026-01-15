@@ -29,7 +29,7 @@ export type TcgdxCard = {
     id: string;
     name: string;
   };
-  [key: string]: any; // Allow other TCGdx properties
+  [key: string]: unknown; // Allow other TCGdx properties
 };
 
 /**
@@ -53,6 +53,5 @@ export type TcgCard = {
   image?: string;
   images?: { small?: string; large?: string };
   set?: { id: string };
-  [key: string]: any;
+  [key: string]: unknown;
 };
-

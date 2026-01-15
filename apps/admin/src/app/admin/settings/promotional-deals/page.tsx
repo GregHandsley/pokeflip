@@ -120,8 +120,8 @@ export default function PromotionalDealsPage() {
 
       setShowCreateModal(false);
       loadDeals();
-    } catch (e: any) {
-      alert(e.message || "Failed to save deal");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to save deal");
     }
   };
 
@@ -139,8 +139,8 @@ export default function PromotionalDealsPage() {
       }
 
       loadDeals();
-    } catch (e: any) {
-      alert(e.message || "Failed to delete deal");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to delete deal");
     }
   };
 
@@ -158,8 +158,8 @@ export default function PromotionalDealsPage() {
       }
 
       loadDeals();
-    } catch (e: any) {
-      alert(e.message || "Failed to update deal");
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to update deal");
     }
   };
 
@@ -204,12 +204,24 @@ export default function PromotionalDealsPage() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Details</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Card Count</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Name
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Type
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Details
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Card Count
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -287,9 +299,7 @@ export default function PromotionalDealsPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Deal Name *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Deal Name *</label>
             <Input
               type="text"
               value={formData.name}
@@ -300,9 +310,7 @@ export default function PromotionalDealsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -313,12 +321,15 @@ export default function PromotionalDealsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Deal Type *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Deal Type *</label>
             <select
               value={formData.deal_type}
-              onChange={(e) => setFormData({ ...formData, deal_type: e.target.value as PromotionalDeal["deal_type"] })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  deal_type: e.target.value as PromotionalDeal["deal_type"],
+                })
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
             >
               <option value="percentage_off">Percentage Off</option>
@@ -355,10 +366,17 @@ export default function PromotionalDealsPage() {
                 type="number"
                 step="0.01"
                 min="0"
-                value={formData.discount_amount_pence ? penceToPounds(parseInt(formData.discount_amount_pence, 10)) : ""}
+                value={
+                  formData.discount_amount_pence
+                    ? penceToPounds(parseInt(formData.discount_amount_pence, 10))
+                    : ""
+                }
                 onChange={(e) => {
                   const pounds = parseFloat(e.target.value) || 0;
-                  setFormData({ ...formData, discount_amount_pence: Math.round(pounds * 100).toString() });
+                  setFormData({
+                    ...formData,
+                    discount_amount_pence: Math.round(pounds * 100).toString(),
+                  });
                 }}
                 placeholder="e.g., 1.00 for £1 off"
                 className="w-full"
@@ -412,10 +430,12 @@ export default function PromotionalDealsPage() {
                 </div>
               </div>
               <p className="text-xs text-gray-500">
-                <strong>100% off = Free:</strong> Buy 5, Get 2 at 100% off = Customer adds 5 cards, 2 of those 5 are free (pays for 3, gets 2 free)
+                <strong>100% off = Free:</strong> Buy 5, Get 2 at 100% off = Customer adds 5 cards,
+                2 of those 5 are free (pays for 3, gets 2 free)
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                <strong>Partial discount:</strong> Buy 3, Get 1 at 10% off = Customer adds 3 cards, 1 of those 3 gets 10% off
+                <strong>Partial discount:</strong> Buy 3, Get 1 at 10% off = Customer adds 3 cards,
+                1 of those 3 gets 10% off
               </p>
             </>
           )}
@@ -466,4 +486,3 @@ export default function PromotionalDealsPage() {
     </div>
   );
 }
-

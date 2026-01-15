@@ -13,8 +13,8 @@ export default function StepIndicator({ currentStep }: Props) {
             currentStep === "photos"
               ? "bg-black text-white"
               : currentStep === "details" || currentStep === "pricing"
-              ? "bg-green-500 text-white"
-              : "bg-gray-200 text-gray-600"
+                ? "bg-green-500 text-white"
+                : "bg-gray-200 text-gray-600"
           }`}
         >
           {currentStep === "photos" ? "1" : "✓"}
@@ -34,8 +34,8 @@ export default function StepIndicator({ currentStep }: Props) {
             currentStep === "details"
               ? "bg-black text-white"
               : currentStep === "pricing"
-              ? "bg-green-500 text-white"
-              : "bg-gray-200 text-gray-600"
+                ? "bg-green-500 text-white"
+                : "bg-gray-200 text-gray-600"
           }`}
         >
           {currentStep === "details" ? "2" : currentStep === "pricing" ? "✓" : "2"}
@@ -52,9 +52,7 @@ export default function StepIndicator({ currentStep }: Props) {
       <div className="flex items-center gap-2">
         <div
           className={`w-8 h-8 rounded-full flex items-center justify-center font-medium text-sm ${
-            currentStep === "pricing"
-              ? "bg-black text-white"
-              : "bg-gray-200 text-gray-600"
+            currentStep === "pricing" ? "bg-black text-white" : "bg-gray-200 text-gray-600"
           }`}
         >
           3
@@ -70,5 +68,3 @@ export default function StepIndicator({ currentStep }: Props) {
     </div>
   );
 }
-
-

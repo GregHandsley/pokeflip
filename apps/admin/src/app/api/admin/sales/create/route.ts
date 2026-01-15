@@ -4,7 +4,6 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import { logAudit, getCurrentUser } from "@/lib/audit";
 import {
-  nonEmptyString,
   sanitizedNonEmptyString,
   sanitizedString,
   optional,
@@ -16,26 +15,93 @@ import {
   number,
 } from "@/lib/validation";
 
+type PurchaseAllocation = {
+  purchaseId: string;
+  qty: number;
+};
+
+type LotItem = {
+  lotId: string;
+  qty: number;
+  pricePence?: number | null;
+  purchaseId?: string | null;
+  purchaseAllocations?: PurchaseAllocation[] | null;
+};
+
+type ConsumableItem = {
+  consumable_id: string;
+  qty: number;
+};
+
+type CreateSaleRequestBody = {
+  buyerHandle: string;
+  lots?: LotItem[];
+  lotId?: string;
+  qty?: number;
+  soldPricePence?: number | null;
+  orderGroup?: string | null;
+  feesPence?: number | null;
+  shippingPence?: number | null;
+  discountPence?: number | null;
+  consumables?: ConsumableItem[];
+};
+
+type InventoryLotRow = {
+  id: string;
+  quantity: number;
+  status: string;
+  for_sale: boolean;
+  list_price_pence: number | null;
+};
+
+type SalesItemRow = {
+  lot_id: string;
+  qty: number;
+};
+
+type BundleRow = {
+  id: string;
+};
+
+type BundleItemRow = {
+  lot_id: string;
+  quantity: number;
+};
+
+type SalesOrderData = {
+  platform: string;
+  buyer_id: string;
+  order_group?: string;
+  fees_pence?: number;
+  shipping_pence?: number;
+  discount_pence?: number;
+};
+
+type SupabaseError = {
+  code?: string;
+  message?: string;
+};
+
 export async function POST(req: Request) {
   const logger = createApiLogger(req);
-  let body: any;
-  
+  let body: CreateSaleRequestBody | undefined;
+
   // Get current user for audit logging
   const userInfo = await getCurrentUser(req);
-  
+
   try {
-    body = await req.json();
-    
+    body = (await req.json()) as CreateSaleRequestBody;
+
     // Validate and sanitize buyer handle (required)
     const validatedBuyerHandle = sanitizedNonEmptyString(body.buyerHandle, "buyerHandle");
-    
+
     // Support both old format (lotId + qty) and new format (lots array)
     let lotsToSell: Array<{ lotId: string; qty: number }> = [];
-    
+
     if (body.lots && Array.isArray(body.lots)) {
       // New format: array of lots - validate each item
-      const validatedLots = array(body.lots, "lots");
-      validatedLots.forEach((l: any, index: number) => {
+      const validatedLots = array(body.lots, "lots") as LotItem[];
+      validatedLots.forEach((l: LotItem, index: number) => {
         uuid(l.lotId, `lots[${index}].lotId`);
         quantity(l.qty, `lots[${index}].qty`);
         // Price is optional per lot in new format
@@ -43,7 +109,7 @@ export async function POST(req: Request) {
           pricePence(l.pricePence, `lots[${index}].pricePence`);
         }
       });
-      lotsToSell = validatedLots.map((l: any) => ({
+      lotsToSell = validatedLots.map((l: LotItem) => ({
         lotId: l.lotId,
         qty: l.qty,
       }));
@@ -61,9 +127,10 @@ export async function POST(req: Request) {
     }
 
     // Validate: either soldPricePence (old format) or lots with prices (new format)
-    const hasNewFormat = body.lots && Array.isArray(body.lots) && body.lots.some((l: any) => l.pricePence != null);
+    const hasNewFormat =
+      body.lots && Array.isArray(body.lots) && body.lots.some((l: LotItem) => l.pricePence != null);
     const hasOldFormat = body.soldPricePence != null;
-    
+
     if (!hasNewFormat && !hasOldFormat) {
       return createErrorResponse(
         "Missing required fields: either soldPricePence or lots with pricePence",
@@ -71,23 +138,39 @@ export async function POST(req: Request) {
         "MISSING_PRICE"
       );
     }
-    
+
     // Validate old format price if provided
     let validatedSoldPricePence: number | undefined = undefined;
     if (hasOldFormat && body.soldPricePence != null) {
       validatedSoldPricePence = pricePence(body.soldPricePence, "soldPricePence");
     }
-    
+
     // Validate optional fields
-    const validatedOrderGroup = optional(body.orderGroup, (v) => sanitizedString(v, "orderGroup"), "orderGroup");
-    const validatedFeesPence = optional(body.feesPence, (v) => nonNegative(number(v, "feesPence"), "feesPence"), "feesPence");
-    const validatedShippingPence = optional(body.shippingPence, (v) => nonNegative(number(v, "shippingPence"), "shippingPence"), "shippingPence");
-    const validatedDiscountPence = optional(body.discountPence, (v) => nonNegative(number(v, "discountPence"), "discountPence"), "discountPence");
+    const validatedOrderGroup = optional(
+      body.orderGroup,
+      (v) => sanitizedString(v, "orderGroup"),
+      "orderGroup"
+    );
+    const validatedFeesPence = optional(
+      body.feesPence,
+      (v) => nonNegative(number(v, "feesPence"), "feesPence"),
+      "feesPence"
+    );
+    const validatedShippingPence = optional(
+      body.shippingPence,
+      (v) => nonNegative(number(v, "shippingPence"), "shippingPence"),
+      "shippingPence"
+    );
+    const validatedDiscountPence = optional(
+      body.discountPence,
+      (v) => nonNegative(number(v, "discountPence"), "discountPence"),
+      "discountPence"
+    );
     const validatedConsumables = optional(body.consumables, array, "consumables");
-    
+
     // Validate consumables if provided
     if (validatedConsumables) {
-      validatedConsumables.forEach((c: any, index: number) => {
+      validatedConsumables.forEach((c: ConsumableItem, index: number) => {
         uuid(c.consumable_id, `consumables[${index}].consumable_id`);
         quantity(c.qty, `consumables[${index}].qty`);
       });
@@ -103,10 +186,7 @@ export async function POST(req: Request) {
       .in("id", lotIds);
 
     if (lotsError || !lotsData || lotsData.length !== lotIds.length) {
-      return NextResponse.json(
-        { error: "One or more lots not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "One or more lots not found" }, { status: 404 });
     }
 
     // Get current sold quantities for all lots
@@ -116,7 +196,7 @@ export async function POST(req: Request) {
       .in("lot_id", lotIds);
 
     const soldQtyMap = new Map<string, number>();
-    (existingSales || []).forEach((item: any) => {
+    (existingSales || []).forEach((item: SalesItemRow) => {
       const current = soldQtyMap.get(item.lot_id) || 0;
       soldQtyMap.set(item.lot_id, current + (item.qty || 0));
     });
@@ -129,15 +209,15 @@ export async function POST(req: Request) {
 
     const bundleReservedMap = new Map<string, number>();
     if (activeBundles && activeBundles.length > 0) {
-      const activeBundleIds = activeBundles.map((b: any) => b.id);
-      
+      const activeBundleIds = activeBundles.map((b: BundleRow) => b.id);
+
       const { data: bundleItems } = await supabase
         .from("bundle_items")
         .select("lot_id, quantity")
         .in("lot_id", lotIds)
         .in("bundle_id", activeBundleIds);
 
-      (bundleItems || []).forEach((item: any) => {
+      (bundleItems || []).forEach((item: BundleItemRow) => {
         const current = bundleReservedMap.get(item.lot_id) || 0;
         bundleReservedMap.set(item.lot_id, current + (item.quantity || 0));
       });
@@ -145,12 +225,9 @@ export async function POST(req: Request) {
 
     // Verify quantities for each lot
     for (const lotToSell of lotsToSell) {
-      const lot = lotsData.find((l: any) => l.id === lotToSell.lotId);
+      const lot = lotsData.find((l: InventoryLotRow) => l.id === lotToSell.lotId);
       if (!lot) {
-        return NextResponse.json(
-          { error: `Lot ${lotToSell.lotId} not found` },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: `Lot ${lotToSell.lotId} not found` }, { status: 404 });
       }
 
       const currentSoldQty = soldQtyMap.get(lotToSell.lotId) || 0;
@@ -158,13 +235,11 @@ export async function POST(req: Request) {
       const availableQty = lot.quantity - currentSoldQty - bundleReservedQty;
 
       if (lotToSell.qty > availableQty) {
-        const errorMsg = bundleReservedQty > 0
-          ? `Only ${availableQty} items available for lot ${lotToSell.lotId} (${bundleReservedQty} reserved in bundles)`
-          : `Only ${availableQty} items available for lot ${lotToSell.lotId}`;
-        return NextResponse.json(
-          { error: errorMsg },
-          { status: 400 }
-        );
+        const errorMsg =
+          bundleReservedQty > 0
+            ? `Only ${availableQty} items available for lot ${lotToSell.lotId} (${bundleReservedQty} reserved in bundles)`
+            : `Only ${availableQty} items available for lot ${lotToSell.lotId}`;
+        return NextResponse.json({ error: errorMsg }, { status: 400 });
       }
     }
 
@@ -190,10 +265,7 @@ export async function POST(req: Request) {
         .single();
 
       if (buyerError || !newBuyer) {
-        return NextResponse.json(
-          { error: "Failed to create buyer" },
-          { status: 500 }
-        );
+        return NextResponse.json({ error: "Failed to create buyer" }, { status: 500 });
       }
       buyerId = newBuyer.id;
     }
@@ -202,11 +274,11 @@ export async function POST(req: Request) {
     // Build insert object - only include fields that exist in the schema
     // Since migration may not be run, we'll try with optional fields first,
     // then fall back to required fields only if there's a column error
-    const orderData: any = {
+    const orderData: SalesOrderData = {
       platform: "ebay",
       buyer_id: buyerId,
     };
-    
+
     // Only add optional fields if they have values (we'll handle column errors separately)
     if (validatedOrderGroup) {
       orderData.order_group = validatedOrderGroup;
@@ -229,17 +301,17 @@ export async function POST(req: Request) {
 
     // If error is due to missing columns (PGRST204 = column not found), retry without optional fields
     if (orderError) {
-      const errorCode = (orderError as any).code;
+      const errorCode = (orderError as SupabaseError).code;
       const errorMessage = orderError.message || "";
-      const isColumnError = 
+      const isColumnError =
         errorCode === "PGRST204" ||
-        errorMessage.includes("column") && 
-        (errorMessage.includes("does not exist") || 
-         errorMessage.includes("Could not find") ||
-         errorMessage.includes("fees_pence") ||
-         errorMessage.includes("shipping_pence") ||
-         errorMessage.includes("order_group"));
-      
+        (errorMessage.includes("column") &&
+          (errorMessage.includes("does not exist") ||
+            errorMessage.includes("Could not find") ||
+            errorMessage.includes("fees_pence") ||
+            errorMessage.includes("shipping_pence") ||
+            errorMessage.includes("order_group")));
+
       if (isColumnError) {
         logger.warn("Optional columns not found, creating order without them", undefined, {
           code: errorCode,
@@ -255,16 +327,17 @@ export async function POST(req: Request) {
           .insert(basicOrderData)
           .select("id")
           .single();
-        
+
         salesOrder = retryResult.data;
         orderError = retryResult.error;
       }
     }
 
     if (orderError || !salesOrder) {
-      logger.error("Failed to create sales order", orderError, undefined, {
+      logger.error("Failed to create sales order", undefined, {
         orderError: orderError?.message,
         buyerId,
+        error: orderError,
       });
       return createErrorResponse(
         orderError?.message || "Failed to create sales order",
@@ -277,23 +350,35 @@ export async function POST(req: Request) {
     // Support both old format (single soldPricePence for all) and new format (price per lot)
     // New format: lots array with { lotId, qty, pricePence, purchaseAllocations? }
     // Old format: soldPricePence is total, calculate per unit
-    let salesItems: Array<{ sales_order_id: string; lot_id: string; qty: number; sold_price_pence: number; purchase_id?: string | null }>;
+    let salesItems: Array<{
+      sales_order_id: string;
+      lot_id: string;
+      qty: number;
+      sold_price_pence: number;
+      purchase_id?: string | null;
+    }>;
     const purchaseAllocationsMap = new Map<string, Array<{ purchaseId: string; qty: number }>>();
-    
-    if (body.lots && Array.isArray(body.lots) && body.lots.some((l: any) => l.pricePence != null)) {
+
+    if (
+      body &&
+      body.lots &&
+      Array.isArray(body.lots) &&
+      body.lots.some((l: LotItem) => l.pricePence != null)
+    ) {
       // New format: individual prices per lot
+      const requestBody = body; // Capture for closure
       salesItems = lotsToSell.map((lotToSell, index) => {
-        const lotData = body.lots[index];
-        const pricePence = lotData?.pricePence ?? body.soldPricePence ?? 0;
+        const lotData = requestBody.lots![index];
+        const pricePence = lotData?.pricePence ?? requestBody.soldPricePence ?? 0;
         const purchaseId = lotData?.purchaseId || null; // Legacy single purchase
         const purchaseAllocations = lotData?.purchaseAllocations || null;
-        
+
         // Store allocations for later insertion
         if (purchaseAllocations && purchaseAllocations.length > 0) {
           // We'll insert these after creating the sales_item
           purchaseAllocationsMap.set(lotToSell.lotId, purchaseAllocations);
         }
-        
+
         return {
           sales_order_id: salesOrder.id,
           lot_id: lotToSell.lotId,
@@ -313,7 +398,7 @@ export async function POST(req: Request) {
       }
       const totalQty = lotsToSell.reduce((sum, lot) => sum + lot.qty, 0);
       const pricePerUnitPence = totalQty > 0 ? Math.round(validatedSoldPricePence / totalQty) : 0;
-      
+
       salesItems = lotsToSell.map((lotToSell) => ({
         sales_order_id: salesOrder.id,
         lot_id: lotToSell.lotId,
@@ -329,9 +414,10 @@ export async function POST(req: Request) {
       .select("id, lot_id");
 
     if (itemError) {
-      logger.error("Failed to create sales items", itemError, undefined, {
+      logger.error("Failed to create sales items", undefined, {
         salesOrderId: salesOrder.id,
         itemsCount: salesItems.length,
+        error: itemError,
       });
       return createErrorResponse(
         "Failed to create sales items",
@@ -343,8 +429,12 @@ export async function POST(req: Request) {
 
     // Create purchase allocations if provided
     if (purchaseAllocationsMap.size > 0 && insertedSalesItems) {
-      const allocationsToInsert: Array<{ sales_item_id: string; acquisition_id: string; qty: number }> = [];
-      
+      const allocationsToInsert: Array<{
+        sales_item_id: string;
+        acquisition_id: string;
+        qty: number;
+      }> = [];
+
       for (const salesItem of insertedSalesItems) {
         const allocations = purchaseAllocationsMap.get(salesItem.lot_id);
         if (allocations && allocations.length > 0) {
@@ -357,16 +447,17 @@ export async function POST(req: Request) {
           }
         }
       }
-      
+
       if (allocationsToInsert.length > 0) {
         const { error: allocError } = await supabase
           .from("sales_item_purchase_allocations")
           .insert(allocationsToInsert);
-        
+
         if (allocError) {
-          logger.warn("Failed to create purchase allocations", allocError, undefined, {
+          logger.warn("Failed to create purchase allocations", undefined, {
             salesOrderId: salesOrder.id,
             allocationsCount: allocationsToInsert.length,
+            error: allocError,
           });
           // Don't fail the sale if allocations fail, but log it
         }
@@ -375,7 +466,7 @@ export async function POST(req: Request) {
 
     // Create sales consumables if provided
     if (validatedConsumables && validatedConsumables.length > 0) {
-      const salesConsumables = validatedConsumables.map((c: any) => ({
+      const salesConsumables = validatedConsumables.map((c: ConsumableItem) => ({
         sales_order_id: salesOrder.id,
         consumable_id: c.consumable_id,
         qty: c.qty,
@@ -387,9 +478,10 @@ export async function POST(req: Request) {
           .insert(salesConsumables);
 
         if (consumablesError) {
-          logger.warn("Failed to create sales consumables", consumablesError, undefined, {
+          logger.warn("Failed to create sales consumables", undefined, {
             salesOrderId: salesOrder.id,
             consumablesCount: salesConsumables.length,
+            error: consumablesError,
           });
           // Don't fail the whole request, just log the error
         }
@@ -399,12 +491,12 @@ export async function POST(req: Request) {
     // Check if lots should be marked as sold (quantity reaches 0)
     // Note: The trigger should handle this automatically, but we'll do it here for safety
     for (const lotToSell of lotsToSell) {
-      const lot = lotsData.find((l: any) => l.id === lotToSell.lotId);
+      const lot = lotsData.find((l: InventoryLotRow) => l.id === lotToSell.lotId);
       if (!lot) continue;
 
       const currentSoldQty = soldQtyMap.get(lotToSell.lotId) || 0;
       const newSoldQty = currentSoldQty + lotToSell.qty;
-      
+
       if (newSoldQty >= lot.quantity) {
         const { error: statusError } = await supabase
           .from("inventory_lots")
@@ -412,9 +504,10 @@ export async function POST(req: Request) {
           .eq("id", lotToSell.lotId);
 
         if (statusError) {
-          logger.warn("Failed to update lot status", statusError, undefined, {
+          logger.warn("Failed to update lot status", undefined, {
             lotId: lotToSell.lotId,
             salesOrderId: salesOrder.id,
+            error: statusError,
           });
           // Don't fail the request, just log the error
         }
@@ -448,19 +541,20 @@ export async function POST(req: Request) {
       });
     } catch (auditError) {
       // Don't fail the sale if audit logging fails
-      logger.warn("Failed to log audit entry for sale creation", auditError, undefined, {
+      logger.warn("Failed to log audit entry for sale creation", undefined, {
         salesOrderId: salesOrder.id,
+        error: auditError,
       });
     }
 
     // Log audit entries for each lot that was sold
     try {
       for (const lotToSell of lotsToSell) {
-        const lot = lotsData.find((l: any) => l.id === lotToSell.lotId);
+        const lot = lotsData.find((l: InventoryLotRow) => l.id === lotToSell.lotId);
         if (lot) {
           const oldSoldQty = soldQtyMap.get(lotToSell.lotId) || 0;
           const newSoldQty = oldSoldQty + lotToSell.qty;
-          
+
           await logAudit({
             user_id: userInfo?.userId || null,
             user_email: userInfo?.userEmail || null,
@@ -483,8 +577,9 @@ export async function POST(req: Request) {
       }
     } catch (auditError) {
       // Don't fail the sale if audit logging fails
-      logger.warn("Failed to log audit entries for lots", auditError, undefined, {
+      logger.warn("Failed to log audit entries for lots", undefined, {
         salesOrderId: salesOrder.id,
+        error: auditError,
       });
     }
 
@@ -493,11 +588,10 @@ export async function POST(req: Request) {
       message: "Sale created successfully",
       salesOrderId: salesOrder.id,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, {
       operation: "create_sale",
-      metadata: { body },
+      metadata: body ? { body } : {},
     });
   }
 }
-

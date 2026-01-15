@@ -28,7 +28,7 @@ export function validateEnvironment(): void {
     // Pass false to skipValidation to ensure full validation happens
     // We need to access the config in a way that forces validation
     const config = getEnvConfig(false); // false = don't skip validation
-    
+
     // Verify required server-only variables are present
     if (!config.supabase.serviceRoleKey) {
       throw new Error(
@@ -49,9 +49,7 @@ export function validateEnvironment(): void {
 
     // Warn about default site URL in production
     if (config.isProduction && config.app.siteUrl.includes("your-domain.com")) {
-      warnings.push(
-        "⚠️  NEXT_PUBLIC_SITE_URL not set - using default (this may cause issues)"
-      );
+      warnings.push("⚠️  NEXT_PUBLIC_SITE_URL not set - using default (this may cause issues)");
     }
 
     // Warn about development defaults in staging
@@ -92,4 +90,3 @@ export function validateEnvironment(): void {
 export function isEnvironmentValidated(): boolean {
   return validated;
 }
-

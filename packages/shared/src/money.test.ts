@@ -77,7 +77,7 @@ describe("money utilities", () => {
   describe("round-trip conversion", () => {
     it("maintains precision for common values", () => {
       const testCases = ["10.00", "10.50", "0.50", "1.23", "999.99"];
-      
+
       testCases.forEach((poundsStr) => {
         const pence = poundsToPence(poundsStr);
         const backToPounds = penceToPounds(pence);
@@ -86,4 +86,3 @@ describe("money utilities", () => {
     });
   });
 });
-

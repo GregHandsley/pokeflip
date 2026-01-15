@@ -3,9 +3,35 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 
+type CardRow = {
+  name: string;
+  number: string;
+};
+
+type InventoryLotRow = {
+  cards: CardRow[] | null;
+};
+
+type SalesItemRow = {
+  qty: number;
+  sold_price_pence: number;
+  inventory_lots: InventoryLotRow[] | null;
+};
+
+type BuyerRow = {
+  handle: string;
+};
+
+type SalesOrderRow = {
+  id: string;
+  sold_at: string;
+  buyers: BuyerRow[] | null;
+  sales_items: SalesItemRow[] | null;
+};
+
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
-  
+
   try {
     const supabase = supabaseServer();
 
@@ -44,19 +70,25 @@ export async function GET(req: Request) {
     }
 
     // Format the response
-    const formattedOrders = (orders || []).map((order: any) => ({
+    const formattedOrders = (orders || []).map((order: SalesOrderRow) => ({
       id: order.id,
       sold_at: order.sold_at,
-      buyer: order.buyers ? { handle: order.buyers.handle } : null,
-      sales_items: (order.sales_items || []).map((item: any) => ({
+      buyer: order.buyers && order.buyers.length > 0 ? { handle: order.buyers[0].handle } : null,
+      sales_items: (order.sales_items || []).map((item: SalesItemRow) => ({
         qty: item.qty,
         sold_price_pence: item.sold_price_pence,
-        lot: item.inventory_lots ? {
-          card: item.inventory_lots.cards ? {
-            name: item.inventory_lots.cards.name,
-            number: item.inventory_lots.cards.number,
-          } : null,
-        } : null,
+        lot:
+          item.inventory_lots &&
+          item.inventory_lots.length > 0 &&
+          item.inventory_lots[0].cards &&
+          item.inventory_lots[0].cards.length > 0
+            ? {
+                card: {
+                  name: item.inventory_lots[0].cards[0].name,
+                  number: item.inventory_lots[0].cards[0].number,
+                },
+              }
+            : null,
       })),
     }));
 
@@ -64,9 +96,7 @@ export async function GET(req: Request) {
       ok: true,
       orders: formattedOrders,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleApiError(req, error, { operation: "get_sales_orders" });
   }
 }
-
-

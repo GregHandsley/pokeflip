@@ -1,25 +1,26 @@
 import { Input } from "@/components/ui/Input";
 import { penceToPounds } from "@pokeflip/shared";
-import type { SaleItem } from "../types";
+import type { SaleItem, PurchaseAllocation } from "../types";
 import { autoAllocatePurchases } from "../utils/saleCalculations";
 
 interface Props {
   saleItems: SaleItem[];
   onUpdateItem: (
     index: number,
-    field: "qty" | "pricePence" | "isFree" | "selectedPurchaseId" | "manualAllocation" | "purchaseAllocation",
-    value: any
+    field:
+      | "qty"
+      | "pricePence"
+      | "isFree"
+      | "selectedPurchaseId"
+      | "manualAllocation"
+      | "purchaseAllocation",
+    value: string | number | boolean | PurchaseAllocation | null
   ) => void;
   onRemoveItem: (index: number) => void;
   onError: (message: string) => void;
 }
 
-export default function SaleItemsList({
-  saleItems,
-  onUpdateItem,
-  onRemoveItem,
-  onError,
-}: Props) {
+export default function SaleItemsList({ saleItems, onUpdateItem, onRemoveItem, onError }: Props) {
   const getPurchaseDisplay = (item: SaleItem) => {
     const purchases = item.lot?.purchases || [];
     if (purchases.length === 0) {
@@ -126,7 +127,9 @@ export default function SaleItemsList({
                         Auto-allocated:{" "}
                         {purchaseDisplay.allocations
                           .map((a) => {
-                            const purchase = purchaseDisplay.purchases.find((p) => p.id === a.purchaseId);
+                            const purchase = purchaseDisplay.purchases.find(
+                              (p) => p.id === a.purchaseId
+                            );
                             return `${purchase?.source_name} (${a.qty})`;
                           })
                           .join(", ")}
@@ -194,4 +197,3 @@ export default function SaleItemsList({
     </div>
   );
 }
-
