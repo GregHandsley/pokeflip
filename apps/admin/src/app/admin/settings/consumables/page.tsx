@@ -13,8 +13,13 @@ type Consumable = {
   name: string;
   unit: string;
   total_purchased_qty: number;
+  total_used_qty: number;
+  in_stock_qty: number;
   total_cost_pence: number;
   avg_cost_pence_per_unit: number;
+  low_stock_threshold?: number;
+  is_low_stock?: boolean;
+  is_out_of_stock?: boolean;
 };
 
 type Purchase = {
@@ -46,6 +51,7 @@ export default function ConsumablesPage() {
   // Add/Edit consumable form
   const [newConsumableName, setNewConsumableName] = useState("");
   const [newConsumableUnit, setNewConsumableUnit] = useState("each");
+  const [lowStockThreshold, setLowStockThreshold] = useState<string>("10");
   const [editingConsumableId, setEditingConsumableId] = useState<string | null>(null);
 
   // Add purchase form
@@ -101,6 +107,7 @@ export default function ConsumablesPage() {
         body: JSON.stringify({
           name: newConsumableName.trim(),
           unit: newConsumableUnit.trim() || "each",
+          low_stock_threshold: Math.max(0, parseInt(lowStockThreshold || "10", 10) || 0),
         }),
       });
 
@@ -112,6 +119,7 @@ export default function ConsumablesPage() {
       setShowAddConsumable(false);
       setNewConsumableName("");
       setNewConsumableUnit("each");
+      setLowStockThreshold("10");
       await loadConsumables();
     } catch (e: unknown) {
       setErrorModal({
@@ -127,6 +135,7 @@ export default function ConsumablesPage() {
     setEditingConsumableId(consumable.consumable_id);
     setNewConsumableName(consumable.name);
     setNewConsumableUnit(consumable.unit);
+    setLowStockThreshold(String(consumable.low_stock_threshold ?? 10));
     setShowEditConsumable(true);
   };
 
@@ -146,6 +155,7 @@ export default function ConsumablesPage() {
         body: JSON.stringify({
           name: newConsumableName.trim(),
           unit: newConsumableUnit.trim() || "each",
+          low_stock_threshold: Math.max(0, parseInt(lowStockThreshold || "0", 10) || 0),
         }),
       });
 
@@ -158,6 +168,7 @@ export default function ConsumablesPage() {
       setEditingConsumableId(null);
       setNewConsumableName("");
       setNewConsumableUnit("each");
+      setLowStockThreshold("10");
       await loadConsumables();
     } catch (e: unknown) {
       setErrorModal({
@@ -268,6 +279,15 @@ export default function ConsumablesPage() {
                     Total Purchased
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Used
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    In Stock
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                    Low Stock At
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
                     Total Cost
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
@@ -280,10 +300,41 @@ export default function ConsumablesPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {consumables.map((consumable) => (
-                  <tr key={consumable.consumable_id} className="hover:bg-gray-50">
+                  <tr
+                    key={consumable.consumable_id}
+                    className={`hover:bg-gray-50 ${
+                      consumable.is_out_of_stock
+                        ? "bg-red-50/40"
+                        : consumable.is_low_stock
+                          ? "bg-yellow-50/40"
+                          : ""
+                    }`}
+                  >
                     <td className="px-4 py-3 font-medium">{consumable.name}</td>
                     <td className="px-4 py-3 text-gray-600">{consumable.unit}</td>
                     <td className="px-4 py-3 text-gray-600">{consumable.total_purchased_qty}</td>
+                    <td className="px-4 py-3 text-gray-600">{consumable.total_used_qty ?? 0}</td>
+                    <td
+                      className={`px-4 py-3 font-semibold ${
+                        (consumable.in_stock_qty ?? 0) <= 0 ? "text-red-600" : "text-gray-900"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{consumable.in_stock_qty ?? 0}</span>
+                        {consumable.is_out_of_stock ? (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                            OUT
+                          </span>
+                        ) : consumable.is_low_stock ? (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
+                            LOW
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {consumable.low_stock_threshold ?? 0}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">
                       £{penceToPounds(consumable.total_cost_pence)}
                     </td>
@@ -392,6 +443,14 @@ export default function ConsumablesPage() {
             onChange={(e) => setNewConsumableName(e.target.value)}
             placeholder="e.g., Sleeves, Toploaders, Team Bags"
           />
+          <Input
+            label="Low Stock Threshold"
+            type="number"
+            min="0"
+            value={lowStockThreshold}
+            onChange={(e) => setLowStockThreshold(e.target.value)}
+            placeholder="e.g., 10"
+          />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Unit</label>
             <div className="flex flex-wrap gap-2">
@@ -492,6 +551,7 @@ export default function ConsumablesPage() {
           setEditingConsumableId(null);
           setNewConsumableName("");
           setNewConsumableUnit("each");
+          setLowStockThreshold("10");
         }}
         title="Edit Consumable"
         maxWidth="md"
@@ -504,6 +564,7 @@ export default function ConsumablesPage() {
                 setEditingConsumableId(null);
                 setNewConsumableName("");
                 setNewConsumableUnit("each");
+                setLowStockThreshold("10");
               }}
               disabled={submitting}
             >
@@ -521,6 +582,14 @@ export default function ConsumablesPage() {
             value={newConsumableName}
             onChange={(e) => setNewConsumableName(e.target.value)}
             placeholder="e.g., Sleeves, Toploaders, Team Bags"
+          />
+          <Input
+            label="Low Stock Threshold"
+            type="number"
+            min="0"
+            value={lowStockThreshold}
+            onChange={(e) => setLowStockThreshold(e.target.value)}
+            placeholder="e.g., 10"
           />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Unit</label>

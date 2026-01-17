@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import { logAudit, getCurrentUser } from "@/lib/audit";
+import { getPackagingConsumablesForCardCount } from "@/lib/packaging/get-packaging-consumables";
 import {
   sanitizedNonEmptyString,
   sanitizedString,
@@ -80,6 +81,11 @@ type SalesOrderData = {
 type SupabaseError = {
   code?: string;
   message?: string;
+};
+
+type ConsumableNameRow = {
+  id: string;
+  name: string | null;
 };
 
 export async function POST(req: Request) {
@@ -178,6 +184,21 @@ export async function POST(req: Request) {
 
     const supabase = supabaseServer();
 
+    // Decide consumables to record as early as possible so we can enforce stock checks
+    let consumablesToRecord: ConsumableItem[] = [];
+    if (validatedConsumables && (validatedConsumables as ConsumableItem[]).length > 0) {
+      consumablesToRecord = validatedConsumables as ConsumableItem[];
+    } else {
+      const totalCardCount = lotsToSell.reduce((sum, l) => sum + l.qty, 0);
+      const { consumables: autoConsumables } = await getPackagingConsumablesForCardCount(
+        supabase,
+        totalCardCount
+      );
+      consumablesToRecord = autoConsumables
+        .filter((c) => c.consumable_id && c.qty > 0)
+        .map((c) => ({ consumable_id: c.consumable_id, qty: c.qty }));
+    }
+
     // Verify all lots exist and have enough available quantity
     const lotIds = lotsToSell.map((l) => l.lotId);
     const { data: lotsData, error: lotsError } = await supabase
@@ -240,6 +261,63 @@ export async function POST(req: Request) {
             ? `Only ${availableQty} items available for lot ${lotToSell.lotId} (${bundleReservedQty} reserved in bundles)`
             : `Only ${availableQty} items available for lot ${lotToSell.lotId}`;
         return NextResponse.json({ error: errorMsg }, { status: 400 });
+      }
+    }
+
+    // Enforce consumable stock: you can't record a sale if it would take any consumable below 0
+    if (consumablesToRecord.length > 0) {
+      const { data: salesConsumables } = await supabase
+        .from("sales_consumables")
+        .select("consumable_id, qty");
+      const usedMap = new Map<string, number>();
+      (salesConsumables || []).forEach((row: { consumable_id: string; qty: number }) => {
+        usedMap.set(row.consumable_id, (usedMap.get(row.consumable_id) || 0) + (row.qty || 0));
+      });
+
+      const { data: purchases } = await supabase
+        .from("consumable_purchases")
+        .select("consumable_id, qty");
+      const purchasedMap = new Map<string, number>();
+      (purchases || []).forEach((row: { consumable_id: string; qty: number }) => {
+        purchasedMap.set(
+          row.consumable_id,
+          (purchasedMap.get(row.consumable_id) || 0) + (row.qty || 0)
+        );
+      });
+
+      const problems: Array<{ consumable_id: string; needed: number; in_stock: number }> = [];
+      for (const c of consumablesToRecord) {
+        const purchased = purchasedMap.get(c.consumable_id) || 0;
+        const used = usedMap.get(c.consumable_id) || 0;
+        const inStock = purchased - used;
+        if (inStock < c.qty) {
+          problems.push({
+            consumable_id: c.consumable_id,
+            needed: c.qty,
+            in_stock: Math.max(0, inStock),
+          });
+        }
+      }
+
+      if (problems.length > 0) {
+        // Add names for a nicer error message
+        const ids = problems.map((p) => p.consumable_id);
+        const { data: names } = await supabase.from("consumables").select("id, name").in("id", ids);
+        const nameMap = new Map<string, string>(
+          (names || []).map((n: ConsumableNameRow) => [
+            String(n.id),
+            String(n.name || "Consumable"),
+          ])
+        );
+        const msg =
+          "Not enough consumables in stock: " +
+          problems
+            .map(
+              (p) =>
+                `${nameMap.get(p.consumable_id) || p.consumable_id} (need ${p.needed}, have ${p.in_stock})`
+            )
+            .join(", ");
+        return createErrorResponse(msg, 400, "CONSUMABLE_OUT_OF_STOCK", { problems });
       }
     }
 
@@ -464,9 +542,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // Create sales consumables if provided
-    if (validatedConsumables && validatedConsumables.length > 0) {
-      const salesConsumables = validatedConsumables.map((c: ConsumableItem) => ({
+    if (consumablesToRecord.length > 0) {
+      const salesConsumables = consumablesToRecord.map((c: ConsumableItem) => ({
         sales_order_id: salesOrder.id,
         consumable_id: c.consumable_id,
         qty: c.qty,
@@ -534,6 +611,7 @@ export async function POST(req: Request) {
           fees_pence: validatedFeesPence,
           shipping_pence: validatedShippingPence,
           discount_pence: validatedDiscountPence,
+          consumables: consumablesToRecord,
         },
         description: `Sale recorded for ${validatedBuyerHandle} (${lotsToSell.length} item${lotsToSell.length > 1 ? "s" : ""})`,
         ip_address: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,

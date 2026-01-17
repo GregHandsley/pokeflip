@@ -72,6 +72,7 @@ export type Consumable = {
   name: string;
   unit: string;
   avg_cost_pence_per_unit: number;
+  in_stock_qty?: number;
 };
 
 export type ConsumableSelection = {

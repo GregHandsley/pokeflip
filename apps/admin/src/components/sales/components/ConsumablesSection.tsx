@@ -50,7 +50,9 @@ export default function ConsumablesSection({
                 <option value="">Select consumable...</option>
                 {consumables.map((c) => (
                   <option key={c.consumable_id} value={c.consumable_id}>
-                    {c.name} ({c.unit}) - £{penceToPounds(c.avg_cost_pence_per_unit)}/unit
+                    {c.name} ({c.unit})
+                    {typeof c.in_stock_qty === "number" ? ` • Stock: ${c.in_stock_qty}` : ""}
+                    {` • £${penceToPounds(c.avg_cost_pence_per_unit)}/unit`}
                   </option>
                 ))}
               </select>

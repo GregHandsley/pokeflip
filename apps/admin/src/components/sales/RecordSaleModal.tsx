@@ -83,6 +83,11 @@ export default function RecordSaleModal({ isOpen, onClose, onSaleCreated }: Prop
 
   const [submitting, setSubmitting] = useState(false);
 
+  const getConsumableStock = (consumableId: string) => {
+    const c = consumables.find((x) => x.consumable_id === consumableId);
+    return typeof c?.in_stock_qty === "number" ? c.in_stock_qty : null;
+  };
+
   const handleBuyerHandleChange = (value: string) => {
     setBuyerHandle(value);
     setSelectedBuyer(null);
@@ -151,6 +156,25 @@ export default function RecordSaleModal({ isOpen, onClose, onSaleCreated }: Prop
 
     if (!buyerHandle.trim()) {
       setErrorModal({ isOpen: true, message: "Please enter a buyer handle" });
+      return;
+    }
+
+    // Block sale if any selected consumable would go out of stock
+    const stockProblems = selectedConsumables
+      .filter((c) => c.consumable_id && c.qty > 0)
+      .map((c) => {
+        const stock = getConsumableStock(c.consumable_id);
+        return stock == null || stock >= c.qty
+          ? null
+          : { name: c.consumable_name || "Consumable", needed: c.qty, inStock: stock };
+      })
+      .filter(Boolean) as Array<{ name: string; needed: number; inStock: number }>;
+
+    if (stockProblems.length > 0) {
+      const msg =
+        "Not enough consumables in stock:\n" +
+        stockProblems.map((p) => `- ${p.name}: need ${p.needed}, have ${p.inStock}`).join("\n");
+      setErrorModal({ isOpen: true, message: msg });
       return;
     }
 

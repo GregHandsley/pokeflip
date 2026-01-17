@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
-import { uuid, sanitizedNonEmptyString, optional } from "@/lib/validation";
+import { uuid, sanitizedNonEmptyString, optional, nonNegative, number } from "@/lib/validation";
 
 export async function PATCH(
   req: Request,
@@ -21,11 +21,16 @@ export async function PATCH(
     const body = await req.json();
     const validatedName = optional(body.name, (v) => sanitizedNonEmptyString(v, "name"), "name");
     const validatedUnit = optional(body.unit, (v) => sanitizedNonEmptyString(v, "unit"), "unit");
+    const validatedLowStockThreshold = optional(
+      body.low_stock_threshold,
+      (v) => nonNegative(number(v, "low_stock_threshold"), "low_stock_threshold"),
+      "low_stock_threshold"
+    );
 
     // At least one field must be provided
-    if (!validatedName && !validatedUnit) {
+    if (!validatedName && !validatedUnit && validatedLowStockThreshold == null) {
       return createErrorResponse(
-        "At least one field (name or unit) must be provided for update",
+        "At least one field (name, unit, or low_stock_threshold) must be provided for update",
         400,
         "NO_UPDATE_FIELDS"
       );
@@ -36,9 +41,12 @@ export async function PATCH(
     const updateData: {
       name?: string;
       unit?: string;
+      low_stock_threshold?: number;
     } = {};
     if (validatedName) updateData.name = validatedName; // Already sanitized
     if (validatedUnit) updateData.unit = validatedUnit; // Already sanitized
+    if (validatedLowStockThreshold != null)
+      updateData.low_stock_threshold = validatedLowStockThreshold;
 
     const { data: consumable, error } = await supabase
       .from("consumables")

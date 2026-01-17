@@ -45,6 +45,19 @@ type ConsumableCostRow = {
   avg_cost_pence_per_unit: number | null;
 };
 
+type ConsumableThresholdRow = {
+  id: string;
+  low_stock_threshold: number | null;
+};
+
+type ConsumableCostViewRow = {
+  consumable_id: string;
+  total_purchased_qty: number | null;
+  total_used_qty?: number | null;
+  in_stock_qty?: number | null;
+  low_stock_threshold?: number | null;
+};
+
 type AcquisitionRow = {
   id: string;
   purchase_total_pence: number | null;
@@ -225,6 +238,38 @@ export async function GET(req: Request) {
       margin_percent,
     };
 
+    // Consumables stock snapshot (low / out of stock)
+    const { data: consumableRows } = await supabase.from("v_consumable_costs").select("*");
+    const { data: scRows } = await supabase.from("sales_consumables").select("consumable_id, qty");
+    const usedMap = new Map<string, number>();
+    (scRows || []).forEach((row: { consumable_id: string; qty: number }) => {
+      usedMap.set(row.consumable_id, (usedMap.get(row.consumable_id) || 0) + (row.qty || 0));
+    });
+    const thresholdMap = new Map<string, number>();
+    const thresholdRes = await supabase.from("consumables").select("id, low_stock_threshold");
+    if (!thresholdRes.error && thresholdRes.data) {
+      thresholdRes.data.forEach((row: ConsumableThresholdRow) => {
+        thresholdMap.set(String(row.id), Number(row.low_stock_threshold ?? 0));
+      });
+    }
+    const computedConsumables = (consumableRows || []).map((c: ConsumableCostViewRow) => {
+      const purchased = Number(c.total_purchased_qty || 0);
+      const used =
+        c.total_used_qty != null
+          ? Number(c.total_used_qty || 0)
+          : usedMap.get(String(c.consumable_id)) || 0;
+      const inStock = c.in_stock_qty != null ? Number(c.in_stock_qty || 0) : purchased - used;
+      const threshold =
+        c.low_stock_threshold != null
+          ? Number(c.low_stock_threshold ?? 0)
+          : Number(thresholdMap.get(String(c.consumable_id)) ?? 0);
+      return { inStock, threshold };
+    });
+    const outOfStockCount = computedConsumables.filter((c) => c.inStock <= 0).length;
+    const lowStockCount = computedConsumables.filter(
+      (c) => c.inStock > 0 && c.threshold > 0 && c.inStock <= c.threshold
+    ).length;
+
     return NextResponse.json({
       ok: true,
       inbox: {
@@ -242,6 +287,10 @@ export async function GET(req: Request) {
       recentSales: {
         count: recentSalesCount,
         revenue_pence: recentSalesRevenue,
+      },
+      consumables: {
+        lowStockCount,
+        outOfStockCount,
       },
       overallProfit,
     });
