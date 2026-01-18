@@ -82,12 +82,12 @@ export default function CardAnalyticsPanel({ cardId }: Props) {
             <LineChart data={data.priceHistory}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
-              <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(2)}`} />
+              <YAxis tickFormatter={(v: number) => `£${(v / 100).toFixed(2)}`} />
               <Tooltip
-                formatter={(v: number | undefined, key) =>
+                formatter={(v: number | undefined, key: string | undefined) =>
                   v !== undefined ? (key === "avg_price_pence" ? currency(v) : v) : ""
                 }
-                labelFormatter={(label) => `Date: ${label}`}
+                labelFormatter={(label: string) => `Date: ${label}`}
               />
               <Line type="monotone" dataKey="avg_price_pence" stroke="#2563eb" dot={false} />
             </LineChart>
@@ -105,7 +105,7 @@ export default function CardAnalyticsPanel({ cardId }: Props) {
             <BarChart data={data.avgPriceByCondition}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="condition" />
-              <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(2)}`} />
+              <YAxis tickFormatter={(v: number) => `£${(v / 100).toFixed(2)}`} />
               <Tooltip
                 formatter={(v: number | undefined) => (v !== undefined ? currency(v) : "")}
               />

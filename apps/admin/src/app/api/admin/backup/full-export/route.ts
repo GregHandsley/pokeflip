@@ -1,4 +1,4 @@
-export const runtime = "edge";
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";

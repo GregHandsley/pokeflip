@@ -1,7 +1,5 @@
 "use client";
 
-import type { RefObject } from "react";
-
 type SortOption = "price_desc" | "qty_desc" | "rarity_desc" | "updated_desc";
 
 interface Props {
@@ -14,7 +12,7 @@ interface Props {
   rarity: string;
   onRarityChange: (value: string) => void;
   minPriceInputId?: string;
-  minPriceRef?: RefObject<HTMLInputElement>;
+  minPriceRef?: React.RefObject<HTMLInputElement>;
 }
 
 export default function InboxFilters({
