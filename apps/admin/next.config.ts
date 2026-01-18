@@ -4,9 +4,15 @@ import type { NextConfig } from "next";
 // Check if building for Cloudflare Pages
 const isCloudflareBuild = process.env.CF_PAGES === "1" || process.env.CF_PAGES_BRANCH;
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   /* config options here */
   // Instrumentation is available by default in Next.js 16+, no config needed
+
+  // Set Turbopack root to project directory (for monorepo support)
+  // This ensures Turbopack can find Next.js package from the correct location
+  turbopack: {
+    root: __dirname,
+  },
 
   // Cloudflare Pages compatibility
   ...(isCloudflareBuild && {
@@ -15,7 +21,7 @@ const nextConfig: NextConfig = {
       unoptimized: true,
     },
   }),
-};
+} as NextConfig;
 
 // Wrap with Sentry config
 export default withSentryConfig(nextConfig, {
