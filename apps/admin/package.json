@@ -7,7 +7,7 @@
     "build": "TURBOPACK=0 next build",
     "build:cloudflare": "TURBOPACK=0 npm run build && SKIP_ENV_VALIDATION=1 VERCEL=1 CF_PAGES=1 npx @cloudflare/next-on-pages",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint --ignore-pattern '**/next.config.ts' --ignore-pattern '**/vitest.config.ts' --ignore-pattern '**/playwright.config.ts' --ignore-pattern '**/postcss.config.mjs' --ignore-pattern '**/sentry.*.config.ts' --ignore-pattern '**/eslint.config.mjs' --ignore-pattern '**/wrangler.toml' --ignore-pattern '**/vercel.json'",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest",
     "test:ui": "vitest --ui",
