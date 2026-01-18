@@ -1,62 +1,83 @@
-# Cloudflare Pages Build Fix
+# Cloudflare Pages Configuration Fix
 
-## Problem
+## The Problem
 
-`@cloudflare/next-on-pages` internally uses Vercel's build system which runs `pnpm install --frozen-lockfile` from the repository root. This fails in monorepos because Vercel checks the root `package.json` against the root lockfile, but dependencies are in workspace packages.
+Cloudflare Pages runs `pnpm install` **automatically** before your build command. When root directory is `apps/admin`, it tries to install from that directory, which fails because:
 
-## Solution: Update Cloudflare Pages Settings
+- Dependencies are managed at the monorepo root
+- The lockfile is at the root
+- Workspace dependencies aren't installed correctly
 
-The issue is that Cloudflare Pages needs to be configured to:
+## The Solution
 
-1. Set **Root directory** to `apps/admin` (not repository root)
-2. Or use a build command that doesn't trigger Vercel's lockfile check
+**Change these settings in Cloudflare Pages Dashboard:**
 
-### Option 1: Set Root Directory (Recommended)
+### Root Directory
 
-In Cloudflare Pages dashboard:
+**Change from:** `/apps/admin`  
+**Change to:** Leave **empty** or `/` (repository root)
 
-- **Root directory**: `apps/admin`
-- **Build command**: `pnpm install && pnpm run build:cloudflare`
-- **Output directory**: `.vercel/output/static`
-- **Node version**: `20`
+### Build Command
 
-This makes Cloudflare Pages treat `apps/admin` as the project root, so the lockfile check works correctly.
+**Change from:** `cd ../.. && pnpm install && cd apps/admin && pnpm run build:cloudflare`  
+**Change to:** `pnpm install --filter admin && pnpm --filter admin run build:cloudflare`
 
-### Option 2: Use Different Build Command
+This uses pnpm's `--filter` flag to:
 
-If you can't change root directory, update the build command to:
+1. Install all dependencies from the root (respecting the lockfile)
+2. Build only the `admin` workspace
+
+### Build Output Directory
+
+**Keep as:** `.vercel/output/static`
+
+### Why This Works
+
+- **Root directory = repository root**: Cloudflare runs `pnpm install` from the root, where the lockfile is
+- **`--filter admin`**: Tells pnpm to work with the `admin` workspace, installing all its dependencies
+- **No path navigation**: Avoids `cd` commands that can fail in CI environments
+
+## Alternative: If Root Directory Must Be `apps/admin`
+
+If you absolutely need root directory to be `apps/admin`, you'll need to bypass Cloudflare's automatic install:
+
+### Option A: Skip Install in Build Command
 
 ```
-cd apps/admin && pnpm install --no-frozen-lockfile && pnpm run build:cloudflare
+SKIP_PNPM_INSTALL=true pnpm install --filter admin && pnpm --filter admin run build:cloudflare
 ```
 
-However, this may not work because `@cloudflare/next-on-pages` internally runs `vercel build` which also checks the lockfile.
+Note: This may not work if Cloudflare always runs install first.
 
-### Option 3: Use OpenNext Instead (Future)
+### Option B: Use Custom Install Script
 
-The `@cloudflare/next-on-pages` package is deprecated in favor of OpenNext. Consider migrating to OpenNext for better monorepo support:
+Create a `install.sh` script in `apps/admin` that does:
 
 ```bash
-pnpm add -D @opennextjs/cloudflare
+#!/bin/bash
+cd ../.. && pnpm install --filter admin
 ```
 
-Then update `build:cloudflare` to use OpenNext instead.
+Then use: `./install.sh && pnpm run build:cloudflare`
 
-## Current Status
+However, **Option 1 (root directory = repo root) is recommended** as it's simpler and more reliable.
 
-Your build is failing because:
+## Final Configuration
 
-1. Root directory is set to repository root (default)
-2. Vercel's build checks root `package.json` vs root lockfile
-3. Dependencies are in `apps/admin/package.json` (monorepo workspace)
+| Setting                    | Value                                                                     |
+| -------------------------- | ------------------------------------------------------------------------- |
+| **Root directory**         | (empty or `/` - repository root)                                          |
+| **Build command**          | `pnpm install --filter admin && pnpm --filter admin run build:cloudflare` |
+| **Build output directory** | `.vercel/output/static`                                                   |
+| **Node version**           | `20`                                                                      |
 
-## Quick Fix
+## Testing Locally
 
-**Update Cloudflare Pages settings:**
+Test this build command locally from the repo root:
 
-1. Go to Cloudflare Dashboard → Pages → Your Project → Settings
-2. Set **Root directory**: `apps/admin`
-3. Keep build command: `pnpm install && pnpm run build:cloudflare`
-4. Redeploy
+```bash
+cd /path/to/pokeflip
+pnpm install --filter admin && pnpm --filter admin run build:cloudflare
+```
 
-This should resolve the lockfile mismatch error.
+If this works locally, it should work on Cloudflare Pages.
