@@ -1,9 +1,20 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+// Check if building for Cloudflare Pages
+const isCloudflareBuild = process.env.CF_PAGES === "1" || process.env.CF_PAGES_BRANCH;
+
 const nextConfig: NextConfig = {
   /* config options here */
   // Instrumentation is available by default in Next.js 16+, no config needed
+
+  // Cloudflare Pages compatibility
+  ...(isCloudflareBuild && {
+    // Disable image optimization for Cloudflare (use Cloudflare Images or handle separately)
+    images: {
+      unoptimized: true,
+    },
+  }),
 };
 
 // Wrap with Sentry config

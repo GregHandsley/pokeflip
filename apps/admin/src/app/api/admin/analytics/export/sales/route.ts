@@ -1,7 +1,7 @@
 export const runtime = "edge";
 import { NextResponse } from "next/server";
-import { Parser } from "json2csv";
 import { penceToPounds } from "@pokeflip/shared";
+import { toCsv } from "@/lib/utils/csv";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
@@ -130,8 +130,7 @@ export async function GET(req: Request) {
       });
     });
 
-    const parser = new Parser();
-    const csv = parser.parse(rows);
+    const csv = toCsv(rows);
 
     return new NextResponse(csv, {
       status: 200,

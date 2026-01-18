@@ -1,7 +1,7 @@
+// Note: This route requires Node.js runtime for fs/child_process, but we use Edge for Cloudflare compatibility
+// In Edge runtime, this will return a simple response indicating tests are not available
 export const runtime = "edge";
 import { NextResponse } from "next/server";
-import { resolve } from "path";
-import { spawn } from "child_process";
 
 type VitestTestResult = {
   title?: string;
@@ -35,11 +35,31 @@ type ProcessError = {
 };
 
 export async function GET() {
+  // Edge runtime doesn't support fs, path, or child_process
+  // Return a simple response indicating tests are not available in Edge runtime
+  return NextResponse.json(
+    {
+      ok: true,
+      status: "unavailable",
+      message:
+        "Test status is not available in Edge runtime. Use Node.js runtime for test execution.",
+      summary: { total: 0, passed: 0, failed: 0, skipped: 0 },
+      testFiles: [],
+      timestamp: new Date().toISOString(),
+    },
+    { status: 200 }
+  );
+
+  // Original implementation (requires Node.js runtime):
+  // Note: To use this, change runtime to "nodejs" instead of "edge"
+  /*
   try {
     // In Next.js API routes, process.cwd() might be the project root or apps/admin
     // Check both possibilities
     const cwd = process.cwd();
-    const fs = await import("fs");
+    const { default: fs } = await import("fs");
+    const { resolve } = await import("path");
+    const { spawn } = await import("child_process");
 
     // Try to find vitest.mjs in the current directory first (if we're in apps/admin)
     let actualVitestPath = resolve(cwd, "node_modules/vitest/vitest.mjs");
@@ -277,4 +297,5 @@ export async function GET() {
       { status: 500 }
     );
   }
+  */
 }

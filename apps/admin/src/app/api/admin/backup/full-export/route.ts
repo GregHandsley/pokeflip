@@ -1,9 +1,10 @@
-export const runtime = "nodejs";
+// Use Edge runtime for Cloudflare Pages compatibility
+// CSV export requires Node.js stream, so we'll use a simpler CSV generation for Edge
+export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
-import { Parser } from "json2csv";
 import { penceToPounds } from "@pokeflip/shared";
 
 type AcquisitionRow = {
@@ -487,9 +488,28 @@ export async function GET(req: Request) {
       });
     });
 
-    // Generate CSV
-    const parser = new Parser();
-    const csv = parser.parse(allRows);
+    // Generate CSV (Edge-compatible, no Node.js stream required)
+    // Get all unique keys from all rows to create header
+    const headers = Array.from(new Set(allRows.flatMap((row) => Object.keys(row))));
+
+    // Escape CSV values
+    const escapeCSV = (value: unknown): string => {
+      if (value === null || value === undefined) return "";
+      const str = String(value);
+      // If contains comma, newline, or quote, wrap in quotes and escape quotes
+      if (str.includes(",") || str.includes("\n") || str.includes('"')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Build CSV string
+    const csv = [
+      // Header row
+      headers.map(escapeCSV).join(","),
+      // Data rows
+      ...allRows.map((row) => headers.map((header) => escapeCSV(row[header])).join(",")),
+    ].join("\n");
 
     return new NextResponse(csv, {
       status: 200,
