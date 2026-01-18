@@ -1,5 +1,0 @@
-{
-  "buildCommand": "pnpm install && pnpm run build:cloudflare",
-  "outputDirectory": ".vercel/output/static",
-  "installCommand": "pnpm install"
-}

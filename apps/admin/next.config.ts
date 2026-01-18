@@ -8,6 +8,13 @@ const nextConfig: NextConfig = {
   /* config options here */
   // Instrumentation is available by default in Next.js 16+, no config needed
 
+  // Set Turbopack root to current directory (for monorepo support)
+  experimental: {
+    turbo: {
+      root: process.cwd(),
+    },
+  },
+
   // Cloudflare Pages compatibility
   ...(isCloudflareBuild && {
     // Disable image optimization for Cloudflare (use Cloudflare Images or handle separately)
