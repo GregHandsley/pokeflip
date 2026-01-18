@@ -1,3 +1,4 @@
+export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { handleApiError } from "@/lib/api-error-handler";
 import { getBusinessMetrics } from "@/lib/monitoring/metrics";

@@ -1,3 +1,4 @@
+export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { fetchCardsForSet } from "@/lib/tcgdx/tcgdxClient";
 import { handleApiError } from "@/lib/api-error-handler";

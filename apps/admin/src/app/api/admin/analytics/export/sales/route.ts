@@ -1,3 +1,4 @@
+export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { Parser } from "json2csv";
 import { penceToPounds } from "@pokeflip/shared";
