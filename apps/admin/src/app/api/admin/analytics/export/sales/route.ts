@@ -1,10 +1,27 @@
 export const runtime = "edge";
 import { NextResponse } from "next/server";
-import { Parser } from "json2csv";
 import { penceToPounds } from "@pokeflip/shared";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+
+const csvEscape = (value: string | number): string => {
+  const text = String(value ?? "");
+  if (text.includes('"') || text.includes(",") || text.includes("\n")) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+};
+
+const toCsv = (rows: Array<Record<string, string | number>>): string => {
+  if (rows.length === 0) {
+    return "";
+  }
+  const headers = Object.keys(rows[0]);
+  const headerLine = headers.map(csvEscape).join(",");
+  const lines = rows.map((row) => headers.map((key) => csvEscape(row[key] ?? "")).join(","));
+  return [headerLine, ...lines].join("\n");
+};
 
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
@@ -130,8 +147,7 @@ export async function GET(req: Request) {
       });
     });
 
-    const parser = new Parser();
-    const csv = parser.parse(rows);
+    const csv = toCsv(rows);
 
     return new NextResponse(csv, {
       status: 200,
