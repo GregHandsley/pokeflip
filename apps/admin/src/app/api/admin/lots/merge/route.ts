@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import { nonEmptyArray, uuid, min, required } from "@/lib/validation";
+import { logAudit, getCurrentUser } from "@/lib/audit";
 
 type InventoryLotRow = {
   id: string;
@@ -48,6 +49,9 @@ export async function POST(req: Request) {
   const logger = createApiLogger(req);
   let validatedLotIds: string[] = [];
   let validatedTargetLotId = "";
+
+  // Get current user for audit logging
+  const userInfo = await getCurrentUser(req);
 
   try {
     const body = await req.json();
@@ -352,6 +356,34 @@ export async function POST(req: Request) {
         { error: deleteError.message || "Failed to delete merged lots" },
         { status: 500 }
       );
+    }
+
+    // Log audit entry for merge (on target lot)
+    try {
+      await logAudit({
+        user_id: userInfo?.userId || null,
+        user_email: userInfo?.userEmail || null,
+        action_type: "merge_lots",
+        entity_type: "inventory_lot",
+        entity_id: validatedTargetLotId,
+        old_values: {
+          quantity: targetLot.quantity,
+          merged_lot_ids: [validatedTargetLotId], // Original quantity
+        },
+        new_values: {
+          quantity: totalQuantity,
+          merged_lot_ids: validatedLotIds, // All merged lot IDs
+        },
+        description: `Merged ${validatedLotIds.length} lots into one (total qty: ${totalQuantity})`,
+        ip_address: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
+        user_agent: req.headers.get("user-agent") || null,
+      });
+    } catch (auditError) {
+      // Don't fail the merge if audit logging fails
+      logger.warn("Failed to log audit entry for lot merge", undefined, {
+        targetLotId: validatedTargetLotId,
+        error: auditError,
+      });
     }
 
     return NextResponse.json({

@@ -1,4 +1,4 @@
-# Pokeflip Admin
+# Sleeve and Send
 
 This is the admin application for Pokeflip, a Pokemon card inventory and sales management system.
 

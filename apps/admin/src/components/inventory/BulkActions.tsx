@@ -18,40 +18,19 @@ export default function BulkActions({
   canMerge,
   updatingForSale,
   deletingLotId,
-  onToggleSelectAll,
   onBulkUpdateForSale,
   onMerge,
   onBulkDelete,
 }: Props) {
-  const allSelected = selectedLots.size === lots.length && lots.length > 0;
-  const someSelected = selectedLots.size > 0 && selectedLots.size < lots.length;
+  // Filter out sold lots from selectedLots for bulk actions
+  const activeSelectedLots = Array.from(selectedLots).filter((lotId) => {
+    const lot = lots.find((l) => l.id === lotId);
+    return lot && lot.status !== "sold" && lot.status !== "archived";
+  });
 
   return (
     <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onToggleSelectAll}
-          className="flex items-center gap-2 text-xs font-medium text-gray-700 hover:text-gray-900"
-          title={allSelected ? "Deselect all" : "Select all"}
-        >
-          <input
-            type="checkbox"
-            checked={allSelected}
-            ref={(input) => {
-              if (input) input.indeterminate = someSelected;
-            }}
-            onChange={onToggleSelectAll}
-            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-          />
-          <span>
-            Cards ({lots.length})
-            {selectedLots.size > 0 && (
-              <span className="text-blue-600 ml-1">• {selectedLots.size} selected</span>
-            )}
-          </span>
-        </button>
-      </div>
-      {selectedLots.size > 0 && (
+      {activeSelectedLots.length > 0 && (
         <div className="flex items-center gap-2">
           <button
             onClick={() => onBulkUpdateForSale(true)}
@@ -83,7 +62,7 @@ export default function BulkActions({
           >
             {deletingLotId === "bulk"
               ? "Deleting..."
-              : `Delete ${selectedLots.size} card${selectedLots.size !== 1 ? "s" : ""}`}
+              : `Delete ${activeSelectedLots.length} card${activeSelectedLots.length !== 1 ? "s" : ""}`}
           </button>
         </div>
       )}

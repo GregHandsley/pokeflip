@@ -68,6 +68,15 @@ export async function logAudit(entry: AuditLogEntry): Promise<AuditLogRecord | n
   const supabase = supabaseServer();
   const logger = createApiLogger(new Request("http://localhost"));
 
+  // Debug logging in development
+  if (process.env.NODE_ENV === "development") {
+    console.log("[Audit] Attempting to log audit entry:", {
+      action_type: entry.action_type,
+      entity_type: entry.entity_type,
+      entity_id: entry.entity_id,
+    });
+  }
+
   try {
     // Insert audit log entry
     const { data, error } = await supabase
@@ -100,7 +109,17 @@ export async function logAudit(entry: AuditLogEntry): Promise<AuditLogRecord | n
           errorCode,
         }
       );
+      // In development, log to console for better visibility
+      if (process.env.NODE_ENV === "development") {
+        console.error("[Audit] Failed to log audit entry:", errorMessage, errorCode);
+        console.error("[Audit] Full error:", error);
+      }
       return null;
+    }
+
+    // Success logging in development
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Audit] Successfully logged audit entry:", data?.id);
     }
 
     return data as AuditLogRecord;
@@ -207,12 +226,15 @@ export async function getAllAuditLogs(filters?: {
 
     query = query.order("created_at", { ascending: false });
 
-    if (filters?.limit) {
-      query = query.limit(filters.limit);
-    }
-
-    if (filters?.offset) {
-      query = query.range(filters.offset, (filters.offset || 0) + (filters.limit || 100) - 1);
+    // Use range for pagination (if offset provided), otherwise use limit
+    const limit = filters?.limit || 100;
+    if (filters?.offset !== undefined && filters.offset > 0) {
+      // Use range for pagination when offset > 0
+      const end = filters.offset + limit - 1;
+      query = query.range(filters.offset, end);
+    } else {
+      // Apply limit when offset is 0 or not provided
+      query = query.limit(limit);
     }
 
     const { data, error, count } = await query;

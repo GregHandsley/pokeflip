@@ -5,6 +5,8 @@ import { penceToPounds } from "@pokeflip/shared";
 import { InboxLot, SalesData } from "./types";
 import { CONDITION_LABELS } from "@/features/intake/CardPicker/types";
 import { Input } from "@/components/ui/Input";
+import { getPackagingConsumablesForCardCount } from "@/lib/packaging/get-packaging-consumables";
+import { supabaseBrowser } from "@/lib/supabase/browser";
 
 type MarketPriceResponse = {
   ok: boolean;
@@ -63,17 +65,14 @@ type MarketPriceResponse = {
   };
 };
 
-type ForSaleUpdateBody = {
-  for_sale: boolean;
-  list_price_pence: number | null;
-};
-
 interface Props {
   lot: InboxLot;
   salesData: SalesData | null;
   loadingSalesData: boolean;
   publishQuantity?: number;
   onPublishQuantityChange?: (quantity: number) => void;
+  onPriceInputChange?: (value: string) => void;
+  onPriceValidityChange?: (isValid: boolean) => void;
 }
 
 export default function PricingStep({
@@ -82,16 +81,77 @@ export default function PricingStep({
   loadingSalesData,
   publishQuantity,
   onPublishQuantityChange,
+  onPriceInputChange,
+  onPriceValidityChange,
 }: Props) {
   const [marketPricePence, setMarketPricePence] = useState<number | null>(null);
   const [marketStatus, setMarketStatus] = useState<"idle" | "loading" | "error">("idle");
   const [marketDetail, setMarketDetail] = useState<MarketPriceResponse | null>(null);
   const [aboveFloor, setAboveFloor] = useState(false);
   const [floorGbp, setFloorGbp] = useState<number | null>(null);
+  // Default to 0.99 if no price is set
   const [priceInput, setPriceInput] = useState(
-    lot.list_price_pence != null ? penceToPounds(lot.list_price_pence) : ""
+    lot.list_price_pence != null ? penceToPounds(lot.list_price_pence) : "0.99"
   );
-  const [savingPrice, setSavingPrice] = useState<"idle" | "saving" | "error" | "success">("idle");
+  const [consumablesCost, setConsumablesCost] = useState<number>(0);
+  const [deliveryCost, setDeliveryCost] = useState<number>(0);
+  const [loadingCosts, setLoadingCosts] = useState(false);
+
+  // Fetch consumables costs and delivery cost
+  useEffect(() => {
+    const loadCosts = async () => {
+      setLoadingCosts(true);
+      try {
+        const cardCount = publishQuantity ?? lot.available_qty;
+        const supabase = supabaseBrowser();
+
+        // Get packaging consumables for this card count
+        const { consumables: packagingConsumables } = await getPackagingConsumablesForCardCount(
+          supabase,
+          cardCount
+        );
+
+        // Get consumable costs
+        if (packagingConsumables.length > 0) {
+          const consumableIds = packagingConsumables.map((c) => c.consumable_id);
+          const { data: consumableCosts } = await supabase
+            .from("v_consumable_costs")
+            .select("consumable_id, avg_cost_pence_per_unit")
+            .in("consumable_id", consumableIds);
+
+          const totalCostPence = packagingConsumables.reduce((sum, pc) => {
+            const cost = (
+              consumableCosts as Array<{
+                consumable_id: string;
+                avg_cost_pence_per_unit: number;
+              }> | null
+            )?.find((c) => c.consumable_id === pc.consumable_id);
+            const unitCost = cost?.avg_cost_pence_per_unit || 0;
+            return sum + pc.qty * unitCost;
+          }, 0);
+
+          setConsumablesCost(totalCostPence / 100); // Convert to GBP
+        } else {
+          setConsumablesCost(0);
+        }
+
+        // Get delivery cost from settings
+        const deliveryRes = await fetch("/api/admin/settings/delivery-cost");
+        const deliveryJson = await deliveryRes.json();
+        if (deliveryRes.ok) {
+          setDeliveryCost(deliveryJson.deliveryCostGbp || 0);
+        }
+      } catch (e) {
+        console.warn("Failed to load costs", e);
+        setConsumablesCost(0);
+        setDeliveryCost(0);
+      } finally {
+        setLoadingCosts(false);
+      }
+    };
+
+    void loadCosts();
+  }, [publishQuantity, lot.available_qty]);
 
   // Fetch live market snapshot (GBP) for this card
   useEffect(() => {
@@ -127,45 +187,27 @@ export default function PricingStep({
     };
   }, [lot.card_id]);
 
-  const savePrice = async () => {
-    setSavingPrice("saving");
-    try {
-      const value = priceInput.trim();
-      const body: ForSaleUpdateBody = {
-        for_sale: true,
-        list_price_pence:
-          value === ""
-            ? null
-            : (() => {
-                const num = Number(value);
-                if (Number.isNaN(num) || num < 0) {
-                  throw new Error("Enter a valid price in GBP (e.g., 1.25)");
-                }
-                return Math.round(num * 100); // Convert GBP to pence
-              })(),
-      };
+  useEffect(() => {
+    setPriceInput(lot.list_price_pence != null ? penceToPounds(lot.list_price_pence) : "0.99");
+  }, [lot.list_price_pence]);
 
-      const res = await fetch(`/api/admin/lots/${lot.lot_id}/for-sale`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to update price");
-      setSavingPrice("success");
-      // Reflect locally
-      if (body.list_price_pence == null) {
-        setPriceInput("");
-      } else {
-        setPriceInput(value);
-      }
-    } catch (e) {
-      console.warn(e);
-      setSavingPrice("error");
-    } finally {
-      setTimeout(() => setSavingPrice("idle"), 1200);
-    }
+  // Check if price input is valid (not empty and >= 0)
+  const isPriceInputValid = () => {
+    const value = priceInput.trim();
+    if (value === "") return false;
+    const num = Number(value);
+    return !Number.isNaN(num) && num >= 0;
   };
+
+  useEffect(() => {
+    onPriceInputChange?.(priceInput);
+    // Calculate validity inline to avoid dependency warning
+    const value = priceInput.trim();
+    const isValid = value !== "" && !Number.isNaN(Number(value)) && Number(value) >= 0;
+    onPriceValidityChange?.(isValid);
+  }, [priceInput, onPriceInputChange, onPriceValidityChange]);
+
+  const priceInputPence = isPriceInputValid() ? Math.round(Number(priceInput) * 100) : null;
 
   if (loadingSalesData) {
     return (
@@ -213,14 +255,11 @@ export default function PricingStep({
         </div>
       </div>
 
-      {/* Current Price */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Current List Price</label>
-        <div className="bg-white border border-gray-300 rounded-lg p-4 space-y-2">
-          <div className="text-2xl font-bold text-green-600">
-            {lot.list_price_pence != null ? `£${penceToPounds(lot.list_price_pence)}` : "Not set"}
-          </div>
-          <div className="flex items-center gap-3">
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Current Price */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Current List Price</label>
+          <div className="bg-white border border-gray-300 rounded-lg p-3 space-y-2">
             <Input
               type="number"
               min={0}
@@ -228,124 +267,180 @@ export default function PricingStep({
               placeholder="Set list price (£)"
               value={priceInput}
               onChange={(e) => setPriceInput(e.target.value)}
-              className="w-40"
+              className="w-full"
             />
-            <button
-              type="button"
-              onClick={savePrice}
-              disabled={savingPrice === "saving"}
-              className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
-            >
-              {savingPrice === "saving" ? "Saving…" : "Save price"}
-            </button>
-            {savingPrice === "error" && (
-              <span className="text-xs text-red-600">Failed to save</span>
-            )}
-            {savingPrice === "success" && <span className="text-xs text-green-600">Saved</span>}
-          </div>
-          <p className="text-xs text-gray-500">
-            Leave blank to keep price unset. Set a GBP list price before publishing.
-          </p>
-        </div>
-      </div>
-
-      {/* Pricing Suggestions */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Pricing Suggestions</label>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="text-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Market snapshot (GBP):</span>
-              <span className="font-semibold text-blue-700">
-                {marketStatus === "loading" && "Loading…"}
-                {marketStatus === "error" && "Unavailable"}
-                {marketStatus === "idle" && marketPricePence != null
-                  ? `£${penceToPounds(marketPricePence)}`
-                  : marketStatus === "idle" && "Not available"}
-              </span>
+            <div className="text-xs text-gray-500">
+              Price will be saved when you mark the card as uploaded.
             </div>
+          </div>
+        </div>
 
-            {marketStatus === "idle" && marketPricePence != null && (
-              <div className="flex items-center gap-2">
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                    aboveFloor ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {aboveFloor ? "Above floor" : "At/below floor"}
-                </span>
-                {floorGbp != null && (
-                  <span className="text-xs text-gray-600">Floor: £{floorGbp.toFixed(2)}</span>
-                )}
-              </div>
-            )}
-
-            {/* Show only one provider: prefer Cardmarket, else TCGplayer */}
-            {marketDetail?.cardmarket?.gbp ? (
-              <div className="text-xs text-gray-700 space-y-1">
-                <div className="font-semibold text-gray-800">Cardmarket (GBP)</div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1">
-                  {marketDetail.cardmarket.gbp.avg7 != null && (
-                    <span>7-day average: £{penceToPounds(marketDetail.cardmarket.gbp.avg7)}</span>
-                  )}
-                  {marketDetail.cardmarket.gbp.avg30 != null && (
-                    <span>30-day average: £{penceToPounds(marketDetail.cardmarket.gbp.avg30)}</span>
-                  )}
-                </div>
-              </div>
-            ) : marketDetail?.tcgplayer?.gbp ? (
-              <div className="text-xs text-gray-700 space-y-1">
-                <div className="font-semibold text-gray-800">TCGplayer (GBP)</div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1">
-                  {marketDetail.tcgplayer.gbp.normal?.market != null && (
-                    <span>Normal: £{penceToPounds(marketDetail.tcgplayer.gbp.normal.market)}</span>
-                  )}
-                  {marketDetail.tcgplayer.gbp.reverse_holofoil?.market != null && (
-                    <span>
-                      Reverse: £{penceToPounds(marketDetail.tcgplayer.gbp.reverse_holofoil.market)}
-                    </span>
-                  )}
-                  {marketDetail.tcgplayer.gbp.holofoil?.market != null && (
-                    <span>Holo: £{penceToPounds(marketDetail.tcgplayer.gbp.holofoil.market)}</span>
-                  )}
-                </div>
-              </div>
-            ) : null}
+        {/* Publish Quantity */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Quantity to Publish to eBay
+          </label>
+          <div className="bg-white border border-gray-300 rounded-lg p-3 space-y-2">
+            <Input
+              type="number"
+              min={1}
+              max={lot.available_qty}
+              value={publishQuantity ?? lot.available_qty}
+              onChange={(e) => {
+                const qty = Math.max(1, Math.min(lot.available_qty, Number(e.target.value) || 1));
+                onPublishQuantityChange?.(qty);
+              }}
+              className="w-full"
+            />
+            <p className="text-xs text-gray-500">
+              {publishQuantity && publishQuantity < lot.available_qty ? (
+                <>
+                  <strong>{publishQuantity}</strong> card{publishQuantity !== 1 ? "s" : ""} will be
+                  published to eBay. The remaining{" "}
+                  <strong>{lot.available_qty - publishQuantity}</strong> card
+                  {lot.available_qty - publishQuantity !== 1 ? "s" : ""} will remain in draft
+                  status.
+                </>
+              ) : (
+                <>
+                  All <strong>{lot.available_qty}</strong> available card
+                  {lot.available_qty !== 1 ? "s" : ""} will be published.
+                </>
+              )}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Publish Quantity */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Quantity to Publish to eBay
-        </label>
-        <Input
-          type="number"
-          min={1}
-          max={lot.available_qty}
-          value={publishQuantity ?? lot.available_qty}
-          onChange={(e) => {
-            const qty = Math.max(1, Math.min(lot.available_qty, Number(e.target.value) || 1));
-            onPublishQuantityChange?.(qty);
-          }}
-          className="w-full"
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          {publishQuantity && publishQuantity < lot.available_qty ? (
-            <>
-              <strong>{publishQuantity}</strong> card{publishQuantity !== 1 ? "s" : ""} will be
-              published to eBay. The remaining{" "}
-              <strong>{lot.available_qty - publishQuantity}</strong> card
-              {lot.available_qty - publishQuantity !== 1 ? "s" : ""} will remain in draft status.
-            </>
-          ) : (
-            <>
-              All <strong>{lot.available_qty}</strong> available card
-              {lot.available_qty !== 1 ? "s" : ""} will be published.
-            </>
-          )}
-        </p>
+      <div className="grid gap-4 lg:grid-cols-2 mb-6">
+        {/* Pricing Suggestions */}
+        <div className="flex flex-col">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Pricing Suggestions
+          </label>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex-1">
+            <div className="text-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Market snapshot (GBP):</span>
+                <span className="font-semibold text-blue-700">
+                  {marketStatus === "loading" && "Loading…"}
+                  {marketStatus === "error" && "Unavailable"}
+                  {marketStatus === "idle" && marketPricePence != null
+                    ? `£${penceToPounds(marketPricePence)}`
+                    : marketStatus === "idle" && "Not available"}
+                </span>
+              </div>
+
+              {marketStatus === "idle" && marketPricePence != null && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      aboveFloor ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {aboveFloor ? "Above floor" : "At/below floor"}
+                  </span>
+                  {floorGbp != null && (
+                    <span className="text-xs text-gray-600">Floor: £{floorGbp.toFixed(2)}</span>
+                  )}
+                </div>
+              )}
+
+              {/* Show only one provider: prefer Cardmarket, else TCGplayer */}
+              {marketDetail?.cardmarket?.gbp ? (
+                <div className="text-xs text-gray-700 space-y-1">
+                  <div className="font-semibold text-gray-800">Cardmarket (GBP)</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {marketDetail.cardmarket.gbp.avg7 != null && (
+                      <span>7-day average: £{penceToPounds(marketDetail.cardmarket.gbp.avg7)}</span>
+                    )}
+                    {marketDetail.cardmarket.gbp.avg30 != null && (
+                      <span>
+                        30-day average: £{penceToPounds(marketDetail.cardmarket.gbp.avg30)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : marketDetail?.tcgplayer?.gbp ? (
+                <div className="text-xs text-gray-700 space-y-1">
+                  <div className="font-semibold text-gray-800">TCGplayer (GBP)</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {marketDetail.tcgplayer.gbp.normal?.market != null && (
+                      <span>
+                        Normal: £{penceToPounds(marketDetail.tcgplayer.gbp.normal.market)}
+                      </span>
+                    )}
+                    {marketDetail.tcgplayer.gbp.reverse_holofoil?.market != null && (
+                      <span>
+                        Reverse: £
+                        {penceToPounds(marketDetail.tcgplayer.gbp.reverse_holofoil.market)}
+                      </span>
+                    )}
+                    {marketDetail.tcgplayer.gbp.holofoil?.market != null && (
+                      <span>
+                        Holo: £{penceToPounds(marketDetail.tcgplayer.gbp.holofoil.market)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {/* Profit Prediction */}
+        {priceInputPence != null && (
+          <div className="flex flex-col">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Profit Prediction
+            </label>
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-3 flex-1">
+              {loadingCosts ? (
+                <div className="text-sm text-gray-600">Calculating costs...</div>
+              ) : (
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-700">Predicted Sale Price:</span>
+                    <span className="font-semibold text-gray-900">
+                      £{penceToPounds(priceInputPence)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-gray-600">
+                    <span>Consumables Cost:</span>
+                    <span className="text-red-600">-£{consumablesCost.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-gray-600">
+                    <span>Delivery Cost:</span>
+                    <span className="text-red-600">-£{deliveryCost.toFixed(2)}</span>
+                  </div>
+                  <div className="border-t border-green-200 pt-2 mt-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-900">Predicted Profit:</span>
+                      <span
+                        className={`text-lg font-bold ${
+                          priceInputPence / 100 - consumablesCost - deliveryCost >= 0
+                            ? "text-green-700"
+                            : "text-red-600"
+                        }`}
+                      >
+                        £{(priceInputPence / 100 - consumablesCost - deliveryCost).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Margin:{" "}
+                      {(
+                        ((priceInputPence / 100 - consumablesCost - deliveryCost) /
+                          (priceInputPence / 100)) *
+                        100
+                      ).toFixed(1)}
+                      %
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

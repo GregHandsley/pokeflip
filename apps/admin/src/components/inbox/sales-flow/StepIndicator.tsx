@@ -4,20 +4,26 @@ interface Props {
   currentStep: SalesFlowStep;
 }
 
+const CheckmarkIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+  </svg>
+);
+
 export default function StepIndicator({ currentStep }: Props) {
   return (
     <div className="flex items-center justify-center gap-2 border-b border-gray-200 pb-4">
       <div className="flex items-center gap-2">
         <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center font-medium text-sm ${
+          className={`w-8 h-8 rounded-full flex items-center justify-center font-medium text-sm transition-all ${
             currentStep === "photos"
               ? "bg-black text-white"
               : currentStep === "details" || currentStep === "pricing"
-                ? "bg-green-500 text-white"
+                ? "bg-green-100 text-green-600"
                 : "bg-gray-200 text-gray-600"
           }`}
         >
-          {currentStep === "photos" ? "1" : "✓"}
+          {currentStep === "photos" ? "1" : <CheckmarkIcon />}
         </div>
         <span
           className={`text-sm font-medium ${
@@ -30,15 +36,15 @@ export default function StepIndicator({ currentStep }: Props) {
       <div className="w-12 h-0.5 bg-gray-300"></div>
       <div className="flex items-center gap-2">
         <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center font-medium text-sm ${
+          className={`w-8 h-8 rounded-full flex items-center justify-center font-medium text-sm transition-all ${
             currentStep === "details"
               ? "bg-black text-white"
               : currentStep === "pricing"
-                ? "bg-green-500 text-white"
+                ? "bg-green-100 text-green-600"
                 : "bg-gray-200 text-gray-600"
           }`}
         >
-          {currentStep === "details" ? "2" : currentStep === "pricing" ? "✓" : "2"}
+          {currentStep === "details" ? "2" : currentStep === "pricing" ? <CheckmarkIcon /> : "2"}
         </div>
         <span
           className={`text-sm font-medium ${
@@ -51,7 +57,7 @@ export default function StepIndicator({ currentStep }: Props) {
       <div className="w-12 h-0.5 bg-gray-300"></div>
       <div className="flex items-center gap-2">
         <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center font-medium text-sm ${
+          className={`w-8 h-8 rounded-full flex items-center justify-center font-medium text-sm transition-all ${
             currentStep === "pricing" ? "bg-black text-white" : "bg-gray-200 text-gray-600"
           }`}
         >

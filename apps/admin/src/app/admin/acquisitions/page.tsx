@@ -92,34 +92,40 @@ export default function AcquisitionsPage() {
     setMsg(null);
     setCreating(true);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.from("acquisitions") as any)
-      .insert({
-        source_name: sourceName,
-        source_type: sourceType,
-        purchase_total_pence: poundsToPence(total),
-        purchased_at: new Date(purchasedAt + "T12:00:00Z").toISOString(),
-        notes: notes.trim() ? notes.trim() : null,
-        status: "open",
-      })
-      .select("id")
-      .single();
+    try {
+      const response = await fetch("/api/admin/acquisitions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_name: sourceName,
+          source_type: sourceType,
+          purchase_total_pence: poundsToPence(total),
+          purchased_at: new Date(purchasedAt + "T12:00:00Z").toISOString(),
+          notes: notes.trim() ? notes.trim() : null,
+        }),
+      });
 
-    if (error) {
-      setMsg(error.message);
-      setCreating(false);
-    } else {
-      // Reset form
-      setSourceName("");
-      setTotal("0.00");
-      setNotes("");
-      setShowCreateModal(false);
-      setCreating(false);
+      const json = await response.json();
 
-      // Navigate to the intake workspace for this acquisition
-      if (data?.id) {
-        router.push(`/admin/acquisitions/${data.id}`);
+      if (!response.ok || !json.ok) {
+        setMsg(json.error || json.message || "Failed to create acquisition");
+        setCreating(false);
+      } else {
+        // Reset form
+        setSourceName("");
+        setTotal("0.00");
+        setNotes("");
+        setShowCreateModal(false);
+        setCreating(false);
+
+        // Navigate to the intake workspace for this acquisition
+        if (json.acquisition?.id) {
+          router.push(`/admin/acquisitions/${json.acquisition.id}`);
+        }
       }
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Failed to create acquisition");
+      setCreating(false);
     }
   };
 

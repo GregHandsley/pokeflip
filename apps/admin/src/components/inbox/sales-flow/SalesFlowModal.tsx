@@ -10,6 +10,8 @@ import ListingDetailsStep from "./ListingDetailsStep";
 import PricingStep from "./PricingStep";
 import DeletePhotoModal from "./DeletePhotoModal";
 import { logger } from "@/lib/logger";
+import { useToast } from "@/contexts/ToastContext";
+import { penceToPounds } from "@pokeflip/shared";
 
 interface Props {
   lot: InboxLot | null;
@@ -18,6 +20,7 @@ interface Props {
 }
 
 export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
+  const { showError } = useToast();
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [loadingSalesData, setLoadingSalesData] = useState(false);
@@ -35,6 +38,16 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
   const [variation, setVariation] = useState<string>("standard");
   const [showMenu, setShowMenu] = useState(false);
   const [markingNotForSale, setMarkingNotForSale] = useState(false);
+  const [isPriceValid, setIsPriceValid] = useState(false);
+  const [priceDraft, setPriceDraft] = useState("0.99");
+  const [currentListPricePence, setCurrentListPricePence] = useState<number | null>(null);
+
+  const isValidPriceInput = useCallback((value: string) => {
+    const trimmed = value.trim();
+    if (trimmed === "") return false;
+    const num = Number(trimmed);
+    return !Number.isNaN(num) && num >= 0;
+  }, []);
 
   const loadPhotos = useCallback(async () => {
     if (!lot) return;
@@ -96,10 +109,16 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
       setUseApiImage(lot.use_api_image || false);
       setPublishQuantity(lot.available_qty); // Default to all available
       setVariation(lot.variation || "standard");
+      const defaultPrice =
+        lot.list_price_pence != null ? penceToPounds(lot.list_price_pence) : "0.99";
+      setPriceDraft(defaultPrice);
+      setCurrentListPricePence(lot.list_price_pence ?? null);
+      // Initialize price validity based on draft price
+      setIsPriceValid(isValidPriceInput(defaultPrice));
       loadPhotos();
       loadSalesData();
     }
-  }, [lot, loadPhotos, loadSalesData]);
+  }, [lot, loadPhotos, loadSalesData, isValidPriceInput]);
 
   // Prevent default drag behavior on the document
   useEffect(() => {
@@ -305,15 +324,42 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
 
   const handleMarkAsUploaded = async () => {
     if (!lot) return;
-    await updateStatus("listed");
+    if (!isPriceValid || !isValidPriceInput(priceDraft)) {
+      showError("Price is required. Please set a price before marking as uploaded.");
+      return;
+    }
+    const pricePence = Math.round(Number(priceDraft.trim()) * 100);
+    try {
+      const res = await fetch(`/api/admin/lots/${lot.lot_id}/for-sale`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          for_sale: true,
+          list_price_pence: pricePence,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to save price");
+      }
+      setCurrentListPricePence(pricePence);
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      showError(error.message || "Failed to save price");
+      return;
+    }
+
+    await updateStatus("listed", pricePence);
   };
 
-  const updateStatus = async (status: "draft" | "listed") => {
+  const updateStatus = async (status: "draft" | "listed", listPricePence?: number) => {
     if (!lot) return;
     setUpdatingStatus(true);
     try {
       const qtyToPublish = publishQuantity ?? lot.available_qty;
       const needsSplit = status === "listed" && qtyToPublish < lot.available_qty;
+      const effectiveListPricePence =
+        typeof listPricePence === "number" ? listPricePence : currentListPricePence;
 
       if (needsSplit) {
         // Split the lot: split off the remaining quantity (stays for sale, in draft/ready status)
@@ -326,7 +372,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
           body: JSON.stringify({
             split_qty: remainingQty, // Split off the remaining quantity
             for_sale: true, // Remaining lot stays for sale so it appears in inbox
-            list_price_pence: lot.list_price_pence, // Keep the same price
+            list_price_pence: effectiveListPricePence, // Keep the same price
             condition: lot.condition,
           }),
         });
@@ -355,6 +401,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             for_sale: true,
+            list_price_pence: effectiveListPricePence ?? undefined,
           }),
         });
 
@@ -382,6 +429,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               for_sale: true,
+              list_price_pence: effectiveListPricePence ?? undefined,
             }),
           });
 
@@ -476,6 +524,8 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
   const hasBack = photos.some((p) => p.kind === "back");
   const hasRequiredPhotos = hasFront && hasBack;
   const canProceed = useApiImage || hasRequiredPhotos;
+  // For pricing step, also require valid price
+  const canProceedPricing = canProceed && (currentStep !== "pricing" || isPriceValid);
 
   return (
     <>
@@ -569,7 +619,7 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
                   <Button
                     variant="primary"
                     onClick={handleMarkAsUploaded}
-                    disabled={updatingStatus || !canProceed}
+                    disabled={updatingStatus || !canProceedPricing}
                   >
                     {updatingStatus ? "Saving..." : "Mark as Uploaded"}
                   </Button>
@@ -626,6 +676,8 @@ export default function SalesFlowModal({ lot, onClose, onUpdated }: Props) {
               loadingSalesData={loadingSalesData}
               publishQuantity={publishQuantity ?? undefined}
               onPublishQuantityChange={(qty) => setPublishQuantity(qty)}
+              onPriceInputChange={setPriceDraft}
+              onPriceValidityChange={setIsPriceValid}
             />
           )}
         </div>

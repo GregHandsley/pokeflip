@@ -80,6 +80,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { href: "/admin/settings/consumables", label: "Consumables" },
     { href: "/admin/settings/packaging-rules", label: "Packaging Rules" },
     { href: "/admin/settings/promotional-deals", label: "Promotional Deals" },
+    { href: "/admin/settings/delivery", label: "Delivery" },
     { href: "/admin/settings/set-translations", label: "Set Translations" },
     { href: "/admin/settings/admin", label: "Admin Tools" },
   ];
@@ -100,7 +101,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {sidebarOpen ? (
             <>
               <div>
-                <h1 className="text-xl font-bold text-black">Pokeflip Admin</h1>
+                <h1 className="text-xl font-bold text-black">Sleeve and Send</h1>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -215,10 +216,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 {sidebarOpen ? (
                   <div>
                     <div className="flex items-center justify-between">
-                      <span>{item.label}</span>
+                      <span className="flex-1">{item.label}</span>
                       {showBadge && (
                         <span
-                          className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${
                             isActive ? "bg-white text-black" : "bg-blue-600 text-white"
                           }`}
                         >

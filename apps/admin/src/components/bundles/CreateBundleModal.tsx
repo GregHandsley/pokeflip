@@ -7,6 +7,8 @@ import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { poundsToPence } from "@pokeflip/shared";
 import { logger } from "@/lib/logger";
+import { getPackagingConsumablesForCardCount } from "@/lib/packaging/get-packaging-consumables";
+import { supabaseBrowser } from "@/lib/supabase/browser";
 
 type Purchase = {
   id: string;
@@ -69,6 +71,9 @@ export default function CreateBundleModal({
   >([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [createdBundleId, setCreatedBundleId] = useState<string | null>(null);
+  const [consumablesCost, setConsumablesCost] = useState<number>(0);
+  const [deliveryCost, setDeliveryCost] = useState<number>(0);
+  const [loadingCosts, setLoadingCosts] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -124,6 +129,73 @@ export default function CreateBundleModal({
       }
     }
   }, [isOpen, initialLotId, availableLots, selectedLots]);
+
+  // Calculate total card count for cost calculations
+  const totalCards = Array.from(selectedLots.values()).reduce(
+    (sum, item) => sum + item.quantity,
+    0
+  );
+
+  // Fetch consumables costs and delivery cost
+  useEffect(() => {
+    const loadCosts = async () => {
+      if (totalCards === 0) {
+        setConsumablesCost(0);
+        setDeliveryCost(0);
+        return;
+      }
+
+      setLoadingCosts(true);
+      try {
+        const supabase = supabaseBrowser();
+
+        // Get packaging consumables for this card count
+        const { consumables: packagingConsumables } = await getPackagingConsumablesForCardCount(
+          supabase,
+          totalCards
+        );
+
+        // Get consumable costs
+        if (packagingConsumables.length > 0) {
+          const consumableIds = packagingConsumables.map((c) => c.consumable_id);
+          const { data: consumableCosts } = await supabase
+            .from("v_consumable_costs")
+            .select("consumable_id, avg_cost_pence_per_unit")
+            .in("consumable_id", consumableIds);
+
+          const totalCostPence = packagingConsumables.reduce((sum, pc) => {
+            const cost = (
+              consumableCosts as Array<{
+                consumable_id: string;
+                avg_cost_pence_per_unit: number;
+              }> | null
+            )?.find((c) => c.consumable_id === pc.consumable_id);
+            const unitCost = cost?.avg_cost_pence_per_unit || 0;
+            return sum + pc.qty * unitCost;
+          }, 0);
+
+          setConsumablesCost(totalCostPence / 100); // Convert to GBP
+        } else {
+          setConsumablesCost(0);
+        }
+
+        // Get delivery cost from settings
+        const deliveryRes = await fetch("/api/admin/settings/delivery-cost");
+        const deliveryJson = await deliveryRes.json();
+        if (deliveryRes.ok) {
+          setDeliveryCost(deliveryJson.deliveryCostGbp || 0);
+        }
+      } catch (e) {
+        console.warn("Failed to load costs", e);
+        setConsumablesCost(0);
+        setDeliveryCost(0);
+      } finally {
+        setLoadingCosts(false);
+      }
+    };
+
+    void loadCosts();
+  }, [totalCards]);
 
   // Filter lots based on search query and stock availability
   useEffect(() => {
@@ -296,11 +368,6 @@ export default function CreateBundleModal({
       setSubmitting(false);
     }
   };
-
-  const totalCards = Array.from(selectedLots.values()).reduce(
-    (sum, item) => sum + item.quantity,
-    0
-  );
 
   const handlePhotoUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -484,6 +551,61 @@ export default function CreateBundleModal({
             className="w-full"
           />
         </div>
+
+        {/* Profit Prediction */}
+        {price && parseFloat(price) > 0 && totalCards > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Profit Prediction
+            </label>
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-3">
+              {loadingCosts ? (
+                <div className="text-sm text-gray-600">Calculating costs...</div>
+              ) : (
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-700">Predicted Sale Price:</span>
+                    <span className="font-semibold text-gray-900">
+                      £{parseFloat(price).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-gray-600">
+                    <span>
+                      Consumables Cost ({totalCards} card{totalCards !== 1 ? "s" : ""}):
+                    </span>
+                    <span className="text-red-600">-£{consumablesCost.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-gray-600">
+                    <span>Delivery Cost:</span>
+                    <span className="text-red-600">-£{deliveryCost.toFixed(2)}</span>
+                  </div>
+                  <div className="border-t border-green-200 pt-2 mt-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-900">Predicted Profit:</span>
+                      <span
+                        className={`text-lg font-bold ${
+                          parseFloat(price) - consumablesCost - deliveryCost >= 0
+                            ? "text-green-700"
+                            : "text-red-600"
+                        }`}
+                      >
+                        £{(parseFloat(price) - consumablesCost - deliveryCost).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Margin:{" "}
+                      {(
+                        ((parseFloat(price) - consumablesCost - deliveryCost) / parseFloat(price)) *
+                        100
+                      ).toFixed(1)}
+                      %
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">

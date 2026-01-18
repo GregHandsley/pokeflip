@@ -2,13 +2,31 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
+import { logAudit, getCurrentUser } from "@/lib/audit";
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
   const { lotId } = await params;
 
+  // Get current user for audit logging
+  const userInfo = await getCurrentUser(req);
+
   try {
     const supabase = supabaseServer();
+
+    // Fetch lot data before deletion for audit logging
+    const { data: lotData, error: fetchError } = await supabase
+      .from("inventory_lots")
+      .select("id, card_id, quantity, condition, status, for_sale, list_price_pence")
+      .eq("id", lotId)
+      .single();
+
+    if (fetchError) {
+      logger.warn("Failed to fetch lot data for audit logging", undefined, {
+        lotId,
+        error: fetchError,
+      });
+    }
 
     // Delete all related records explicitly to keep database lean
     // Delete lot photos (cascade should handle this, but being explicit)
@@ -41,6 +59,37 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ lotId
         "DELETE_LOT_FAILED",
         error
       );
+    }
+
+    // Log audit entry for lot deletion
+    try {
+      await logAudit({
+        user_id: userInfo?.userId || null,
+        user_email: userInfo?.userEmail || null,
+        action_type: "delete_lot",
+        entity_type: "inventory_lot",
+        entity_id: lotId,
+        old_values: lotData
+          ? {
+              card_id: lotData.card_id,
+              quantity: lotData.quantity,
+              condition: lotData.condition,
+              status: lotData.status,
+              for_sale: lotData.for_sale,
+              list_price_pence: lotData.list_price_pence,
+            }
+          : null,
+        new_values: null, // Deleted
+        description: `Lot deleted (qty: ${lotData?.quantity || "unknown"})`,
+        ip_address: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
+        user_agent: req.headers.get("user-agent") || null,
+      });
+    } catch (auditError) {
+      // Don't fail the deletion if audit logging fails
+      logger.warn("Failed to log audit entry for lot deletion", undefined, {
+        lotId,
+        error: auditError,
+      });
     }
 
     return NextResponse.json({

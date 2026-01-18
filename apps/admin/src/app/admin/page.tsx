@@ -178,21 +178,23 @@ export default function AdminHome() {
             <FinancialOverview data={summary?.overallProfit || null} loading={loading} />
           </div>
         </div>
-        <div className="h-full">
-          <QuickStats
-            data={
-              summary
-                ? {
-                    purchases: summary.purchases,
-                    inventory: summary.inventory,
-                    recentSales: summary.recentSales,
-                  }
-                : null
-            }
-            loading={loading}
-          />
-          <Card className="mt-4 border border-gray-200 shadow-sm">
-            <div className="p-4">
+        <div className="h-full flex flex-col gap-4">
+          <div className="flex-1">
+            <QuickStats
+              data={
+                summary
+                  ? {
+                      purchases: summary.purchases,
+                      inventory: summary.inventory,
+                      recentSales: summary.recentSales,
+                    }
+                  : null
+              }
+              loading={loading}
+            />
+          </div>
+          <Card className="flex-1 border border-gray-200 shadow-sm flex flex-col">
+            <div className="p-4 flex-1 flex flex-col">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-semibold text-gray-900">Ops Snapshot</h4>
                 <span className="text-xs text-gray-500">Today</span>
@@ -200,7 +202,7 @@ export default function AdminHome() {
               {loading ? (
                 <div className="text-sm text-gray-500">Loading...</div>
               ) : summary ? (
-                <div className="space-y-2">
+                <div className="flex-1 flex flex-col justify-between">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Unlisted lots</span>
                     <span className="font-semibold text-gray-900">{unlistedLots}</span>

@@ -26,7 +26,7 @@ interface Props {
 export default function QuickStats({ data, loading }: Props) {
   if (loading) {
     return (
-      <Card className="border border-gray-200 shadow-sm flex flex-col bg-gradient-to-br from-white to-purple-50/30">
+      <Card className="border border-gray-200 shadow-sm h-full flex flex-col bg-gradient-to-br from-white to-purple-50/30">
         <div className="p-4 flex flex-col">
           <h3 className="font-semibold text-sm mb-3">Quick Stats</h3>
           <div className="text-sm text-gray-500">Loading...</div>
@@ -43,7 +43,7 @@ export default function QuickStats({ data, loading }: Props) {
     data.recentSales.count > 0 ? data.recentSales.revenue_pence / data.recentSales.count : 0;
 
   return (
-    <Card className="border border-gray-200 shadow-sm flex flex-col bg-gradient-to-br from-white to-purple-50/30 hover:shadow-md transition-shadow">
+    <Card className="border border-gray-200 shadow-sm h-full flex flex-col bg-gradient-to-br from-white to-purple-50/30 hover:shadow-md transition-shadow">
       <div className="p-4 flex flex-col">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">

@@ -4,6 +4,7 @@ import { poundsToPence } from "@pokeflip/shared";
 import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import { uuid, quantity, optional, boolean, pricePence, cardCondition } from "@/lib/validation";
+import { logAudit, getCurrentUser } from "@/lib/audit";
 
 type NewLotData = {
   card_id: string;
@@ -21,6 +22,9 @@ type NewLotData = {
 export async function POST(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
   const { lotId } = await params;
+
+  // Get current user for audit logging
+  const userInfo = await getCurrentUser(req);
 
   try {
     // Validate route parameters
@@ -283,6 +287,55 @@ export async function POST(req: Request, { params }: { params: Promise<{ lotId: 
           .eq("lot_id", validatedLotId)
           .eq("acquisition_id", originalLot.acquisition_id);
       }
+    }
+
+    // Log audit entries for split
+    try {
+      // Log original lot quantity change
+      await logAudit({
+        user_id: userInfo?.userId || null,
+        user_email: userInfo?.userEmail || null,
+        action_type: "split_lot",
+        entity_type: "inventory_lot",
+        entity_id: validatedLotId,
+        old_values: {
+          quantity: originalLot.quantity,
+        },
+        new_values: {
+          quantity: newQuantity,
+        },
+        description: `Split ${validatedSplitQty} from lot (from ${originalLot.quantity} to ${newQuantity})`,
+        ip_address: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
+        user_agent: req.headers.get("user-agent") || null,
+      });
+
+      // Log new lot creation from split
+      if (createdLot?.id) {
+        await logAudit({
+          user_id: userInfo?.userId || null,
+          user_email: userInfo?.userEmail || null,
+          action_type: "other", // New lot created from split
+          entity_type: "inventory_lot",
+          entity_id: createdLot.id,
+          old_values: null,
+          new_values: {
+            quantity: validatedSplitQty,
+            card_id: originalLot.card_id,
+            condition: validatedCondition || originalLot.condition,
+            for_sale: validatedForSale ?? originalLot.for_sale,
+            list_price_pence: validatedPrice ?? originalLot.list_price_pence,
+          },
+          description: `Lot created from split (qty: ${validatedSplitQty})`,
+          ip_address: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
+          user_agent: req.headers.get("user-agent") || null,
+        });
+      }
+    } catch (auditError) {
+      // Don't fail the split if audit logging fails
+      logger.warn("Failed to log audit entries for lot split", undefined, {
+        lotId: validatedLotId,
+        error: auditError,
+      });
     }
 
     return NextResponse.json({

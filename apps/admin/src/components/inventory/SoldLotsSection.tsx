@@ -16,10 +16,8 @@ interface Props {
 export default function SoldLotsSection({
   lots,
   isExpanded,
-  selectedLots,
   deletingLotId,
   onToggleExpanded,
-  onSelect,
   onDelete,
 }: Props) {
   if (lots.length === 0) return null;
@@ -62,7 +60,6 @@ export default function SoldLotsSection({
                 </div>
                 <div className="space-y-1.5">
                   {conditionLots.map((lot) => {
-                    const isSelected = selectedLots.has(lot.id);
                     const isDeleting = deletingLotId === lot.id;
                     return (
                       <div
@@ -81,16 +78,6 @@ export default function SoldLotsSection({
                         }}
                       >
                         <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              onSelect(lot.id, e);
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                          />
                           <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <span className="font-medium text-sm text-gray-600">

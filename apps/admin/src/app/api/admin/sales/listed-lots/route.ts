@@ -69,6 +69,15 @@ type PurchaseWithQuantity = {
   quantity: number;
 };
 
+type CardRow = {
+  id: string;
+  number: string;
+  name: string;
+  rarity: string | null;
+  api_image_url: string | null;
+  sets: Array<{ id: string; name: string }> | null;
+};
+
 export async function GET(req: Request) {
   const logger = createApiLogger(req);
 
@@ -216,6 +225,51 @@ export async function GET(req: Request) {
       });
     }
 
+    // Identify lots with missing card relationships and fetch them in batch
+    const lotsWithMissingCards = (lots || []).filter(
+      (lot) => !lot.cards || !Array.isArray(lot.cards) || lot.cards.length === 0
+    );
+    const missingCardIds = [
+      ...new Set(lotsWithMissingCards.map((lot) => lot.card_id).filter(Boolean)),
+    ];
+
+    const cardFallbackMap = new Map();
+    if (missingCardIds.length > 0) {
+      const { data: fallbackCards } = await supabase
+        .from("cards")
+        .select(
+          `
+          id,
+          number,
+          name,
+          rarity,
+          api_image_url,
+          sets (
+            id,
+            name
+          )
+        `
+        )
+        .in("id", missingCardIds);
+
+      (fallbackCards || []).forEach((card: CardRow) => {
+        cardFallbackMap.set(card.id, {
+          id: card.id,
+          number: card.number,
+          name: card.name,
+          rarity: card.rarity,
+          api_image_url: card.api_image_url,
+          set:
+            card.sets && Array.isArray(card.sets) && card.sets.length > 0
+              ? {
+                  id: card.sets[0].id,
+                  name: card.sets[0].name,
+                }
+              : null,
+        });
+      });
+    }
+
     // Format lots with available quantity
     const formattedLots = (lots || [])
       .map((lot) => {
@@ -247,6 +301,29 @@ export async function GET(req: Request) {
               ? [{ ...singlePurchase, quantity: lot.quantity }]
               : [];
 
+        // Handle card relationship - Supabase returns cards as an array
+        let cardData = null;
+        if (lot.cards && Array.isArray(lot.cards) && lot.cards.length > 0) {
+          const card = lot.cards[0];
+          cardData = {
+            id: card.id,
+            number: card.number,
+            name: card.name,
+            rarity: card.rarity,
+            api_image_url: card.api_image_url,
+            set:
+              card.sets && Array.isArray(card.sets) && card.sets.length > 0
+                ? {
+                    id: card.sets[0].id,
+                    name: card.sets[0].name,
+                  }
+                : null,
+          };
+        } else if (lot.card_id && cardFallbackMap.has(lot.card_id)) {
+          // Use fallback card data if relationship was missing
+          cardData = cardFallbackMap.get(lot.card_id);
+        }
+
         return {
           id: lot.id,
           condition: lot.condition,
@@ -257,26 +334,7 @@ export async function GET(req: Request) {
           for_sale: lot.for_sale, // Explicitly include for_sale in response
           list_price_pence: lot.list_price_pence,
           purchases: allPurchases, // Array of purchases with quantities
-          card:
-            lot.cards && lot.cards.length > 0
-              ? (() => {
-                  const card = lot.cards[0];
-                  return {
-                    id: card.id,
-                    number: card.number,
-                    name: card.name,
-                    rarity: card.rarity,
-                    api_image_url: card.api_image_url,
-                    set:
-                      card.sets && card.sets.length > 0
-                        ? {
-                            id: card.sets[0].id,
-                            name: card.sets[0].name,
-                          }
-                        : null,
-                  };
-                })()
-              : null,
+          card: cardData,
         };
       })
       .filter(Boolean);
