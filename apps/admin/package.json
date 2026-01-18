@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "build:cloudflare": "npm run build && SKIP_ENV_VALIDATION=1 VERCEL=1 npx @cloudflare/next-on-pages",
+    "build": "TURBOPACK=0 next build",
+    "build:cloudflare": "TURBOPACK=0 npm run build && SKIP_ENV_VALIDATION=1 VERCEL=1 CF_PAGES=1 npx @cloudflare/next-on-pages",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
