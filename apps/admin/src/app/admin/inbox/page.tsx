@@ -37,7 +37,7 @@ type InboxLot = {
 type SortOption = "price_desc" | "qty_desc" | "rarity_desc" | "updated_desc";
 
 export default function InboxPage() {
-  const minPriceRef = useRef<HTMLInputElement | null>(null);
+  const minPriceRef = useRef<HTMLInputElement>(null);
   const [lots, setLots] = useState<InboxLot[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLotIds, setSelectedLotIds] = useState<Set<string>>(new Set());

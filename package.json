@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "pnpm -r dev",
     "build": "pnpm -r build",
+    "build:cloudflare": "cd apps/admin && pnpm run build:cloudflare",
     "lint": "pnpm -r lint",
     "lint:fix": "pnpm -r lint --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
