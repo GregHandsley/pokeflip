@@ -8,7 +8,7 @@ export async function register() {
     await import("../sentry.server.config");
   }
 
-  if (process.env.NEXT_RUNTIME === "edge") {
+  if (process.env.NEXT_RUNTIME === "edge" && process.env.CF_PAGES !== "1") {
     await import("../sentry.edge.config");
   }
 }
@@ -32,6 +32,7 @@ export const onRequestError = async (
     renderType: "dynamic" | "dynamic-resume";
   }
 ) => {
+  if (process.env.CF_PAGES === "1") return;
   const Sentry = await import("@sentry/nextjs");
   Sentry.captureException(err, {
     extra: {

@@ -28,30 +28,33 @@ const nextConfig = {
   },
 } as NextConfig;
 
-// Wrap with Sentry config
-export default withSentryConfig(nextConfig, {
-  // For all available options, see:
-  // https://github.com/getsentry/sentry-webpack-plugin#options
+// Skip Sentry when building for Cloudflare Pages to stay under 25 MiB bundle limit
+const isCloudflareBuild = process.env.CF_PAGES === "1";
+export default isCloudflareBuild
+  ? nextConfig
+  : withSentryConfig(nextConfig, {
+      // For all available options, see:
+      // https://github.com/getsentry/sentry-webpack-plugin#options
 
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
 
-  // Only print logs for uploading source maps in CI
-  silent: !process.env.CI,
+      // Only print logs for uploading source maps in CI
+      silent: !process.env.CI,
 
-  // For all available options, see:
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
+      // For all available options, see:
+      // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
 
-  // Upload a larger set of source maps for better error tracking
-  widenClientFileUpload: true,
+      // Upload a larger set of source maps for better error tracking
+      widenClientFileUpload: true,
 
-  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-  // This can increase your server load as well as your hosting bill.
-  // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-  // side errors will fail.
-  // Disabled for now - can be re-enabled if ad-blockers become an issue
-  // tunnelRoute: "/monitoring",
+      // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
+      // This can increase your server load as well as your hosting bill.
+      // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
+      // side errors will fail.
+      // Disabled for now - can be re-enabled if ad-blockers become an issue
+      // tunnelRoute: "/monitoring",
 
-  // Note: hideSourceMaps, disableLogger, and automaticVercelMonitors are deprecated
-  // but kept for compatibility. Sentry will handle these automatically.
-});
+      // Note: hideSourceMaps, disableLogger, and automaticVercelMonitors are deprecated
+      // but kept for compatibility. Sentry will handle these automatically.
+    });
