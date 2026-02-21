@@ -1,10 +1,9 @@
 /**
  * Structured logging utility
  *
- * Integrated with Sentry for production error tracking
+ * Integrated with Sentry for production error tracking.
+ * Uses dynamic import so Sentry can be tree-shaken when CF_PAGES=1 (Cloudflare build).
  */
-
-import * as Sentry from "@sentry/nextjs";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -72,47 +71,48 @@ class Logger {
       });
     }
 
-    // Send to Sentry in production (or if explicitly enabled)
-    const sentryEnabled = this.isProduction || process.env.NEXT_PUBLIC_SENTRY_ENABLED === "true";
+    // Send to Sentry in production (or if explicitly enabled). Skip when CF_PAGES=1 so bundler can tree-shake.
+    const sentryEnabled =
+      process.env.CF_PAGES !== "1" &&
+      (this.isProduction || process.env.NEXT_PUBLIC_SENTRY_ENABLED === "true");
     if (sentryEnabled) {
-      try {
-        if (level === "error" && error) {
-          // Send exceptions to Sentry
-          Sentry.captureException(error, {
-            level: "error",
-            tags: {
-              operation: metadata?.operation as string | undefined,
-            },
-            extra: {
-              message,
-              context,
-              metadata,
-            },
-          });
-        } else if (level === "warn" || level === "error") {
-          // Send warnings and errors as messages
-          Sentry.captureMessage(message, {
-            level: level === "warn" ? "warning" : "error",
-            tags: {
-              operation: metadata?.operation as string | undefined,
-            },
-            extra: {
-              context,
-              metadata,
-              error: error
-                ? {
-                    name: error.name,
-                    message: error.message,
-                    stack: error.stack,
-                  }
-                : undefined,
-            },
-          });
+      import("@sentry/nextjs").then((Sentry) => {
+        try {
+          if (level === "error" && error) {
+            Sentry.captureException(error, {
+              level: "error",
+              tags: {
+                operation: metadata?.operation as string | undefined,
+              },
+              extra: {
+                message,
+                context,
+                metadata,
+              },
+            });
+          } else if (level === "warn" || level === "error") {
+            Sentry.captureMessage(message, {
+              level: level === "warn" ? "warning" : "error",
+              tags: {
+                operation: metadata?.operation as string | undefined,
+              },
+              extra: {
+                context,
+                metadata,
+                error: error
+                  ? {
+                      name: error.name,
+                      message: error.message,
+                      stack: error.stack,
+                    }
+                  : undefined,
+              },
+            });
+          }
+        } catch (sentryError) {
+          console.error("Failed to send log to Sentry:", sentryError);
         }
-      } catch (sentryError) {
-        // Don't break app if Sentry fails
-        console.error("Failed to send log to Sentry:", sentryError);
-      }
+      });
     }
 
     // Always log errors to console.error for visibility

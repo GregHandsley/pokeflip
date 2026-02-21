@@ -1,9 +1,9 @@
 /**
  * Enhanced error alerting system
- * Provides critical error alerts and monitoring
+ * Provides critical error alerts and monitoring.
+ * Uses dynamic Sentry import so it can be tree-shaken when CF_PAGES=1 (Cloudflare build).
  */
 
-import * as Sentry from "@sentry/nextjs";
 import { createApiLogger, LogContext } from "../logger";
 
 // Error severity levels
@@ -87,58 +87,46 @@ export function sendCriticalAlert(message: string, error: Error | unknown, conte
     alert: true,
   });
 
-  // Send to Sentry with enhanced context for critical/high errors
-  if (severity === "critical" || severity === "high") {
-    try {
-      Sentry.withScope((scope) => {
-        // Set severity level
-        scope.setLevel(severity === "critical" ? "fatal" : "error");
-
-        // Add tags for filtering
-        scope.setTag("error_severity", severity);
-        scope.setTag("alert", "true");
-        if (context?.operation) {
-          scope.setTag("operation", context.operation);
-        }
-
-        // Add user context if available
-        if (context?.userId) {
-          scope.setUser({
-            id: context.userId,
-            email: context.userEmail,
+  // Send to Sentry with enhanced context for critical/high errors (skipped when CF_PAGES=1)
+  if (process.env.CF_PAGES !== "1" && (severity === "critical" || severity === "high")) {
+    import("@sentry/nextjs").then((Sentry) => {
+      try {
+        Sentry.withScope((scope) => {
+          scope.setLevel(severity === "critical" ? "fatal" : "error");
+          scope.setTag("error_severity", severity);
+          scope.setTag("alert", "true");
+          if (context?.operation) scope.setTag("operation", context.operation);
+          if (context?.userId) {
+            scope.setUser({
+              id: context.userId,
+              email: context.userEmail,
+            });
+          }
+          scope.setContext("alert_context", {
+            severity,
+            operation: context?.operation,
+            path: context?.path,
+            method: context?.method,
+            ...context?.metadata,
+          });
+          Sentry.captureException(err, {
+            fingerprint: [severity, context?.operation || "unknown", err.message],
+          });
+        });
+        if (severity === "critical") {
+          Sentry.captureMessage(`CRITICAL: ${message}`, {
+            level: "fatal",
+            tags: {
+              error_severity: "critical",
+              alert: "true",
+              operation: context?.operation,
+            },
           });
         }
-
-        // Add extra context
-        scope.setContext("alert_context", {
-          severity,
-          operation: context?.operation,
-          path: context?.path,
-          method: context?.method,
-          ...context?.metadata,
-        });
-
-        // Capture exception
-        Sentry.captureException(err, {
-          fingerprint: [severity, context?.operation || "unknown", err.message],
-        });
-      });
-
-      // For critical errors, also send as message with higher visibility
-      if (severity === "critical") {
-        Sentry.captureMessage(`CRITICAL: ${message}`, {
-          level: "fatal",
-          tags: {
-            error_severity: "critical",
-            alert: "true",
-            operation: context?.operation,
-          },
-        });
+      } catch (sentryError) {
+        console.error("Failed to send alert to Sentry:", sentryError);
       }
-    } catch (sentryError) {
-      // Don't break app if Sentry fails
-      console.error("Failed to send alert to Sentry:", sentryError);
-    }
+    });
   }
 }
 
@@ -196,22 +184,26 @@ export function trackMetric(
           }
         );
 
-        // Send to Sentry
-        try {
-          Sentry.captureMessage(`Critical metric: ${metricName} = ${value}`, {
-            level: "error",
-            tags: {
-              metric_name: metricName,
-              severity: "critical",
-            },
-            extra: {
-              value,
-              threshold,
-              context,
-            },
+        // Send to Sentry (skipped when CF_PAGES=1)
+        if (process.env.CF_PAGES !== "1") {
+          import("@sentry/nextjs").then((Sentry) => {
+            try {
+              Sentry.captureMessage(`Critical metric: ${metricName} = ${value}`, {
+                level: "error",
+                tags: {
+                  metric_name: metricName,
+                  severity: "critical",
+                },
+                extra: {
+                  value,
+                  threshold,
+                  context,
+                },
+              });
+            } catch {
+              // Ignore Sentry errors
+            }
           });
-        } catch {
-          // Ignore Sentry errors
         }
       } else if (isWarning) {
         logger.warn(`Metric threshold exceeded: ${metricName} = ${value}`, context, {

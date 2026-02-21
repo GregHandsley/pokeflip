@@ -12,6 +12,9 @@ const configDir =
 // Turbopack needs the monorepo root to resolve next/package.json in pnpm workspaces
 const monorepoRoot = path.resolve(configDir, "..", "..");
 
+// Skip Sentry when building for Cloudflare Pages to stay under 25 MiB bundle limit
+const isCloudflareBuild = process.env.CF_PAGES === "1";
+
 const nextConfig = {
   /* config options here */
   // Instrumentation is available by default in Next.js 16+, no config needed
@@ -26,10 +29,19 @@ const nextConfig = {
   turbopack: {
     root: monorepoRoot,
   },
-} as NextConfig;
 
-// Skip Sentry when building for Cloudflare Pages to stay under 25 MiB bundle limit
-const isCloudflareBuild = process.env.CF_PAGES === "1";
+  // Inline CF_PAGES at build time so bundler can tree-shake Sentry out of edge bundle
+  ...(isCloudflareBuild && {
+    webpack: (config, { webpack }) => {
+      config.plugins.push(
+        new webpack.DefinePlugin({
+          "process.env.CF_PAGES": JSON.stringify("1"),
+        })
+      );
+      return config;
+    },
+  }),
+} as NextConfig;
 export default isCloudflareBuild
   ? nextConfig
   : withSentryConfig(nextConfig, {
