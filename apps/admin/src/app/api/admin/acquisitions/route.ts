@@ -5,6 +5,8 @@ import { createApiLogger } from "@/lib/logger";
 import { sanitizedNonEmptyString, optional, number, string } from "@/lib/validation";
 import { logAudit, getCurrentUser } from "@/lib/audit";
 
+export const runtime = "edge";
+
 /**
  * POST /api/admin/acquisitions
  * Create a new acquisition (purchase)

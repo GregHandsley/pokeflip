@@ -19,6 +19,8 @@ type NewLotData = {
   use_api_image: boolean;
 };
 
+export const runtime = "edge";
+
 export async function POST(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
   const { lotId } = await params;

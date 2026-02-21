@@ -24,6 +24,8 @@ type SalesItemRow = {
   qty: number;
 };
 
+export const runtime = "edge";
+
 type PurchaseHistoryRow = {
   lot_id: string;
   acquisition_id: string;

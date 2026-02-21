@@ -4,6 +4,8 @@ import { handleApiError, createErrorResponse } from "@/lib/api-error-handler";
 import { createApiLogger } from "@/lib/logger";
 import { logAudit, getCurrentUser } from "@/lib/audit";
 
+export const runtime = "edge";
+
 export async function DELETE(req: Request, { params }: { params: Promise<{ lotId: string }> }) {
   const logger = createApiLogger(req);
   const { lotId } = await params;

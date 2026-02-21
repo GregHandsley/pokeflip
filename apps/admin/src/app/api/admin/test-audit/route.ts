@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 
+export const runtime = "edge";
+
 /**
  * Test endpoint to verify audit logging works
  * GET /api/admin/test-audit
