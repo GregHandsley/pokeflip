@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Cloudflare build flag (created by build:cloudflare so next.config can skip Sentry)
+.building-for-cf
+
 # Cloudflare build symlink (apps/admin/apps/admin -> .) for next-on-pages path workaround
 /apps
 

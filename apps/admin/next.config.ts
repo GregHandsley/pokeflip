@@ -1,4 +1,5 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import type { NextConfig } from "next";
@@ -12,8 +13,11 @@ const configDir =
 // Turbopack needs the monorepo root to resolve next/package.json in pnpm workspaces
 const monorepoRoot = path.resolve(configDir, "..", "..");
 
-// Skip Sentry when building for Cloudflare Pages to stay under 25 MiB bundle limit
-const isCloudflareBuild = process.env.CF_PAGES === "1";
+// Skip Sentry when building for Cloudflare Pages to stay under 25 MiB bundle limit.
+// Check both env (set in Cloudflare dashboard or build script) and .building-for-cf file
+// (created by build:cloudflare so detection works even when env doesn't propagate to next build).
+const isCloudflareBuild =
+  process.env.CF_PAGES === "1" || fs.existsSync(path.join(configDir, ".building-for-cf"));
 
 const nextConfig = {
   /* config options here */
