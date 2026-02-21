@@ -1,5 +1,16 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import path from "path";
+import { fileURLToPath } from "url";
 import type { NextConfig } from "next";
+
+// Directory containing this config (apps/admin)
+const configDir =
+  typeof import.meta?.url === "string"
+    ? path.dirname(fileURLToPath(import.meta.url))
+    : path.resolve(__dirname);
+
+// Turbopack needs the monorepo root to resolve next/package.json in pnpm workspaces
+const monorepoRoot = path.resolve(configDir, "..", "..");
 
 const nextConfig = {
   /* config options here */
@@ -8,6 +19,11 @@ const nextConfig = {
   // Cloudflare Pages compatibility
   images: {
     unoptimized: true,
+  },
+
+  // Required in pnpm monorepo so Turbopack finds next from workspace root
+  turbopack: {
+    root: monorepoRoot,
   },
 } as NextConfig;
 
