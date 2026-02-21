@@ -21,7 +21,8 @@ const nextConfig = {
     unoptimized: true,
   },
 
-  // Required in pnpm monorepo so Turbopack finds next from workspace root
+  // Next.js requires these to be the same value. Use monorepo root so Turbopack can resolve next/package.json.
+  outputFileTracingRoot: monorepoRoot,
   turbopack: {
     root: monorepoRoot,
   },
